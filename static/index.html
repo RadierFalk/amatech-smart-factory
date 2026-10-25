@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AMATECH – Rastreabilidade de Produtos</title>
+  <link rel="icon" type="image/png" href="img/logo-amatech.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div id="app"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <noscript>Este sistema precisa de JavaScript habilitado.</noscript>
+  <script>
+    // Se algo impedir o carregamento dos scripts, mostra o motivo em vez de tela em branco.
+    window.addEventListener("error", function (e) {
+      var d = document.getElementById("app");
+      if (d && !d.children.length) d.innerHTML = '<pre style="padding:24px;color:#b00020;white-space:pre-wrap">Erro ao carregar a tela:\n' + (e.message || e.filename || "") + '</pre>';
+    });
+    setTimeout(function () {
+      var d = document.getElementById("app");
+      if (d && !d.children.length) d.innerHTML = '<pre style="padding:24px;color:#b00020;white-space:pre-wrap">A tela não carregou. Aperte Ctrl+F5. Se continuar em branco, aperte F12 > Console e envie o erro.</pre>';
+    }, 4000);
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
