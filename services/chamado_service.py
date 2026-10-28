@@ -28,14 +28,16 @@ def _parse_timestamp(ts_str: str | None) -> datetime | None:
 def calcular_downtime_minutos(abertura_str: str, fim_str: str) -> int:
     """
     Calcula o downtime total em minutos entre a abertura do chamado e o fim do atendimento (RN05).
-    Fórmula: round((fim - abertura).total_seconds() / 60)
+    Fórmula: round((fim - abertura).total_seconds() / 60), garantindo mínimo de 1 minuto para OS concluída.
     """
     dt_abertura = _parse_timestamp(abertura_str)
     dt_fim = _parse_timestamp(fim_str)
     if not dt_abertura or not dt_fim:
         return 0
     segundos = (dt_fim - dt_abertura).total_seconds()
-    return max(0, int(round(segundos / 60.0)))
+    if segundos < 0:
+        return 0
+    return max(1, int(round(segundos / 60.0)))
 
 
 def calcular_segundos_decorridos(inicio_str: str | None) -> int:
@@ -577,7 +579,7 @@ def listar_fila_chamados(setor: str | None = None, db_path: str | None = None) -
             item = dict(r)
             seg = calcular_segundos_decorridos(item.get("data_hora_abertura"))
             item["tempo_espera_segundos"] = seg
-            item["tempo_espera_min"] = int(round(seg / 60.0))
+            item["tempo_espera_min"] = max(1, int(round(seg / 60.0)))
             resultado.append(item)
         return resultado
 
@@ -637,9 +639,9 @@ def listar_chamados_em_andamento(
             seg_atend = calcular_segundos_decorridos(item.get("data_hora_inicio_atendimento"))
             seg_total = calcular_segundos_decorridos(item.get("data_hora_abertura"))
             item["tempo_atendimento_segundos"] = seg_atend
-            item["tempo_atendimento_min"] = int(round(seg_atend / 60.0))
+            item["tempo_atendimento_min"] = max(1, int(round(seg_atend / 60.0)))
             item["tempo_total_segundos"] = seg_total
-            item["tempo_total_min"] = int(round(seg_total / 60.0))
+            item["tempo_total_min"] = max(1, int(round(seg_total / 60.0)))
             item["pecas_trocadas"] = listar_pecas_chamado(item["id"], db_path=db_path)
             resultado.append(item)
         return resultado
@@ -795,6 +797,20 @@ def listar_historico_chamados(
         resultado = []
         for r in rows:
             item = dict(r)
+            if item["status_chamado"] == "CONCLUIDO" and not item.get("downtime_minutos"):
+                item["downtime_minutos"] = max(
+                    1,
+                    calcular_downtime_minutos(
+                        str(item.get("data_hora_abertura") or ""),
+                        str(item.get("data_hora_fim_atendimento") or ""),
+                    ),
+                )
+            elif item["status_chamado"] in ("ABERTO", "EM_ANDAMENTO") and item.get("downtime_minutos") is None:
+                seg_parado = calcular_segundos_decorridos(item.get("data_hora_abertura"))
+                item["tempo_parado_min"] = max(1, int(round(seg_parado / 60.0)))
+            else:
+                item["tempo_parado_min"] = int(item.get("downtime_minutos") or 0)
+
             pecas_os = pecas_por_chamado.get(int(item["id"]), [])
             item["pecas_trocadas"] = pecas_os
             item["resumo_pecas"] = (

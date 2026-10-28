@@ -124,17 +124,17 @@ def render_preventiva() -> None:
     linhas_prev = ""
     for r in preventivas:
         dt_str = formatar_duracao_hm(r["downtime_minutos"]) if r.get("downtime_minutos") is not None else "—"
-        linhas_prev += f"""
-        <tr>
-          <td class="mono"><strong>#{r['id']}</strong></td>
-          <td>{esc(r['equipamento_tag'])} — {esc(r['equipamento_nome'])}</td>
-          <td>{esc(r['setor'])}</td>
-          <td>{selo_html(r['status_chamado'])}</td>
-          <td>{esc(formatar_data_br(r['data_hora_abertura']))}</td>
-          <td>{esc(r.get('tecnico_nome') or '—')}</td>
-          <td class="num">{esc(dt_str)}</td>
-        </tr>
-        """
+        linhas_prev += (
+            f'<tr>'
+            f'<td class="mono"><strong>#{r["id"]}</strong></td>'
+            f'<td>{esc(r["equipamento_tag"])} — {esc(r["equipamento_nome"])}</td>'
+            f'<td>{esc(r["setor"])}</td>'
+            f'<td>{selo_html(r["status_chamado"])}</td>'
+            f'<td>{esc(formatar_data_br(r["data_hora_abertura"]))}</td>'
+            f'<td>{esc(r.get("tecnico_nome") or "—")}</td>'
+            f'<td class="num">{esc(dt_str)}</td>'
+            f'</tr>'
+        )
     if not linhas_prev:
         linhas_prev = '<tr><td colspan="7"><div class="vazio">Nenhuma preventiva registrada.</div></td></tr>'
 
@@ -198,17 +198,17 @@ def render() -> None:
     linhas_abertos_html = ""
     for ch in abertos:
         prio_cls = f"prioridade-{str(ch['prioridade']).lower()}"
-        linhas_abertos_html += f"""
-        <tr class="{prio_cls}">
-          <td class="mono"><strong>#{ch['id']}</strong></td>
-          <td><strong>{esc(ch['equipamento_tag'])}</strong><div style="font-size:11.5px;color:var(--cinza-500)">{esc(ch['equipamento_nome'])}</div></td>
-          <td>{esc(ch['setor'])}<div style="font-size:11.5px;color:var(--cinza-500)">{esc(ch.get('posto_trabalho') or '')}</div></td>
-          <td>{selo_html(ch['prioridade'])}<div style="margin-top:4px">{selo_html(ch['tipo_manutencao'])}</div></td>
-          <td>{esc(ch['descricao_falha'])}</td>
-          <td>{esc(ch.get('operador_nome') or '—')}</td>
-          <td class="num"><strong>{esc(formatar_duracao_hm(ch['tempo_espera_min']))}</strong></td>
-        </tr>
-        """
+        linhas_abertos_html += (
+            f'<tr class="{prio_cls}">'
+            f'<td class="mono"><strong>#{ch["id"]}</strong></td>'
+            f'<td><strong>{esc(ch["equipamento_tag"])}</strong><div style="font-size:11.5px;color:var(--cinza-500)">{esc(ch["equipamento_nome"])}</div></td>'
+            f'<td>{esc(ch["setor"])}<div style="font-size:11.5px;color:var(--cinza-500)">{esc(ch.get("posto_trabalho") or "")}</div></td>'
+            f'<td>{selo_html(ch["prioridade"])}<div style="margin-top:4px">{selo_html(ch["tipo_manutencao"])}</div></td>'
+            f'<td>{esc(ch["descricao_falha"])}</td>'
+            f'<td>{esc(ch.get("operador_nome") or "—")}</td>'
+            f'<td class="num"><strong>{esc(formatar_duracao_hm(ch["tempo_espera_min"]))}</strong></td>'
+            f'</tr>'
+        )
 
     if not linhas_abertos_html:
         linhas_abertos_html = (
@@ -261,17 +261,17 @@ def render() -> None:
     linhas_and_html = ""
     for ch in em_andamento:
         prio_cls = f"prioridade-{str(ch['prioridade']).lower()}"
-        linhas_and_html += f"""
-        <tr class="{prio_cls}">
-          <td class="mono"><strong>#{ch['id']}</strong></td>
-          <td><strong>{esc(ch['equipamento_tag'])}</strong><div style="font-size:11.5px;color:var(--cinza-500)">{esc(ch['equipamento_nome'])}</div></td>
-          <td>{esc(ch['setor'])}</td>
-          <td>{selo_html(ch['prioridade'])}</td>
-          <td>{esc(ch.get('tecnico_nome') or '—')}</td>
-          <td>{esc(formatar_data_br(ch.get('data_hora_inicio_atendimento')))}</td>
-          <td class="num"><strong>{esc(formatar_duracao_hm(ch['tempo_total_min']))}</strong></td>
-        </tr>
-        """
+        linhas_and_html += (
+            f'<tr class="{prio_cls}">'
+            f'<td class="mono"><strong>#{ch["id"]}</strong></td>'
+            f'<td><strong>{esc(ch["equipamento_tag"])}</strong><div style="font-size:11.5px;color:var(--cinza-500)">{esc(ch["equipamento_nome"])}</div></td>'
+            f'<td>{esc(ch["setor"])}</td>'
+            f'<td>{selo_html(ch["prioridade"])}</td>'
+            f'<td>{esc(ch.get("tecnico_nome") or "—")}</td>'
+            f'<td>{esc(formatar_data_br(ch.get("data_hora_inicio_atendimento")))}</td>'
+            f'<td class="num"><strong>{esc(formatar_duracao_hm(ch["tempo_total_min"]))}</strong></td>'
+            f'</tr>'
+        )
 
     if not linhas_and_html:
         linhas_and_html = (

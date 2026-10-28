@@ -58,17 +58,17 @@ def render_auditoria() -> None:
             if r.get("chamado_id")
             else "Alteração operacional"
         )
-        linhas_aud += f"""
-        <tr>
-          <td>{esc(formatar_data_br(r['alterado_em']))}</td>
-          <td><strong>{esc(r['equipamento_tag'])}</strong> — {esc(r['equipamento_nome'])}</td>
-          <td class="mono">{esc(os_str)}</td>
-          <td>{selo_html(r['status_anterior'])}</td>
-          <td>{selo_html(r['status_novo'])}</td>
-          <td>{esc(r['usuario_nome'])}</td>
-          <td>{esc(obs_str)}</td>
-        </tr>
-        """
+        linhas_aud += (
+            f'<tr>'
+            f'<td>{esc(formatar_data_br(r["alterado_em"]))}</td>'
+            f'<td><strong>{esc(r["equipamento_tag"])}</strong> — {esc(r["equipamento_nome"])}</td>'
+            f'<td class="mono">{esc(os_str)}</td>'
+            f'<td>{selo_html(r["status_anterior"])}</td>'
+            f'<td>{selo_html(r["status_novo"])}</td>'
+            f'<td>{esc(r["usuario_nome"])}</td>'
+            f'<td>{esc(obs_str)}</td>'
+            f'</tr>'
+        )
 
     if not linhas_aud:
         linhas_aud = '<tr><td colspan="7"><div class="vazio">Nenhum evento registrado.</div></td></tr>'
@@ -234,27 +234,32 @@ def render() -> None:
         reparo_m = _calc_min(r.get("data_hora_inicio_atendimento"), r.get("data_hora_fim_atendimento"))
         esp_str = formatar_duracao_curta(espera_m) if espera_m is not None else "—"
         rep_str = formatar_duracao_curta(reparo_m) if reparo_m is not None else "—"
-        dt_str = (
-            formatar_duracao_curta(r["downtime_minutos"])
+        dt_val = (
+            r["downtime_minutos"]
             if r.get("downtime_minutos") is not None
+            else r.get("tempo_parado_min")
+        )
+        dt_str = (
+            formatar_duracao_curta(dt_val)
+            if dt_val is not None
             else "—"
         )
-        linhas_hist += f"""
-        <tr class="{prio_cls}">
-          <td class="mono"><strong>#{r['id']}</strong></td>
-          <td>{esc(formatar_data_br(r['data_hora_abertura']))}</td>
-          <td><strong>{esc(r['equipamento_tag'])}</strong></td>
-          <td>{esc(r['setor'])}</td>
-          <td>{selo_html(r['prioridade'])}</td>
-          <td>{selo_html(r['tipo_manutencao'])}</td>
-          <td>{selo_html(r['status_chamado'])}</td>
-          <td>{esc(r.get('tecnico_nome') or '—')}</td>
-          <td class="num">{esc(esp_str)}</td>
-          <td class="num">{esc(rep_str)}</td>
-          <td class="num"><strong>{esc(dt_str)}</strong></td>
-          <td>{esc(r.get('causa_raiz') or '—')}</td>
-        </tr>
-        """
+        linhas_hist += (
+            f'<tr class="{prio_cls}">'
+            f'<td class="mono"><strong>#{r["id"]}</strong></td>'
+            f'<td>{esc(formatar_data_br(r["data_hora_abertura"]))}</td>'
+            f'<td><strong>{esc(r["equipamento_tag"])}</strong></td>'
+            f'<td>{esc(r["setor"])}</td>'
+            f'<td>{selo_html(r["prioridade"])}</td>'
+            f'<td>{selo_html(r["tipo_manutencao"])}</td>'
+            f'<td>{selo_html(r["status_chamado"])}</td>'
+            f'<td>{esc(r.get("tecnico_nome") or "—")}</td>'
+            f'<td class="num">{esc(esp_str)}</td>'
+            f'<td class="num">{esc(rep_str)}</td>'
+            f'<td class="num"><strong>{esc(dt_str)}</strong></td>'
+            f'<td>{esc(r.get("causa_raiz") or "—")}</td>'
+            f'</tr>'
+        )
 
     if not linhas_hist:
         linhas_hist = (

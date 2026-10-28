@@ -19,6 +19,43 @@ def _parse_ts(ts_str: str | None) -> datetime | None:
         return None
 
 
+def _calcular_downtime_chamado(c: Any, agora: datetime | None = None) -> int:
+    """
+    Calcula o downtime efetivo (em minutos) de um chamado para o Dashboard:
+    - CANCELADO: 0 min
+    - CONCLUIDO: usa downtime_minutos gravado (ou calcula fim - abertura, mínimo de 1 min)
+    - ABERTO / EM_ANDAMENTO: calcula o tempo decorrido desde a abertura até o instante atual (mínimo de 1 min),
+      exceto preventivas programadas que ainda estão com status ABERTO e máquina OPERACIONAL.
+    """
+    status = c["status_chamado"]
+    if status == "CANCELADO":
+        return 0
+
+    if status == "CONCLUIDO":
+        gravado = c["downtime_minutos"]
+        if gravado is not None and int(gravado) > 0:
+            return int(gravado)
+        dt_ab = _parse_ts(c["data_hora_abertura"])
+        dt_fim = _parse_ts(c["data_hora_fim_atendimento"])
+        if dt_ab and dt_fim and dt_fim >= dt_ab:
+            return max(1, int(round((dt_fim - dt_ab).total_seconds() / 60.0)))
+        return 1
+
+    if status in ("ABERTO", "EM_ANDAMENTO"):
+        chaves = c.keys() if hasattr(c, "keys") else ()
+        status_eq = c["status_operacional"] if "status_operacional" in chaves else None
+        if status == "ABERTO" and c["tipo_manutencao"] == "PREVENTIVA" and status_eq == "OPERACIONAL":
+            return 0
+        dt_ab = _parse_ts(c["data_hora_abertura"])
+        if not dt_ab:
+            return 0
+        ref = agora or datetime.now(timezone.utc)
+        segundos = max(0.0, (ref - dt_ab).total_seconds())
+        return max(1, int(round(segundos / 60.0)))
+
+    return 0
+
+
 def obter_indicadores_consolidados(
     periodo_dias: int | None = None,
     setor: str | None = None,
@@ -79,7 +116,8 @@ def obter_indicadores_consolidados(
                 c.data_hora_abertura,
                 c.data_hora_inicio_atendimento,
                 c.data_hora_fim_atendimento,
-                c.downtime_minutos
+                c.downtime_minutos,
+                e.status_operacional
             FROM chamados_manutencao c
             JOIN equipamentos e ON e.id = c.equipamento_id
             {where_chamados}
@@ -92,23 +130,30 @@ def obter_indicadores_consolidados(
         chamados_em_andamento = sum(1 for c in chamados if c["status_chamado"] == "EM_ANDAMENTO")
         chamados_concluidos = sum(1 for c in chamados if c["status_chamado"] == "CONCLUIDO")
 
-        # Downtime Total Acumulado (chamados concluídos)
-        downtime_total = sum(
-            int(c["downtime_minutos"] or 0)
+        # Downtime Total Acumulado (chamados concluídos + tempo decorrido de paradas ativas)
+        agora_utc = datetime.now(timezone.utc)
+        downtime_concluido = sum(
+            _calcular_downtime_chamado(c, agora_utc)
             for c in chamados
             if c["status_chamado"] == "CONCLUIDO"
         )
+        downtime_ativo = sum(
+            _calcular_downtime_chamado(c, agora_utc)
+            for c in chamados
+            if c["status_chamado"] in ("ABERTO", "EM_ANDAMENTO")
+        )
+        downtime_total = downtime_concluido + downtime_ativo
 
-        # MTTR: Média de (fim - inicio) dos chamados concluídos
+        # MTTR: Média de (fim - inicio) dos chamados concluídos (ou em andamento quando não houver concluídos)
         tempos_reparo: list[float] = []
         for c in chamados:
             if c["status_chamado"] == "CONCLUIDO":
                 dt_ini = _parse_ts(c["data_hora_inicio_atendimento"])
                 dt_fim = _parse_ts(c["data_hora_fim_atendimento"])
                 if dt_ini and dt_fim and dt_fim >= dt_ini:
-                    tempos_reparo.append((dt_fim - dt_ini).total_seconds() / 60.0)
+                    tempos_reparo.append(max(1.0, (dt_fim - dt_ini).total_seconds() / 60.0))
                 elif c["downtime_minutos"] is not None:
-                    tempos_reparo.append(float(c["downtime_minutos"]))
+                    tempos_reparo.append(float(max(1, int(c["downtime_minutos"]))))
 
         mttr_minutos = round(sum(tempos_reparo) / len(tempos_reparo), 1) if tempos_reparo else 0.0
 
@@ -119,7 +164,7 @@ def obter_indicadores_consolidados(
             dt_ab = _parse_ts(c["data_hora_abertura"])
             dt_ini = _parse_ts(c["data_hora_inicio_atendimento"])
             if dt_ab and dt_ini and dt_ini >= dt_ab:
-                diff_min = (dt_ini - dt_ab).total_seconds() / 60.0
+                diff_min = max(1.0, (dt_ini - dt_ab).total_seconds() / 60.0)
                 tempos_resposta_todos.append(diff_min)
                 if c["status_chamado"] == "CONCLUIDO":
                     tempos_resposta_concluidos.append(diff_min)
@@ -150,6 +195,8 @@ def obter_indicadores_consolidados(
         return {
             "sistema": "Controle da Manutencao",
             "downtime_total_minutos": downtime_total,
+            "downtime_concluido_minutos": downtime_concluido,
+            "downtime_ativo_minutos": downtime_ativo,
             "mttr_minutos": mttr_minutos,
             "mtta_resposta_minutos": mtta_minutos,
             "mtbf_minutos": mtbf_minutos,
@@ -193,8 +240,22 @@ def obter_dados_graficos_dashboard(
 
     where_clause = f"WHERE {' AND '.join(filtros)}"
 
+    expr_downtime = """
+        CASE
+            WHEN c.id IS NULL OR c.status_chamado = 'CANCELADO' THEN 0
+            WHEN c.status_chamado = 'ABERTO' AND c.tipo_manutencao = 'PREVENTIVA' AND e.status_operacional = 'OPERACIONAL' THEN 0
+            WHEN c.downtime_minutos IS NOT NULL AND c.downtime_minutos > 0 THEN c.downtime_minutos
+            WHEN c.status_chamado = 'CONCLUIDO' AND c.data_hora_fim_atendimento IS NOT NULL THEN
+                MAX(1, CAST(ROUND((julianday(c.data_hora_fim_atendimento) - julianday(c.data_hora_abertura)) * 1440.0) AS INTEGER))
+            WHEN c.status_chamado = 'CONCLUIDO' THEN 1
+            WHEN c.status_chamado IN ('ABERTO', 'EM_ANDAMENTO') AND c.data_hora_abertura IS NOT NULL THEN
+                MAX(1, CAST(ROUND((julianday('now') - julianday(c.data_hora_abertura)) * 1440.0) AS INTEGER))
+            ELSE 0
+        END
+    """
+
     with get_db(db_path) as conn:
-        # 1. Downtime Acumulado por Máquina (inclui tempo estimado de paradas ativas para visão completa)
+        # 1. Downtime Acumulado por Máquina (inclui tempo decorrido de paradas ativas para visão completa)
         rows_maq = conn.execute(
             f"""
             SELECT
@@ -202,7 +263,7 @@ def obter_dados_graficos_dashboard(
                 e.nome,
                 e.setor,
                 COUNT(c.id) AS total_ocorrencias,
-                COALESCE(SUM(c.downtime_minutos), 0) AS downtime_concluido_min
+                COALESCE(SUM({expr_downtime}), 0) AS downtime_concluido_min
             FROM equipamentos e
             LEFT JOIN chamados_manutencao c
                 ON c.equipamento_id = e.id AND {' AND '.join(filtros)}
@@ -219,7 +280,7 @@ def obter_dados_graficos_dashboard(
             SELECT
                 COALESCE(NULLIF(TRIM(c.causa_raiz), ''), 'Em Diagnóstico / Aguardando Laudo') AS causa_raiz,
                 COUNT(c.id) AS quantidade,
-                COALESCE(SUM(c.downtime_minutos), 0) AS downtime_min
+                COALESCE(SUM({expr_downtime}), 0) AS downtime_min
             FROM chamados_manutencao c
             JOIN equipamentos e ON e.id = c.equipamento_id
             {where_clause}
@@ -235,7 +296,7 @@ def obter_dados_graficos_dashboard(
             SELECT
                 date(c.data_hora_abertura) AS data,
                 COUNT(c.id) AS total_chamados,
-                COALESCE(SUM(c.downtime_minutos), 0) AS downtime_min
+                COALESCE(SUM({expr_downtime}), 0) AS downtime_min
             FROM chamados_manutencao c
             JOIN equipamentos e ON e.id = c.equipamento_id
             {where_clause}
@@ -252,7 +313,7 @@ def obter_dados_graficos_dashboard(
                 e.setor,
                 c.status_chamado,
                 COUNT(c.id) AS quantidade,
-                COALESCE(SUM(c.downtime_minutos), 0) AS downtime_min
+                COALESCE(SUM({expr_downtime}), 0) AS downtime_min
             FROM chamados_manutencao c
             JOIN equipamentos e ON e.id = c.equipamento_id
             {where_clause}
@@ -268,7 +329,7 @@ def obter_dados_graficos_dashboard(
             SELECT
                 e.setor AS estacao,
                 COUNT(c.id) AS chamados,
-                COALESCE(SUM(c.downtime_minutos), 0) AS downtime_minutos
+                COALESCE(SUM({expr_downtime}), 0) AS downtime_minutos
             FROM equipamentos e
             LEFT JOIN chamados_manutencao c
                 ON c.equipamento_id = e.id AND {' AND '.join(filtros)}

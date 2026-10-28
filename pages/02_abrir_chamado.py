@@ -72,20 +72,20 @@ def render_meus_chamados() -> None:
         tempo_str = (
             formatar_duracao_hm(c["downtime_minutos"])
             if c.get("downtime_minutos") is not None
-            else "Em andamento"
+            else formatar_duracao_hm(c.get("tempo_parado_min") or 0)
         )
-        linhas_html += f"""
-        <tr class="{prio_cls}">
-          <td class="mono"><strong>#{c['id']}</strong></td>
-          <td>{esc(formatar_data_br(c['data_hora_abertura']))}</td>
-          <td>{esc(c['equipamento_tag'])} — {esc(c['equipamento_nome'])}</td>
-          <td>{esc(c['setor'])}</td>
-          <td>{selo_html(c['prioridade'])}</td>
-          <td>{selo_html(c['status_chamado'])}</td>
-          <td>{esc(c.get('tecnico_nome') or '—')}</td>
-          <td class="num">{esc(tempo_str)}</td>
-        </tr>
-        """
+        linhas_html += (
+            f'<tr class="{prio_cls}">'
+            f'<td class="mono"><strong>#{c["id"]}</strong></td>'
+            f'<td>{esc(formatar_data_br(c["data_hora_abertura"]))}</td>'
+            f'<td>{esc(c["equipamento_tag"])} — {esc(c["equipamento_nome"])}</td>'
+            f'<td>{esc(c["setor"])}</td>'
+            f'<td>{selo_html(c["prioridade"])}</td>'
+            f'<td>{selo_html(c["status_chamado"])}</td>'
+            f'<td>{esc(c.get("tecnico_nome") or "—")}</td>'
+            f'<td class="num">{esc(tempo_str)}</td>'
+            f'</tr>'
+        )
 
     if not linhas_html:
         linhas_html = (
@@ -245,13 +245,11 @@ def render() -> None:
         # Card 1: Máquinas com chamado ativo
         if bloqueadas:
             linhas_bloq = "".join(
-                f"""
-                <tr>
-                  <td class="mono"><strong>{esc(m['codigo_tag'])}</strong></td>
-                  <td>{selo_html(m['status_operacional'])}</td>
-                  <td class="num">OS #{m.get('os_ativa_id') or '—'}</td>
-                </tr>
-                """
+                f'<tr>'
+                f'<td class="mono"><strong>{esc(m["codigo_tag"])}</strong></td>'
+                f'<td>{selo_html(m["status_operacional"])}</td>'
+                f'<td class="num">OS #{m.get("os_ativa_id") or "—"}</td>'
+                f'</tr>'
                 for m in bloqueadas
             )
             corpo_bloq = f'<div class="tabela-wrap"><table class="tabela"><tbody>{linhas_bloq}</tbody></table></div>'
@@ -259,27 +257,24 @@ def render() -> None:
             corpo_bloq = '<div class="vazio">Nenhuma máquina parada no momento.</div>'
 
         st.markdown(
-            f"""
-            <div class="card">
-              <div class="card-cabecalho"><h2>Máquinas com chamado ativo</h2></div>
-              <div class="card-corpo" style="padding:0">{corpo_bloq}</div>
-            </div>
-
-            <div class="card">
-              <div class="card-cabecalho"><h2>Como funciona</h2></div>
-              <div class="card-corpo">
-                <div class="dados-lista">
-                  <div class="linha"><span class="r">1. Abertura</span><span class="v">Máquina → INDISPONÍVEL</span></div>
-                  <div class="linha"><span class="r">2. Técnico assume</span><span class="v">Máquina → EM MANUTENÇÃO</span></div>
-                  <div class="linha"><span class="r">3. Conclusão da OS</span><span class="v">Máquina → FUNCIONANDO</span></div>
-                  <div class="linha"><span class="r">Downtime</span><span class="v">fim − abertura (automático)</span></div>
-                </div>
-                <div class="aviso-info aviso-alerta" style="margin-top:14px; margin-bottom:0;">
-                  <span>!</span><div>Uma máquina não pode ter dois chamados ativos ao mesmo tempo (RN02).</div>
-                </div>
-              </div>
-            </div>
-            """,
+            f'<div class="card">'
+            f'<div class="card-cabecalho"><h2>Máquinas com chamado ativo</h2></div>'
+            f'<div class="card-corpo" style="padding:0">{corpo_bloq}</div>'
+            f'</div>'
+            f'<div class="card">'
+            f'<div class="card-cabecalho"><h2>Como funciona</h2></div>'
+            f'<div class="card-corpo">'
+            f'<div class="dados-lista">'
+            f'<div class="linha"><span class="r">1. Abertura</span><span class="v">Máquina → INDISPONÍVEL</span></div>'
+            f'<div class="linha"><span class="r">2. Técnico assume</span><span class="v">Máquina → EM MANUTENÇÃO</span></div>'
+            f'<div class="linha"><span class="r">3. Conclusão da OS</span><span class="v">Máquina → FUNCIONANDO</span></div>'
+            f'<div class="linha"><span class="r">Downtime</span><span class="v">fim − abertura (automático)</span></div>'
+            f'</div>'
+            f'<div class="aviso-info aviso-alerta" style="margin-top:14px; margin-bottom:0;">'
+            f'<span>!</span><div>Uma máquina não pode ter dois chamados ativos ao mesmo tempo (RN02).</div>'
+            f'</div>'
+            f'</div>'
+            f'</div>',
             unsafe_allow_html=True,
         )
 

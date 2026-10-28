@@ -17,7 +17,7 @@ def _calcular_minutos_decorridos(data_hora_str: str | None) -> int | None:
         dt_abertura = datetime.strptime(limpo, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
         agora = datetime.now(timezone.utc)
         segundos = (agora - dt_abertura).total_seconds()
-        return max(0, int(round(segundos / 60)))
+        return max(1, int(round(segundos / 60)))
     except Exception:
         return None
 

@@ -13,6 +13,7 @@ from services.relatorio_service import obter_indicadores_consolidados
 from ui_components import (
     esc,
     formatar_duracao_curta,
+    formatar_duracao_hm,
     kpi_html,
     navegar_para,
     renderizar_topbar,
@@ -99,7 +100,7 @@ def _renderizar_conteudo_painel(
     usuario: dict,
 ) -> None:
     todos_eq = listar_equipamentos(apenas_ativos=True)
-    ind_24h = obter_indicadores_consolidados(periodo_dias=1)
+    ind_geral = obter_indicadores_consolidados(periodo_dias=30)
 
     total_maquinas = len(todos_eq)
     funcionando = sum(1 for m in todos_eq if m["status_operacional"] == "OPERACIONAL")
@@ -107,7 +108,8 @@ def _renderizar_conteudo_painel(
     indisponivel = sum(1 for m in todos_eq if m["status_operacional"] == "PARADA")
     total_paradas = indisponivel + em_manutencao
     disp_pct = round((funcionando / total_maquinas) * 100, 1) if total_maquinas else 100.0
-    downtime_horas = round((ind_24h["downtime_total_minutos"] or 0) / 60.0, 1)
+    downtime_min = int(ind_geral["downtime_total_minutos"] or 0)
+    downtime_horas = round(downtime_min / 60.0, 1)
 
     # 4 KPIs Superiores idênticos ao telas-operador.js
     k1, k2, k3, k4 = st.columns(4)
@@ -146,9 +148,9 @@ def _renderizar_conteudo_painel(
         st.markdown(
             kpi_html(
                 "Downtime acumulado",
-                f"{downtime_horas:g}",
-                unidade="h",
-                detalhe=f"MTTR de {ind_24h['mttr_minutos']:g} min · {total_paradas} máquina(s) parada(s)",
+                formatar_duracao_hm(downtime_min),
+                unidade="",
+                detalhe=f"{downtime_min} min ({downtime_horas:g} h) · MTTR de {ind_geral['mttr_minutos']:g} min",
                 variante="azul",
             ),
             unsafe_allow_html=True,

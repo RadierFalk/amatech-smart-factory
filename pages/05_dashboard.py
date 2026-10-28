@@ -99,9 +99,9 @@ def render() -> None:
         st.markdown(
             kpi_html(
                 "Downtime acumulado",
-                f"{downtime_horas:g}",
-                unidade="h",
-                detalhe=f"{downtime_min:,}".replace(",", ".") + " minutos no período",
+                formatar_duracao_hm(downtime_min),
+                unidade="",
+                detalhe=f"{downtime_min:,}".replace(",", ".") + f" minutos no período ({downtime_horas:g} h)",
                 variante="vermelho",
             ),
             unsafe_allow_html=True,
@@ -314,15 +314,13 @@ def render() -> None:
             ranking = series.get("downtime_por_maquina") or []
 
         linhas_rk = "".join(
-            f"""
-            <tr>
-              <td>{i + 1}º</td>
-              <td><span class="mono"><strong>{esc(m['codigo_tag'])}</strong></span> — {esc(m['nome'])}</td>
-              <td>{esc(m['setor'])}</td>
-              <td class="num">{m['total_ocorrencias']}</td>
-              <td class="num"><strong>{esc(formatar_duracao_hm(m['downtime_concluido_min']))}</strong></td>
-            </tr>
-            """
+            f'<tr>'
+            f'<td>{i + 1}º</td>'
+            f'<td><span class="mono"><strong>{esc(m["codigo_tag"])}</strong></span> — {esc(m["nome"])}</td>'
+            f'<td>{esc(m["setor"])}</td>'
+            f'<td class="num">{m["total_ocorrencias"]}</td>'
+            f'<td class="num"><strong>{esc(formatar_duracao_hm(m["downtime_concluido_min"]))}</strong></td>'
+            f'</tr>'
             for i, m in enumerate(ranking[:10])
         )
         if not linhas_rk:
@@ -348,13 +346,11 @@ def render() -> None:
     with r3_dir:
         pecas_cons = series.get("pecas_consumidas") or []
         linhas_pc = "".join(
-            f"""
-            <tr>
-              <td class="mono"><strong>{esc(p['codigo_peca'])}</strong></td>
-              <td>{esc(p['nome'])}</td>
-              <td class="num"><strong>{p['quantidade']:g}</strong></td>
-            </tr>
-            """
+            f'<tr>'
+            f'<td class="mono"><strong>{esc(p["codigo_peca"])}</strong></td>'
+            f'<td>{esc(p["nome"])}</td>'
+            f'<td class="num"><strong>{p["quantidade"]:g}</strong></td>'
+            f'</tr>'
             for p in pecas_cons[:10]
         )
         if not linhas_pc:

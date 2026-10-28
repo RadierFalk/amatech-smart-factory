@@ -54,16 +54,16 @@ def render() -> None:
                 if m["ativo"]
                 else '<span style="color:var(--cinza-500);font-weight:600">Inativa</span>'
             )
-            linhas_m += f"""
-            <tr>
-              <td class="mono"><strong>{esc(m['codigo_tag'])}</strong></td>
-              <td>{esc(m['nome'])}</td>
-              <td>{ordem_e}. {esc(m['setor'])}</td>
-              <td>{esc(m.get('posto_trabalho') or '—')}</td>
-              <td>{selo_html(m['status_operacional'])}</td>
-              <td>{sit_html}</td>
-            </tr>
-            """
+            linhas_m += (
+                f'<tr>'
+                f'<td class="mono"><strong>{esc(m["codigo_tag"])}</strong></td>'
+                f'<td>{esc(m["nome"])}</td>'
+                f'<td>{ordem_e}. {esc(m["setor"])}</td>'
+                f'<td>{esc(m.get("posto_trabalho") or "—")}</td>'
+                f'<td>{selo_html(m["status_operacional"])}</td>'
+                f'<td>{sit_html}</td>'
+                f'</tr>'
+            )
 
         st.markdown(
             f"""
@@ -213,14 +213,14 @@ def render() -> None:
                 if p["ativo"]
                 else '<span style="color:var(--cinza-500);font-weight:600">Inativa</span>'
             )
-            linhas_p += f"""
-            <tr>
-              <td class="mono"><strong>{esc(p['codigo_peca'])}</strong></td>
-              <td>{esc(p['nome'])}</td>
-              <td>{esc(p['unidade_medida'])}</td>
-              <td>{sit_p}</td>
-            </tr>
-            """
+            linhas_p += (
+                f'<tr>'
+                f'<td class="mono"><strong>{esc(p["codigo_peca"])}</strong></td>'
+                f'<td>{esc(p["nome"])}</td>'
+                f'<td>{esc(p["unidade_medida"])}</td>'
+                f'<td>{sit_p}</td>'
+                f'</tr>'
+            )
 
         st.markdown(
             f"""
@@ -290,14 +290,14 @@ def render() -> None:
                 if u["ativo"]
                 else '<span style="color:var(--vermelho);font-weight:600">Inativo</span>'
             )
-            linhas_u += f"""
-            <tr>
-              <td class="mono"><strong>{esc(u['matricula'])}</strong></td>
-              <td>{esc(u['nome'])}</td>
-              <td>{selo_html(u['perfil'])}</td>
-              <td>{sit_u}</td>
-            </tr>
-            """
+            linhas_u += (
+                f'<tr>'
+                f'<td class="mono"><strong>{esc(u["matricula"])}</strong></td>'
+                f'<td>{esc(u["nome"])}</td>'
+                f'<td>{selo_html(u["perfil"])}</td>'
+                f'<td>{sit_u}</td>'
+                f'</tr>'
+            )
 
         st.markdown(
             f"""
