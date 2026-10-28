@@ -1,231 +1,333 @@
 """
-Tela 2: Painel Sinótico de Máquinas (F02, RF06).
-Exibe cards em grid com status visual colorido (Verde/Amarelo/Vermelho),
-indicadores rápidos, filtro por setor, auto-refresh a cada 5-10s e botão 'Abrir Chamado'.
+Tela de Painel de Máquinas (F02, RNF04).
+Replica o design, KPIs, barra de filtros com legenda, agrupamento por Estação (Etapa)
+e cards de máquinas com modal rápido de abertura de chamado do projeto amatech-manutencao.
 """
 from datetime import datetime
 import streamlit as st
 
-from config import COLORS
+from config import ESTACOES_FLUXO, PRIORIDADES
+from services.chamado_service import abrir_chamado
 from services.equipamento_service import listar_equipamentos, listar_setores
+from services.relatorio_service import obter_indicadores_consolidados
 from ui_components import (
-    badge_prioridade_html,
-    badge_status_equipamento_html,
-    formatar_duracao_hm,
+    esc,
+    formatar_duracao_curta,
+    kpi_html,
     navegar_para,
-    renderizar_cabecalho,
-    renderizar_kpi_card,
+    renderizar_topbar,
+    rotulo_amigavel,
+    selo_html,
 )
 
 
-def _renderizar_grid_maquinas(setor_selecionado: str, usuario: dict) -> None:
-    """Renderiza os indicadores de topo e o grid de cards de equipamentos."""
-    equipamentos = listar_equipamentos(setor=setor_selecionado, apenas_ativos=True)
+def _abrir_modal_chamado_rapido(maquina: dict, usuario: dict) -> None:
+    """Abre um modal (st.dialog) idêntico ao A.abrirModalChamado do projeto de referência."""
+    if hasattr(st, "dialog"):
+        @st.dialog(f"Abrir chamado de manutenção — {maquina['codigo_tag']}", width="large")
+        def _modal() -> None:
+            _conteudo_modal_chamado(maquina, usuario)
 
-    total = len(equipamentos)
-    operacionais = sum(1 for e in equipamentos if e["status_operacional"] == "OPERACIONAL")
-    em_manutencao = sum(1 for e in equipamentos if e["status_operacional"] == "EM_MANUTENCAO")
-    paradas = sum(1 for e in equipamentos if e["status_operacional"] == "PARADA")
+        _modal()
+    else:
+        navegar_para("abrir_chamado", equipamento_preselecionado_id=maquina["id"])
 
-    # Indicadores Rápidos no Topo
-    c1, c2, c3, c4 = st.columns(4)
+
+def _conteudo_modal_chamado(maquina: dict, usuario: dict) -> None:
+    st.markdown(
+        """
+        <div class="aviso-info">
+          <span>⏱</span>
+          <div><strong>Timestamp automático.</strong> Ao confirmar, o sistema grava a data/hora da abertura
+          e marca a máquina como <strong>INDISPONÍVEL</strong>, iniciando o cronômetro de downtime.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3 = st.columns(3)
     with c1:
-        renderizar_kpi_card(
-            "Total de Máquinas",
-            str(total),
-            f"Setor: {setor_selecionado}",
-            COLORS["primary"],
-        )
+        st.text_input("Máquina", value=f"{maquina['codigo_tag']} — {maquina['nome']}", disabled=True)
     with c2:
-        renderizar_kpi_card(
-            "Operacionais (Verde)",
-            str(operacionais),
-            "Produzindo normalmente",
-            COLORS["OPERACIONAL"],
-        )
+        st.text_input("Estação / setor", value=maquina["setor"], disabled=True)
     with c3:
-        renderizar_kpi_card(
-            "Em Manutenção (Amarelo)",
-            str(em_manutencao),
-            "Técnico em atendimento",
-            COLORS["EM_MANUTENCAO"],
+        st.text_input("Posto de trabalho", value=maquina.get("posto_trabalho") or "Posto 01", disabled=True)
+
+    prioridade = st.segmented_control(
+        "Prioridade *",
+        options=PRIORIDADES,
+        default="MEDIA",
+        format_func=rotulo_amigavel,
+    ) if hasattr(st, "segmented_control") else st.radio(
+        "Prioridade *",
+        options=PRIORIDADES,
+        index=1,
+        horizontal=True,
+        format_func=rotulo_amigavel,
+    )
+    st.caption("Use **Crítica** quando a parada interrompe toda a linha.")
+
+    descricao = st.text_area(
+        "Descrição da falha *",
+        placeholder="Ex.: insersora parou no meio do ciclo e apresenta erro de posicionamento do nozzle.",
+    )
+    st.caption("Descreva o que foi observado. O técnico complementará com o diagnóstico.")
+
+    cb1, cb2 = st.columns([1, 1])
+    with cb1:
+        if st.button("Cancelar", use_container_width=True):
+            st.rerun()
+    with cb2:
+        if st.button("Confirmar abertura", type="primary", use_container_width=True):
+            try:
+                novo_id = abrir_chamado(
+                    equipamento_id=maquina["id"],
+                    operador_abertura_id=usuario["id"],
+                    prioridade=prioridade or "MEDIA",
+                    descricao_falha=descricao,
+                    tipo_manutencao="CORRETIVA",
+                )
+                st.toast(f"Chamado #{novo_id} registrado com sucesso!", icon="✅")
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+
+
+def _renderizar_conteudo_painel(
+    busca: str,
+    setor_sel: str,
+    estado_sel: str,
+    usuario: dict,
+) -> None:
+    todos_eq = listar_equipamentos(apenas_ativos=True)
+    ind_24h = obter_indicadores_consolidados(periodo_dias=1)
+
+    total_maquinas = len(todos_eq)
+    funcionando = sum(1 for m in todos_eq if m["status_operacional"] == "OPERACIONAL")
+    em_manutencao = sum(1 for m in todos_eq if m["status_operacional"] == "EM_MANUTENCAO")
+    indisponivel = sum(1 for m in todos_eq if m["status_operacional"] == "PARADA")
+    total_paradas = indisponivel + em_manutencao
+    disp_pct = round((funcionando / total_maquinas) * 100, 1) if total_maquinas else 100.0
+    downtime_horas = round((ind_24h["downtime_total_minutos"] or 0) / 60.0, 1)
+
+    # 4 KPIs Superiores idênticos ao telas-operador.js
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.markdown(
+            kpi_html(
+                "Máquinas funcionando",
+                str(funcionando),
+                unidade=f"/ {total_maquinas}",
+                detalhe=f"Disponibilidade: {disp_pct}%",
+                variante="verde",
+            ),
+            unsafe_allow_html=True,
         )
-    with c4:
-        renderizar_kpi_card(
-            "Máquinas Paradas (Vermelho)",
-            str(paradas),
-            "Aguardando atendimento",
-            COLORS["PARADA"],
+    with k2:
+        st.markdown(
+            kpi_html(
+                "Em manutenção",
+                str(em_manutencao),
+                detalhe="Atendimento técnico em andamento",
+                variante="amarelo",
+            ),
+            unsafe_allow_html=True,
+        )
+    with k3:
+        st.markdown(
+            kpi_html(
+                "Indisponíveis",
+                str(indisponivel),
+                detalhe="Aguardando atendimento",
+                variante="vermelho",
+            ),
+            unsafe_allow_html=True,
+        )
+    with k4:
+        st.markdown(
+            kpi_html(
+                "Downtime acumulado",
+                f"{downtime_horas:g}",
+                unidade="h",
+                detalhe=f"MTTR de {ind_24h['mttr_minutos']:g} min · {total_paradas} máquina(s) parada(s)",
+                variante="azul",
+            ),
+            unsafe_allow_html=True,
         )
 
-    st.caption(
-        f"🔄 Última sincronização com o chão de fábrica: **{datetime.now().strftime('%H:%M:%S')}**"
+    # Legenda + horário de atualização
+    st.markdown(
+        f"""
+        <div style="display:flex; justify-content:space-between; align-items:center; margin: 4px 0 12px 0; flex-wrap:wrap; gap:10px;">
+          <div class="legenda">
+            <span><i class="dot-funcionando"></i>Funcionando</span>
+            <span><i class="dot-em_manutencao"></i>Em manutenção</span>
+            <span><i class="dot-indisponivel"></i>Indisponível</span>
+          </div>
+          <span style="font-size:11.5px; color:var(--cinza-500);">
+            Atualizado às {datetime.now().strftime('%H:%M:%S')} · atualização automática a cada 8s
+          </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    if not equipamentos:
-        st.info("Nenhum equipamento ativo encontrado para o setor selecionado.")
+    # Aplicação dos filtros
+    termo = (busca or "").strip().lower()
+    filtradas = []
+    for m in todos_eq:
+        if termo and termo not in f"{m['codigo_tag']} {m['nome']}".lower():
+            continue
+        if setor_sel and setor_sel != "Todas as estações" and m["setor"] != setor_sel:
+            continue
+        if estado_sel and estado_sel != "Todos os estados" and m["status_operacional"] != estado_sel:
+            continue
+        filtradas.append(m)
+
+    if not filtradas:
+        st.markdown(
+            '<div class="card"><div class="vazio"><strong>Nenhuma máquina encontrada</strong>Ajuste os filtros de busca.</div></div>',
+            unsafe_allow_html=True,
+        )
         return
 
-    # Grid Responsivo de Cards (3 colunas por linha para ótima leitura em tablets e desktops)
-    colunas_por_linha = 3
-    for i in range(0, len(equipamentos), colunas_por_linha):
-        cols = st.columns(colunas_por_linha)
-        for idx, eq in enumerate(equipamentos[i : i + colunas_por_linha]):
-            with cols[idx]:
-                status = eq["status_operacional"]
-                cor_topo = COLORS.get(status, COLORS["primary"])
-                badge_html = badge_status_equipamento_html(status)
+    # Agrupamento por Estação (Etapa do Processo Produtivo)
+    por_setor: dict[str, list[dict]] = {}
+    for m in filtradas:
+        por_setor.setdefault(m["setor"], []).append(m)
 
-                os_id = eq.get("os_ativa_id")
-                tempo_min = eq.get("tempo_decorrido_min")
-                prioridade = eq.get("os_ativa_prioridade")
-                tecnico = eq.get("os_ativa_tecnico")
-                descricao = eq.get("os_ativa_descricao") or ""
+    setores_ordenados = sorted(
+        por_setor.keys(),
+        key=lambda s: ESTACOES_FLUXO.get(s, (99, s, ""))[0],
+    )
 
-                if status == "OPERACIONAL":
-                    detalhe_os_html = (
-                        '<div style="background:#ECFDF5; border:1px solid #A7F3D0; border-radius:8px; '
-                        'padding:10px; font-size:0.83rem; color:#065F46; min-height:74px;">'
-                        "✅ <strong>Linha liberada.</strong><br>Nenhuma Ordem de Serviço pendente."
-                        "</div>"
+    for idx_est, nome_setor in enumerate(setores_ordenados, start=1):
+        maquinas_estacao = sorted(por_setor[nome_setor], key=lambda x: x["codigo_tag"])
+        ordem_etapa = ESTACOES_FLUXO.get(nome_setor, (idx_est, nome_setor[:3].upper(), ""))[0]
+        paradas_est = sum(1 for m in maquinas_estacao if m["status_operacional"] != "OPERACIONAL")
+        alerta_html = (
+            f'<span class="alerta-estacao">{paradas_est} fora de operação</span>'
+            if paradas_est > 0
+            else ""
+        )
+
+        st.markdown(
+            f"""
+            <div class="grupo-estacao-cabecalho">
+              <span class="etapa">ETAPA {ordem_etapa}</span>
+              <h3>{esc(nome_setor)}</h3>
+              <span class="contagem">{len(maquinas_estacao)} máquina(s)</span>
+              {alerta_html}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        colunas_por_linha = 4
+        for i in range(0, len(maquinas_estacao), colunas_por_linha):
+            cols = st.columns(colunas_por_linha)
+            for j, m in enumerate(maquinas_estacao[i : i + colunas_por_linha]):
+                with cols[j]:
+                    estado = m["status_operacional"]
+                    os_id = m.get("os_ativa_id")
+                    prio = m.get("os_ativa_prioridade")
+                    tempo_min = m.get("tempo_decorrido_min") or 0
+
+                    if os_id:
+                        os_html = (
+                            f'<div class="os-link">OS <strong>#{os_id}</strong> · {esc(rotulo_amigavel(prio))} '
+                            f'· parada há <strong>{formatar_duracao_curta(tempo_min)}</strong></div>'
+                        )
+                    else:
+                        os_html = '<div class="os-link" style="color:var(--verde);font-weight:600;">Sem chamado ativo</div>'
+
+                    st.markdown(
+                        f"""
+                        <article class="maquina-card" data-estado="{esc(estado)}">
+                          <div style="display:flex;align-items:center;gap:8px">
+                            <span class="tag">{esc(m['codigo_tag'])}</span>
+                            <span style="margin-left:auto">{selo_html(estado)}</span>
+                          </div>
+                          <div class="nome">{esc(m['nome'])}</div>
+                          <div class="meta">{esc(m.get('posto_trabalho') or 'Posto 01')}</div>
+                          {os_html}
+                        </article>
+                        """,
+                        unsafe_allow_html=True,
                     )
-                elif status == "PARADA":
-                    prio_badge = badge_prioridade_html(prioridade) if prioridade else ""
-                    detalhe_os_html = (
-                        f'<div style="background:#FEF2F2; border:1px solid #FECACA; border-radius:8px; '
-                        f'padding:10px; font-size:0.83rem; color:#991B1B; min-height:74px;">'
-                        f'🚨 <strong>OS #{os_id} Aberta</strong> {prio_badge}<br>'
-                        f'⏱️ Parada há: <strong>{formatar_duracao_hm(tempo_min)}</strong><br>'
-                        f'<span style="color:#7F1D1D;">{descricao[:65]}{"..." if len(descricao) > 65 else ""}</span>'
-                        f"</div>"
-                    )
-                else:  # EM_MANUTENCAO
-                    prio_badge = badge_prioridade_html(prioridade) if prioridade else ""
-                    nome_tec = tecnico or "Técnico designado"
-                    detalhe_os_html = (
-                        f'<div style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; '
-                        f'padding:10px; font-size:0.83rem; color:#92400E; min-height:74px;">'
-                        f'🔧 <strong>OS #{os_id} em Reparo</strong> {prio_badge}<br>'
-                        f'👷 Técnico: <strong>{nome_tec}</strong> | ⏱️ <strong>{formatar_duracao_hm(tempo_min)}</strong><br>'
-                        f'<span style="color:#78350F;">{descricao[:60]}{"..." if len(descricao) > 60 else ""}</span>'
-                        f"</div>"
-                    )
 
-                st.markdown(
-                    f"""
-                    <div class="machine-card" style="border-top-color: {cor_topo};">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span class="machine-tag">{eq['codigo_tag']}</span>
-                            <span style="font-size:0.78rem; background:#F1F5F9; padding:3px 8px; border-radius:6px; font-weight:600; color:#475569;">
-                                {eq['setor']} • {eq['posto_trabalho'] or 'Posto'}
-                            </span>
-                        </div>
-                        <div class="machine-name">{eq['nome']}</div>
-                        {badge_html}
-                        {detalhe_os_html}
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-                perfil = usuario.get("perfil", "OPERADOR")
-
-                # Botão de Ação Rápida respeitando RN02 (Bloqueio de Redundância) e RBAC
-                if status == "OPERACIONAL":
-                    if perfil in ("OPERADOR", "GESTOR"):
+                    if os_id:
                         if st.button(
-                            f"🚨 Abrir Chamado ({eq['codigo_tag']})",
-                            key=f"btn_abrir_{eq['id']}",
+                            f"Ver OS #{os_id}",
+                            key=f"btn_ver_os_{m['id']}",
+                            type="secondary",
                             use_container_width=True,
-                            type="primary",
                         ):
-                            navegar_para("abrir_chamado", equipamento_preselecionado_id=eq["id"])
+                            navegar_para("ordem_servico", os_selecionada_id=os_id)
                     else:
-                        st.button(
-                            "✅ Máquina em Operação",
-                            key=f"btn_ok_{eq['id']}",
-                            disabled=True,
+                        if st.button(
+                            "Abrir chamado",
+                            key=f"btn_abrir_maq_{m['id']}",
+                            type="primary",
                             use_container_width=True,
-                        )
-                else:
-                    # Máquina já PARADA ou EM_MANUTENCAO -> RN02 bloqueia novo chamado
-                    if perfil in ("TECNICO", "GESTOR") and os_id:
-                        if status == "PARADA":
-                            if st.button(
-                                f"🛠️ Ir para Fila (OS #{os_id})",
-                                key=f"btn_fila_{eq['id']}",
-                                use_container_width=True,
-                            ):
-                                navegar_para("fila_chamados", os_destaque_id=os_id)
-                        else:
-                            if st.button(
-                                f"🔧 Gerenciar OS #{os_id}",
-                                key=f"btn_os_{eq['id']}",
-                                use_container_width=True,
-                            ):
-                                navegar_para("ordem_servico", os_selecionada_id=os_id)
-                    else:
-                        st.button(
-                            f"🔒 Bloqueado RN02 (OS #{os_id} Ativa)",
-                            key=f"btn_bloq_{eq['id']}",
-                            disabled=True,
-                            use_container_width=True,
-                        )
+                        ):
+                            _abrir_modal_chamado_rapido(m, usuario)
 
 
 def render() -> None:
-    """Renderiza a Tela 2: Painel Sinótico de Máquinas."""
+    """Renderiza o Painel de Máquinas."""
     usuario = st.session_state.get("usuario_logado")
     if not usuario:
         st.warning("Realize login para acessar o painel.")
         return
 
-    renderizar_cabecalho(
-        "🏭 Painel Sinótico de Máquinas — Chão de Fábrica",
-        "Monitoramento em tempo real das linhas SMT, Testes Funcionais, Montagem e Embalagem",
-        f"Perfil: {usuario['perfil']}",
+    renderizar_topbar(
+        "Painel de máquinas",
+        "Situação das máquinas por estação do processo produtivo",
     )
 
-    # Barra de Filtros e Controle de Auto-Refresh (5 a 10s conforme RF06 / F02)
-    col_f1, col_f2, col_f3 = st.columns([2, 1.5, 1])
-    setores_disponiveis = ["Todos"] + listar_setores()
-
-    with col_f1:
+    # Barra de filtros idêntica ao .filtros-barra
+    f1, f2, f3, f4 = st.columns([1.6, 1.4, 1.2, 0.7])
+    with f1:
+        busca = st.text_input(
+            "Buscar",
+            placeholder="Buscar máquina ou TAG…",
+            label_visibility="collapsed",
+            key="painel_busca",
+        )
+    with f2:
+        setores_opcoes = ["Todas as estações"] + listar_setores()
         setor_sel = st.selectbox(
-            "Filtrar por Setor Produtivo",
-            options=setores_disponiveis,
-            index=0,
-            key="filtro_setor_painel",
+            "Estação",
+            options=setores_opcoes,
+            label_visibility="collapsed",
+            key="painel_estacao",
         )
-    with col_f2:
-        intervalo_refresh = st.selectbox(
-            "Auto-Refresh do Painel Sinótico",
-            options=[
-                ("Ativo (a cada 5 segundos)", 5),
-                ("Ativo (a cada 10 segundos)", 10),
-                ("Pausado (atualização manual)", 0),
-            ],
-            format_func=lambda x: x[0],
-            index=1,
-            key="auto_refresh_painel_cfg",
+    with f3:
+        opcoes_estado = [
+            ("Todos os estados", "Todos os estados"),
+            ("OPERACIONAL", "Funcionando"),
+            ("EM_MANUTENCAO", "Em manutenção"),
+            ("PARADA", "Indisponível"),
+        ]
+        estado_sel = st.selectbox(
+            "Estado",
+            options=[x[0] for x in opcoes_estado],
+            format_func=lambda k: dict(opcoes_estado)[k],
+            label_visibility="collapsed",
+            key="painel_estado",
         )
-    with col_f3:
-        st.write("")
-        st.write("")
-        if st.button("🔄 Atualizar Agora", use_container_width=True):
+    with f4:
+        if st.button("↻ Atualizar", type="secondary", use_container_width=True):
             st.rerun()
 
-    segundos_refresh = intervalo_refresh[1]
+    if hasattr(st, "fragment"):
+        @st.fragment(run_every="8s")
+        def _painel_vivo() -> None:
+            _renderizar_conteudo_painel(busca, setor_sel, estado_sel, usuario)
 
-    # Se o Streamlit suportar st.fragment com run_every, atualiza o grid automaticamente sem piscar a tela
-    if segundos_refresh > 0 and hasattr(st, "fragment"):
-        @st.fragment(run_every=f"{segundos_refresh}s")
-        def _painel_auto_refresh() -> None:
-            _renderizar_grid_maquinas(setor_sel, usuario)
-
-        _painel_auto_refresh()
+        _painel_vivo()
     else:
-        _renderizar_grid_maquinas(setor_sel, usuario)
+        _renderizar_conteudo_painel(busca, setor_sel, estado_sel, usuario)
 
 
 if __name__ == "__main__":

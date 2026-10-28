@@ -1,203 +1,314 @@
 """
-Tela 4: Fila de Chamados Técnicos (F05, F06).
-Lista os chamados com status ABERTO ordenados por prioridade (Crítica no topo) e tempo de espera,
-permitindo ao Técnico ou Gestor assumir a OS com 1 clique.
+Telas do Técnico: Fila de chamados (F05, F06) e Manutenção Preventiva (F10).
+Replica os contadores superiores, tabelas estilizadas (.tabela com faixa lateral de prioridade)
+e programação de preventivas do projeto amatech-manutencao.
 """
-import pandas as pd
 import streamlit as st
 
-from config import COLORS
 from services.chamado_service import (
+    abrir_chamado,
     assumir_chamado,
     listar_chamados_em_andamento,
     listar_fila_chamados,
+    listar_historico_chamados,
 )
-from services.equipamento_service import listar_setores
-from services.relatorio_service import obter_indicadores_consolidados
+from services.equipamento_service import listar_equipamentos
 from ui_components import (
-    badge_prioridade_html,
+    esc,
+    formatar_data_br,
     formatar_duracao_hm,
     navegar_para,
-    renderizar_cabecalho,
-    renderizar_kpi_card,
+    renderizar_topbar,
+    rotulo_amigavel,
+    selo_html,
 )
 
 
-def render() -> None:
-    """Renderiza a Tela 4: Fila de Chamados Técnicos."""
+def render_preventiva() -> None:
+    """Renderiza a tela de Manutenção Preventiva (A.renderPreventiva do telas-tecnico.js)."""
     usuario = st.session_state.get("usuario_logado")
     if not usuario:
         st.warning("Realize login para acessar esta tela.")
         return
 
-    renderizar_cabecalho(
-        "📋 Fila de Chamados Técnicos (Ordens de Serviço Pendentes)",
-        "Priorização automática por criticidade e maior tempo de máquina parada",
-        f"Técnico: {usuario['nome']}",
+    renderizar_topbar("Manutenção preventiva", "Programação de intervenções planejadas")
+
+    todas_maq = listar_equipamentos(apenas_ativos=True)
+    disponiveis = [m for m in todas_maq if not m.get("os_ativa_id")]
+    preventivas = listar_historico_chamados(tipo_manutencao="PREVENTIVA")
+    todos_chamados = listar_historico_chamados()
+    total_corretivas = max(1, sum(1 for c in todos_chamados if c["tipo_manutencao"] == "CORRETIVA"))
+
+    col_esq, col_dir = st.columns(2)
+
+    with col_esq:
+        st.markdown(
+            """
+            <div class="card" style="margin-bottom:0; border-bottom:0; border-radius:10px 10px 0 0;">
+              <div class="card-cabecalho"><h2>Programar preventiva</h2></div>
+              <div class="card-corpo" style="padding-bottom:4px;">
+                <div class="aviso-info">
+                  <span>i</span>
+                  <div>A preventiva é registrada como OS do tipo <strong>PREVENTIVA</strong> sem parar a máquina
+                  no momento do agendamento. A máquina só muda de estado quando o técnico assumir a OS.</div>
+                </div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.form("form_programar_preventiva", clear_on_submit=True):
+            opcoes_ids = [m["id"] for m in disponiveis]
+            mapa_m = {m["id"]: m for m in disponiveis}
+            maq_id = st.selectbox(
+                "Máquina *",
+                options=opcoes_ids,
+                format_func=lambda mid: f"{mapa_m[mid]['codigo_tag']} — {mapa_m[mid]['nome']} ({mapa_m[mid]['setor']})",
+            ) if opcoes_ids else None
+
+            prio = st.selectbox(
+                "Prioridade",
+                options=["BAIXA", "MEDIA", "ALTA"],
+                index=1,
+                format_func=rotulo_amigavel,
+            )
+            plano = st.text_area(
+                "Plano de manutenção",
+                placeholder="Ex.: limpeza do forno, troca de filtros e verificação de sensores conforme plano trimestral.",
+            )
+            btn_prog = st.form_submit_button("Programar preventiva", type="primary")
+            if btn_prog:
+                if not maq_id:
+                    st.warning("Nenhuma máquina disponível sem OS ativa.")
+                else:
+                    try:
+                        texto_desc = plano.strip() or "Manutenção preventiva programada conforme plano de manutenção do ativo."
+                        novo_id = abrir_chamado(
+                            equipamento_id=maq_id,
+                            operador_abertura_id=usuario["id"],
+                            prioridade=prio,
+                            descricao_falha=texto_desc,
+                            tipo_manutencao="PREVENTIVA",
+                            parar_maquina=False,
+                        )
+                        st.toast(f"Preventiva OS #{novo_id} programada com sucesso!", icon="✅")
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(str(exc))
+
+    with col_dir:
+        concluidas = sum(1 for r in preventivas if r["status_chamado"] == "CONCLUIDO")
+        aguardando = sum(1 for r in preventivas if r["status_chamado"] == "ABERTO")
+        st.markdown(
+            f"""
+            <div class="card">
+              <div class="card-cabecalho"><h2>Indicadores de preventiva</h2></div>
+              <div class="card-corpo">
+                <div class="dados-lista">
+                  <div class="linha"><span class="r">Preventivas registradas</span><span class="v">{len(preventivas)}</span></div>
+                  <div class="linha"><span class="r">Concluídas</span><span class="v">{concluidas}</span></div>
+                  <div class="linha"><span class="r">Aguardando atendimento</span><span class="v">{aguardando}</span></div>
+                  <div class="linha"><span class="r">Proporção preventiva / corretiva</span><span class="v">{len(preventivas)} / {total_corretivas}</span></div>
+                </div>
+                <div class="aviso-info aviso-alerta" style="margin-top:16px; margin-bottom:0;">
+                  <span>!</span>
+                  <div>Referência de mercado: quanto maior a proporção de preventivas, menor o downtime
+                  corretivo. É o argumento central do projeto para a diretoria.</div>
+                </div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    linhas_prev = ""
+    for r in preventivas:
+        dt_str = formatar_duracao_hm(r["downtime_minutos"]) if r.get("downtime_minutos") is not None else "—"
+        linhas_prev += f"""
+        <tr>
+          <td class="mono"><strong>#{r['id']}</strong></td>
+          <td>{esc(r['equipamento_tag'])} — {esc(r['equipamento_nome'])}</td>
+          <td>{esc(r['setor'])}</td>
+          <td>{selo_html(r['status_chamado'])}</td>
+          <td>{esc(formatar_data_br(r['data_hora_abertura']))}</td>
+          <td>{esc(r.get('tecnico_nome') or '—')}</td>
+          <td class="num">{esc(dt_str)}</td>
+        </tr>
+        """
+    if not linhas_prev:
+        linhas_prev = '<tr><td colspan="7"><div class="vazio">Nenhuma preventiva registrada.</div></td></tr>'
+
+    st.markdown(
+        f"""
+        <div class="card" style="margin-top:16px;">
+          <div class="card-cabecalho"><h2>Preventivas programadas</h2></div>
+          <div class="tabela-wrap">
+            <table class="tabela">
+              <thead>
+                <tr>
+                  <th>OS</th><th>Máquina</th><th>Estação</th><th>Status</th><th>Abertura</th><th>Técnico</th><th class="num">Downtime</th>
+                </tr>
+              </thead>
+              <tbody>{linhas_prev}</tbody>
+            </table>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
-    ind = obter_indicadores_consolidados()
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        renderizar_kpi_card(
-            "Pendentes na Fila (Abertos)",
-            str(ind["chamados_abertos"]),
-            "Aguardando técnico assumir",
-            COLORS["PARADA"],
-        )
-    with c2:
-        renderizar_kpi_card(
-            "Em Atendimento Agora",
-            str(ind["chamados_em_andamento"]),
-            "Máquinas em manutenção",
-            COLORS["EM_MANUTENCAO"],
-        )
-    with c3:
-        renderizar_kpi_card(
-            "Concluídos no Período",
-            str(ind["chamados_concluidos"]),
-            "Ordens de serviço encerradas",
-            COLORS["OPERACIONAL"],
-        )
-    with c4:
-        renderizar_kpi_card(
-            "MTTA (Tempo Médio Resposta)",
-            f"{ind['mtta_resposta_minutos']} min",
-            "Meta AMATECH: < 15 min",
-            COLORS["secondary"],
-        )
 
-    col_f1, col_f2 = st.columns([3, 1])
-    with col_f1:
-        setor_filtro = st.selectbox(
-            "Filtrar Fila por Setor",
-            options=["Todos"] + listar_setores(),
-            index=0,
-            key="filtro_setor_fila",
+def render() -> None:
+    """Renderiza a Fila de Chamados Técnicos (A.renderFila do telas-tecnico.js)."""
+    usuario = st.session_state.get("usuario_logado")
+    if not usuario:
+        st.warning("Realize login para acessar esta tela.")
+        return
+
+    renderizar_topbar(
+        "Fila de chamados",
+        "Chamados abertos ordenados por prioridade e tempo de espera",
+    )
+
+    abertos = listar_fila_chamados()
+    em_andamento = listar_chamados_em_andamento()
+    todos = listar_historico_chamados()
+    qtd_concluidos = sum(1 for c in todos if c["status_chamado"] == "CONCLUIDO")
+    qtd_cancelados = sum(1 for c in todos if c["status_chamado"] == "CANCELADO")
+
+    # Contadores no estilo .contadores + botão Atualizar
+    col_cnt, col_btn = st.columns([4, 1])
+    with col_cnt:
+        st.markdown(
+            f"""
+            <div class="contadores">
+              <div class="contador destaque"><div class="n">{len(abertos)}</div><div class="r">Aguardando técnico</div></div>
+              <div class="contador"><div class="n">{len(em_andamento)}</div><div class="r">Em atendimento</div></div>
+              <div class="contador"><div class="n">{qtd_concluidos}</div><div class="r">Concluídos</div></div>
+              <div class="contador"><div class="n">{qtd_cancelados}</div><div class="r">Cancelados</div></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-    with col_f2:
-        st.write("")
-        st.write("")
-        if st.button("🔄 Atualizar Fila", use_container_width=True):
+    with col_btn:
+        if st.button("↻ Atualizar fila", type="secondary", use_container_width=True):
             st.rerun()
 
-    fila = listar_fila_chamados(setor=setor_filtro)
+    # Card 1: Chamados aguardando atendimento
+    linhas_abertos_html = ""
+    for ch in abertos:
+        prio_cls = f"prioridade-{str(ch['prioridade']).lower()}"
+        linhas_abertos_html += f"""
+        <tr class="{prio_cls}">
+          <td class="mono"><strong>#{ch['id']}</strong></td>
+          <td><strong>{esc(ch['equipamento_tag'])}</strong><div style="font-size:11.5px;color:var(--cinza-500)">{esc(ch['equipamento_nome'])}</div></td>
+          <td>{esc(ch['setor'])}<div style="font-size:11.5px;color:var(--cinza-500)">{esc(ch.get('posto_trabalho') or '')}</div></td>
+          <td>{selo_html(ch['prioridade'])}<div style="margin-top:4px">{selo_html(ch['tipo_manutencao'])}</div></td>
+          <td>{esc(ch['descricao_falha'])}</td>
+          <td>{esc(ch.get('operador_nome') or '—')}</td>
+          <td class="num"><strong>{esc(formatar_duracao_hm(ch['tempo_espera_min']))}</strong></td>
+        </tr>
+        """
 
-    st.subheader(f"🚨 Chamados Aguardando Atendimento ({len(fila)})")
-
-    if not fila:
-        st.success(
-            "🎉 **Fila zerada!** Não há chamados pendentes aguardando atendimento neste momento."
+    if not linhas_abertos_html:
+        linhas_abertos_html = (
+            '<tr><td colspan="7"><div class="vazio"><strong>Nenhum chamado aguardando</strong>'
+            "Todas as ocorrências foram assumidas.</div></td></tr>"
         )
-    else:
-        for ch in fila:
-            cor_prio = COLORS.get(ch["prioridade"], COLORS["secondary"])
-            badge_prio = badge_prioridade_html(ch["prioridade"])
-            tempo_espera_str = formatar_duracao_hm(ch["tempo_espera_min"])
 
-            with st.container():
-                col_info, col_acao = st.columns([4, 1.2])
-                with col_info:
-                    st.markdown(
-                        f"""
-                        <div style="background:#FFFFFF; border-left:6px solid {cor_prio}; border-radius:10px;
-                                    padding:16px 20px; margin-bottom:10px; box-shadow:0 2px 6px rgba(0,0,0,0.06);">
-                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-                                <div>
-                                    <span style="font-size:1.15rem; font-weight:800; color:{COLORS['primary']};">
-                                        OS #{ch['id']} — {ch['equipamento_tag']} ({ch['equipamento_nome']})
-                                    </span>
-                                    &nbsp; {badge_prio}
-                                    <span style="font-size:0.78rem; background:#E2E8F0; padding:3px 8px; border-radius:6px; font-weight:600; margin-left:6px;">
-                                        {ch['tipo_manutencao']}
-                                    </span>
-                                </div>
-                                <div style="font-size:0.9rem; font-weight:700; color:{COLORS['PARADA']};">
-                                    ⏱️ Tempo Parado: {tempo_espera_str}
-                                </div>
-                            </div>
-                            <div style="font-size:0.88rem; color:#334155; margin-top:8px;">
-                                <strong>Sintoma / Falha:</strong> {ch['descricao_falha']}
-                            </div>
-                            <div style="font-size:0.8rem; color:#64748B; margin-top:6px;">
-                                📍 Setor: <strong>{ch['setor']}</strong> ({ch['posto_trabalho'] or 'Posto 01'})
-                                &nbsp;|&nbsp; 👤 Solicitante: <strong>{ch['operador_nome']}</strong> ({ch['operador_matricula']})
-                                &nbsp;|&nbsp; 🕒 Abertura (UTC): <strong>{ch['data_hora_abertura']}</strong>
-                            </div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
-                with col_acao:
-                    st.write("")
-                    if st.button(
-                        f"🛠️ Assumir OS #{ch['id']}",
-                        key=f"btn_assumir_{ch['id']}",
-                        type="primary",
-                        use_container_width=True,
-                    ):
-                        try:
-                            assumir_chamado(chamado_id=ch["id"], tecnico_id=usuario["id"])
-                            st.toast(
-                                f"OS #{ch['id']} assumida com sucesso! Máquina em manutenção.",
-                                icon="🔧",
-                            )
-                            navegar_para("ordem_servico", os_selecionada_id=ch["id"])
-                        except Exception as exc:
-                            st.error(f"Erro ao assumir OS #{ch['id']}: {exc}")
+    st.markdown(
+        f"""
+        <div class="card">
+          <div class="card-cabecalho">
+            <h2>Chamados aguardando atendimento</h2>
+            <div class="acao">Ordenados por prioridade e, em empate, por tempo de espera</div>
+          </div>
+          <div class="tabela-wrap">
+            <table class="tabela">
+              <thead>
+                <tr>
+                  <th>OS</th><th>Máquina</th><th>Estação / posto</th><th>Prioridade</th>
+                  <th>Descrição da falha</th><th>Operador</th><th class="num">Parada há</th>
+                </tr>
+              </thead>
+              <tbody>{linhas_abertos_html}</tbody>
+            </table>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        # Tabela resumo consolidada conforme especificação da Tela 4
-        with st.expander("📊 Visualizar Fila em Formato de Tabela Consolidada", expanded=False):
-            df_fila = pd.DataFrame(fila)[
-                [
-                    "id",
-                    "equipamento_tag",
-                    "equipamento_nome",
-                    "setor",
-                    "prioridade",
-                    "data_hora_abertura",
-                    "tempo_espera_min",
-                    "operador_nome",
-                    "descricao_falha",
-                ]
-            ].rename(
-                columns={
-                    "id": "Nº OS",
-                    "equipamento_tag": "Tag",
-                    "equipamento_nome": "Máquina",
-                    "setor": "Setor",
-                    "prioridade": "Prioridade",
-                    "data_hora_abertura": "Data/Hora Abertura",
-                    "tempo_espera_min": "Tempo Parado (min)",
-                    "operador_nome": "Operador Solicitante",
-                    "descricao_falha": "Descrição da Falha",
-                }
-            )
-            st.dataframe(df_fila, use_container_width=True, hide_index=True)
-
-    st.divider()
-
-    # Seção rápida de OS já em andamento para acesso direto
-    em_andamento = listar_chamados_em_andamento()
-    st.subheader(f"🔧 Ordens de Serviço em Atendimento ({len(em_andamento)})")
-    if not em_andamento:
-        st.caption("Nenhuma Ordem de Serviço em andamento neste momento.")
-    else:
-        for os_at in em_andamento:
-            c_a, c_b = st.columns([4, 1.2])
-            with c_a:
-                st.info(
-                    f"**OS #{os_at['id']} — {os_at['equipamento_tag']} ({os_at['equipamento_nome']})** | "
-                    f"Técnico: **{os_at['tecnico_nome']}** | "
-                    f"Tempo em reparo: **{formatar_duracao_hm(os_at['tempo_atendimento_min'])}**"
-                )
-            with c_b:
+    # Botões rápidos para assumir qualquer chamado aberto
+    if abertos and usuario["perfil"] in ("TECNICO", "GESTOR"):
+        cols_assumir = st.columns(min(4, len(abertos)))
+        for idx, ch in enumerate(abertos):
+            with cols_assumir[idx % len(cols_assumir)]:
                 if st.button(
-                    f"Abrir OS #{os_at['id']}",
-                    key=f"btn_ir_os_{os_at['id']}",
+                    f"Assumir OS #{ch['id']} ({ch['equipamento_tag']})",
+                    key=f"btn_assumir_fila_{ch['id']}",
+                    type="primary",
                     use_container_width=True,
                 ):
-                    navegar_para("ordem_servico", os_selecionada_id=os_at["id"])
+                    try:
+                        assumir_chamado(chamado_id=ch["id"], tecnico_id=usuario["id"])
+                        st.toast(f"OS #{ch['id']} assumida com sucesso!", icon="🔧")
+                        navegar_para("ordem_servico", os_selecionada_id=ch["id"])
+                    except Exception as exc:
+                        st.error(str(exc))
+
+    # Card 2: Ordens de serviço em andamento
+    linhas_and_html = ""
+    for ch in em_andamento:
+        prio_cls = f"prioridade-{str(ch['prioridade']).lower()}"
+        linhas_and_html += f"""
+        <tr class="{prio_cls}">
+          <td class="mono"><strong>#{ch['id']}</strong></td>
+          <td><strong>{esc(ch['equipamento_tag'])}</strong><div style="font-size:11.5px;color:var(--cinza-500)">{esc(ch['equipamento_nome'])}</div></td>
+          <td>{esc(ch['setor'])}</td>
+          <td>{selo_html(ch['prioridade'])}</td>
+          <td>{esc(ch.get('tecnico_nome') or '—')}</td>
+          <td>{esc(formatar_data_br(ch.get('data_hora_inicio_atendimento')))}</td>
+          <td class="num"><strong>{esc(formatar_duracao_hm(ch['tempo_total_min']))}</strong></td>
+        </tr>
+        """
+
+    if not linhas_and_html:
+        linhas_and_html = (
+            '<tr><td colspan="7"><div class="vazio">Nenhuma OS em atendimento no momento.</div></td></tr>'
+        )
+
+    st.markdown(
+        f"""
+        <div class="card" style="margin-top:16px;">
+          <div class="card-cabecalho"><h2>Ordens de serviço em andamento</h2></div>
+          <div class="tabela-wrap">
+            <table class="tabela">
+              <thead>
+                <tr>
+                  <th>OS</th><th>Máquina</th><th>Estação</th><th>Prioridade</th>
+                  <th>Técnico</th><th>Início do atendimento</th><th class="num">Parada há</th>
+                </tr>
+              </thead>
+              <tbody>{linhas_and_html}</tbody>
+            </table>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if em_andamento:
+        cols_abrir = st.columns(min(4, len(em_andamento)))
+        for idx, ch in enumerate(em_andamento):
+            with cols_abrir[idx % len(cols_abrir)]:
+                if st.button(
+                    f"Abrir OS #{ch['id']} ({ch['equipamento_tag']})",
+                    key=f"btn_abrir_and_{ch['id']}",
+                    type="secondary",
+                    use_container_width=True,
+                ):
+                    navegar_para("ordem_servico", os_selecionada_id=ch["id"])
 
 
 if __name__ == "__main__":

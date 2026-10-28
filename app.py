@@ -1,32 +1,65 @@
 """
 Ponto de Entrada Principal da Aplicação Streamlit (management-control).
 AMATECH Smart Factory — Projeto 5: Sistema de Controle da Manutenção.
+Replica fielmente o design, login split, sidebar agrupada e todas as rotas do projeto amatech-manutencao.
 """
 import importlib
 import streamlit as st
 
 st.set_page_config(
-    page_title="AMATECH | Controle da Manutenção",
+    page_title="AMATECH · Controle da Manutenção",
     page_icon="🏭",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 from api import iniciar_api_em_background
-from config import API_PORT, COLORS
+from config import API_PORT
 from database import ensure_database_initialized
 from services.auth_service import PERMISSOES_POR_PERFIL, autenticar_usuario
-from ui_components import aplicar_estilos_amatech, navegar_para
+from services.chamado_service import listar_fila_chamados
+from ui_components import aplicar_estilos_amatech, esc, rotulo_amigavel
 
-# Mapeamento das telas (código interno -> título no menu e módulo em pages/)
-CATALOGO_TELAS = {
-    "painel_maquinas": ("🏭 Painel de Máquinas", "pages.01_painel_maquinas"),
-    "abrir_chamado": ("🚨 Abrir Chamado", "pages.02_abrir_chamado"),
-    "fila_chamados": ("📋 Fila Técnica", "pages.03_fila_chamados"),
-    "ordem_servico": ("🔧 Ordem de Serviço", "pages.04_ordem_servico"),
-    "dashboard": ("📊 Dashboard de KPIs", "pages.05_dashboard"),
-    "historico": ("📜 Histórico & Auditoria", "pages.06_historico"),
-    "cadastros": ("⚙️ Cadastros", "pages.07_cadastros"),
+# Estrutura de grupos e rotas idêntica a A.MENU do projeto amatech-manutencao
+MENU_GRUPOS = [
+    (
+        "Operação",
+        [
+            ("painel_maquinas", "▦", "Painel de máquinas"),
+            ("abrir_chamado", "＋", "Abrir chamado"),
+            ("meus_chamados", "☑", "Meus chamados"),
+        ],
+    ),
+    (
+        "Manutenção",
+        [
+            ("fila_chamados", "≡", "Fila de chamados"),
+            ("preventiva", "⟳", "Preventiva"),
+            ("ordem_servico", "🗎", "Ordem de serviço"),
+        ],
+    ),
+    (
+        "Gestão",
+        [
+            ("dashboard", "◫", "Dashboard"),
+            ("historico", "⌸", "Histórico"),
+            ("cadastros", "⚙", "Cadastros"),
+            ("auditoria", "⧉", "Auditoria"),
+        ],
+    ),
+]
+
+CATALOGO_ROTAS = {
+    "painel_maquinas": ("pages.01_painel_maquinas", "render"),
+    "abrir_chamado": ("pages.02_abrir_chamado", "render"),
+    "meus_chamados": ("pages.02_abrir_chamado", "render_meus_chamados"),
+    "fila_chamados": ("pages.03_fila_chamados", "render"),
+    "preventiva": ("pages.03_fila_chamados", "render_preventiva"),
+    "ordem_servico": ("pages.04_ordem_servico", "render"),
+    "dashboard": ("pages.05_dashboard", "render"),
+    "historico": ("pages.06_historico", "render"),
+    "cadastros": ("pages.07_cadastros", "render"),
+    "auditoria": ("pages.06_historico", "render_auditoria"),
 }
 
 
@@ -39,173 +72,273 @@ def _realizar_login(matricula: str, senha: str) -> None:
         "matricula": user.matricula,
         "perfil": user.perfil,
     }
-    if user.perfil == "TECNICO":
-        st.session_state["pagina_atual"] = "fila_chamados"
-    elif user.perfil == "GESTOR":
-        st.session_state["pagina_atual"] = "painel_maquinas"
-    else:
-        st.session_state["pagina_atual"] = "painel_maquinas"
+    st.session_state["pagina_atual"] = "painel_maquinas"
 
 
 def _renderizar_tela_login() -> None:
-    """Renderiza a Tela 1: Login e Autenticação com acesso rápido de demonstração (F01)."""
-    st.markdown("<br>", unsafe_allow_html=True)
-    col_vazia1, col_centro, col_vazia2 = st.columns([1, 1.4, 1])
+    """Renderiza a Tela de Login idêntica ao design oficial AMATECH: fundo #1F3A5F e card centralizado."""
+    st.markdown(
+        """
+        <style>
+        /* Fundo global e remoção da sidebar/header na tela de login */
+        .stApp {
+          background-color: #1f3a5f !important;
+        }
+        section[data-testid="stSidebar"] {
+          display: none !important;
+        }
+        header[data-testid="stHeader"] {
+          display: none !important;
+        }
+        footer {
+          display: none !important;
+        }
+        .block-container {
+          max-width: 100% !important;
+          padding-top: 6vh !important;
+          padding-bottom: 4vh !important;
+        }
 
-    with col_centro:
-        st.markdown(
-            f"""
-            <div style="background: linear-gradient(135deg, {COLORS['primary']} 0%, {COLORS['secondary']} 100%);
-                        color: #FFFFFF; padding: 28px 30px; border-radius: 14px 14px 0 0; text-align: center;
-                        box-shadow: 0 6px 20px rgba(31,58,95,0.2);">
-                <div style="font-size: 2.2rem; margin-bottom: 4px;">🏭 AMATECH ELECTRONICS</div>
-                <div style="font-size: 1.15rem; font-weight: 700; letter-spacing: 0.5px;">
-                    SISTEMA DE CONTROLE DA MANUTENÇÃO (SMART FACTORY)
-                </div>
-                <div style="font-size: 0.85rem; color: #E2E8F0; margin-top: 6px;">
-                    Polo Industrial de Manaus • Projeto Integrador: Ambiente Fabril I (FMM)
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        /* Card Central Branco */
+        div[data-testid="stForm"] {
+          background: #ffffff !important;
+          border-radius: 14px !important;
+          padding: 38px 40px 28px 40px !important;
+          box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3) !important;
+          border: 1px solid rgba(255, 255, 255, 0.15) !important;
+          max-width: 440px !important;
+          margin: 0 auto !important;
+        }
 
-        with st.container():
+        /* Tipografia do Card */
+        .login-title {
+          color: #1f3a5f;
+          font-size: 26px;
+          font-weight: 800;
+          text-align: center;
+          margin: 0 0 6px 0;
+          letter-spacing: 0.5px;
+          font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .login-sub {
+          color: #5a6e85;
+          font-size: 13.5px;
+          text-align: center;
+          margin: 0 0 22px 0;
+          font-weight: 400;
+          font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        /* Inputs e Rótulos */
+        div[data-testid="stForm"] label {
+          color: #334155 !important;
+          font-size: 13px !important;
+          font-weight: 500 !important;
+          margin-bottom: 3px !important;
+        }
+        div[data-testid="stForm"] input {
+          height: 42px !important;
+          border: 1px solid #cbd5e1 !important;
+          border-radius: 6px !important;
+          font-size: 14px !important;
+          color: #1e293b !important;
+          background-color: #ffffff !important;
+        }
+        div[data-testid="stForm"] input:focus {
+          border-color: #2e75b6 !important;
+          box-shadow: 0 0 0 2px rgba(46, 117, 182, 0.2) !important;
+        }
+
+        /* Botão ENTRAR */
+        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button {
+          background-color: #2e75b6 !important;
+          color: #ffffff !important;
+          font-weight: 700 !important;
+          font-size: 14px !important;
+          letter-spacing: 0.6px !important;
+          text-transform: uppercase !important;
+          border-radius: 6px !important;
+          height: 42px !important;
+          margin-top: 8px !important;
+          border: none !important;
+          box-shadow: 0 2px 4px rgba(46, 117, 182, 0.3) !important;
+          transition: all 0.2s ease !important;
+        }
+        div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:hover {
+          background-color: #246299 !important;
+          box-shadow: 0 4px 10px rgba(46, 117, 182, 0.45) !important;
+        }
+
+        /* Rodapé interno do Card */
+        .login-card-footer {
+          text-align: center;
+          color: #64748b;
+          font-size: 11.5px;
+          margin-top: 18px;
+          font-weight: 400;
+          font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        /* Botões de Demonstração / Acesso Rápido */
+        .login-demo-header {
+          text-align: center;
+          color: #8fa5bd;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          font-weight: 600;
+          margin: 18px 0 8px 0;
+        }
+        div[data-testid="stMainBlockContainer"] div.stButton > button {
+          background-color: rgba(255, 255, 255, 0.1) !important;
+          color: #ffffff !important;
+          border: 1px solid rgba(255, 255, 255, 0.22) !important;
+          border-radius: 6px !important;
+          font-size: 12.5px !important;
+          font-weight: 500 !important;
+          padding: 8px 12px !important;
+          margin-bottom: 3px !important;
+          transition: all 0.2s ease !important;
+        }
+        div[data-testid="stMainBlockContainer"] div.stButton > button:hover {
+          background-color: rgba(255, 255, 255, 0.2) !important;
+          border-color: #ffffff !important;
+          color: #ffffff !important;
+          transform: translateY(-1px);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_esq, col_card, col_dir = st.columns([1, 1.15, 1])
+
+    with col_card:
+        with st.form("form_login_amatech"):
+            st.markdown('<div class="login-title">AMATECH</div>', unsafe_allow_html=True)
             st.markdown(
-                """
-                <div style="background:#FFFFFF; padding: 18px 24px 6px 24px; border-radius: 0 0 14px 14px;
-                            box-shadow: 0 6px 20px rgba(0,0,0,0.06); margin-bottom: 14px;">
-                    <h4 style="margin-top:0; color:#1F3A5F;">🔐 Autenticação de Colaborador (RBAC)</h4>
-                </div>
-                """,
+                '<div class="login-sub">Sistema de Controle da Manutenção</div>',
                 unsafe_allow_html=True,
             )
 
-            with st.form("form_login_amatech"):
-                matricula_in = st.text_input(
-                    "Matrícula Funcional",
-                    placeholder="Ex: OP-10234, TEC-2001 ou GES-0001",
-                )
-                senha_in = st.text_input(
-                    "Senha de Acesso",
-                    type="password",
-                    placeholder="Senha padrão de demonstração: 123456",
-                )
-                btn_entrar = st.form_submit_button(
-                    "Entrar no Sistema",
-                    type="primary",
-                    use_container_width=True,
-                )
+            matricula_in = st.text_input(
+                "Matrícula",
+                value="OP-10234",
+                placeholder="Ex.: OP-10234",
+            )
+            senha_in = st.text_input(
+                "Senha",
+                value="123456",
+                type="password",
+                placeholder="••••••••",
+            )
+            btn_entrar = st.form_submit_button(
+                "ENTRAR",
+                type="primary",
+                use_container_width=True,
+            )
 
-                if btn_entrar:
-                    try:
-                        _realizar_login(matricula_in, senha_in)
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(f"❌ Falha na autenticação: {exc}")
+            st.markdown(
+                '<div class="login-card-footer">Acesso conforme perfil: Operador · Técnico · Gestor</div>',
+                unsafe_allow_html=True,
+            )
 
-        st.markdown("##### ⚡ Acesso Rápido para Demonstração em Sala (Senha: `123456`)")
-        d1, d2, d3 = st.columns(3)
-        with d1:
-            if st.button(
-                "👷 Operador\n(OP-10234)",
-                use_container_width=True,
-                help="Carlos Mendonça — Perfil OPERADOR",
-            ):
-                _realizar_login("OP-10234", "123456")
-                st.rerun()
-        with d2:
-            if st.button(
-                "🔧 Técnico\n(TEC-2001)",
-                use_container_width=True,
-                help="João Lima Silva — Perfil TECNICO",
-            ):
-                _realizar_login("TEC-2001", "123456")
-                st.rerun()
-        with d3:
-            if st.button(
-                "📊 Gestor\n(GES-0001)",
-                use_container_width=True,
-                help="Orlando Vandres — Perfil GESTOR",
-            ):
-                _realizar_login("GES-0001", "123456")
-                st.rerun()
+            if btn_entrar:
+                try:
+                    _realizar_login(matricula_in, senha_in)
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
+
+        st.markdown(
+            '<div class="login-demo-header">⚡ Contas de demonstração · Acesso em 1 clique</div>',
+            unsafe_allow_html=True,
+        )
+
+        if st.button(
+            "Carlos Mendonça / Maria Souza  —  OP-10234 · Operador",
+            key="btn_demo_op",
+            use_container_width=True,
+        ):
+            _realizar_login("OP-10234", "123456")
+            st.rerun()
+
+        if st.button(
+            "João Lima Silva  —  TEC-2001 · Técnico",
+            key="btn_demo_tec",
+            use_container_width=True,
+        ):
+            _realizar_login("TEC-2001", "123456")
+            st.rerun()
+
+        if st.button(
+            "Orlando Vandres / Carlos Mota  —  GES-0001 · Gestor",
+            key="btn_demo_ges",
+            use_container_width=True,
+        ):
+            _realizar_login("GES-0001", "123456")
+            st.rerun()
 
 
 def _renderizar_sidebar_e_navegacao(usuario: dict) -> str:
-    """Renderiza a barra lateral institucional AMATECH com menu filtrado por RBAC (RN01)."""
+    """Renderiza a sidebar escura (--navy-dark #16293f) com grupos de menu e badge da fila."""
     perfil = usuario["perfil"]
     telas_permitidas = PERMISSOES_POR_PERFIL.get(perfil, ["painel_maquinas"])
 
     if st.session_state.get("pagina_atual") not in telas_permitidas:
         st.session_state["pagina_atual"] = telas_permitidas[0]
 
+    pagina_ativa = st.session_state.get("pagina_atual", telas_permitidas[0])
+    qtd_fila = len(listar_fila_chamados())
+
     with st.sidebar:
         st.markdown(
-            f"""
-            <div style="text-align:center; padding: 10px 4px 16px 4px; border-bottom: 1px solid rgba(255,255,255,0.2);">
-                <div style="font-size:1.35rem; font-weight:800; letter-spacing:1px;">🏭 AMATECH</div>
-                <div style="font-size:0.78rem; opacity:0.85;">CONTROLE DA MANUTENÇÃO</div>
-            </div>
-            <div style="background: rgba(255,255,255,0.1); padding: 12px; border-radius: 8px; margin: 14px 0;">
-                <div style="font-size:0.75rem; text-transform:uppercase; opacity:0.8;">Colaborador Logado</div>
-                <div style="font-size:0.98rem; font-weight:700; margin-top:2px;">{usuario['nome']}</div>
-                <div style="font-size:0.82rem; opacity:0.9;">Matrícula: <strong>{usuario['matricula']}</strong></div>
-                <div style="margin-top:6px; display:inline-block; background:{COLORS['secondary']};
-                            padding:2px 10px; border-radius:12px; font-size:0.75rem; font-weight:700;">
-                    PERFIL: {perfil}
+            """
+            <div class="sb-marca">
+              <div class="sb-logo-linha">
+                <div class="sb-logo-simbolo">A</div>
+                <div class="sb-logo-txt">
+                  <strong>AMATECH</strong>
+                  <span>Controle da Manutenção</span>
                 </div>
+              </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        st.markdown("#### Navegação do Módulo")
-        pagina_ativa = st.session_state.get("pagina_atual", telas_permitidas[0])
-        idx_atual = telas_permitidas.index(pagina_ativa) if pagina_ativa in telas_permitidas else 0
-
-        escolha = st.radio(
-            "Menu Principal",
-            options=telas_permitidas,
-            index=idx_atual,
-            format_func=lambda cod: CATALOGO_TELAS[cod][0],
-            label_visibility="collapsed",
-        )
-
-        if escolha != pagina_ativa:
-            st.session_state["pagina_atual"] = escolha
-            st.rerun()
-
-        st.markdown("---")
-        st.markdown("##### 🔄 Troca Rápida de Perfil (Demo)")
-        c_op, c_tec, c_ges = st.columns(3)
-        with c_op:
-            if st.button("OP", help="Trocar para Operador (OP-10234)", use_container_width=True):
-                _realizar_login("OP-10234", "123456")
-                st.rerun()
-        with c_tec:
-            if st.button("TEC", help="Trocar para Técnico (TEC-2001)", use_container_width=True):
-                _realizar_login("TEC-2001", "123456")
-                st.rerun()
-        with c_ges:
-            if st.button("GES", help="Trocar para Gestor (GES-0001)", use_container_width=True):
-                _realizar_login("GES-0001", "123456")
-                st.rerun()
-
-        if st.button("🚪 Encerrar Sessão (Logout)", use_container_width=True):
-            st.session_state.clear()
-            st.rerun()
+        for nome_grupo, itens in MENU_GRUPOS:
+            itens_visiveis = [it for it in itens if it[0] in telas_permitidas]
+            if not itens_visiveis:
+                continue
+            st.markdown(f'<div class="sb-nav-grupo">{esc(nome_grupo)}</div>', unsafe_allow_html=True)
+            for cod_rota, icone, texto in itens_visiveis:
+                label = f"{icone}  {texto}"
+                if cod_rota == "fila_chamados" and qtd_fila > 0:
+                    label = f"{icone}  {texto}   ({qtd_fila})"
+                tipo_btn = "primary" if pagina_ativa == cod_rota else "secondary"
+                if st.button(
+                    label,
+                    key=f"nav_btn_{cod_rota}",
+                    type=tipo_btn,
+                    use_container_width=True,
+                ):
+                    st.session_state["pagina_atual"] = cod_rota
+                    st.rerun()
 
         st.markdown(
             f"""
-            <div style="margin-top: 18px; padding: 10px; background: rgba(0,0,0,0.22);
-                        border-radius: 8px; font-size: 0.75rem; text-align: center;">
-                🟢 <strong>API REST JSON Ativa</strong><br>
-                <code>http://localhost:{API_PORT}/api/status</code>
+            <div class="sb-rodape">
+              <strong>{esc(usuario['nome'])}</strong>
+              {esc(rotulo_amigavel(perfil))} · {esc(usuario['matricula'])}
             </div>
             """,
             unsafe_allow_html=True,
         )
+
+        if st.button("Sair do sistema", key="btn_logout_sb", use_container_width=True):
+            st.session_state.clear()
+            st.rerun()
 
     return st.session_state["pagina_atual"]
 
@@ -222,9 +355,11 @@ def main() -> None:
         return
 
     codigo_pagina = _renderizar_sidebar_e_navegacao(usuario)
-    _, modulo_path = CATALOGO_TELAS[codigo_pagina]
+    modulo_path, func_name = CATALOGO_ROTAS.get(
+        codigo_pagina, ("pages.01_painel_maquinas", "render")
+    )
     modulo = importlib.import_module(modulo_path)
-    modulo.render()
+    getattr(modulo, func_name)()
 
 
 if __name__ == "__main__":

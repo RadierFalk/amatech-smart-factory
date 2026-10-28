@@ -15,21 +15,27 @@ PERMISSOES_POR_PERFIL: dict[str, list[str]] = {
     "OPERADOR": [
         "painel_maquinas",
         "abrir_chamado",
+        "meus_chamados",
     ],
     "TECNICO": [
         "painel_maquinas",
         "fila_chamados",
+        "preventiva",
         "ordem_servico",
+        "dashboard",
         "historico",
     ],
     "GESTOR": [
         "painel_maquinas",
         "abrir_chamado",
+        "meus_chamados",
         "fila_chamados",
+        "preventiva",
         "ordem_servico",
         "dashboard",
         "historico",
         "cadastros",
+        "auditoria",
     ],
 }
 
@@ -42,11 +48,13 @@ def gerar_hash_senha(senha: str) -> str:
 def verificar_senha(senha_informada: str, senha_armazenada: str) -> bool:
     """
     Valida a senha informada contra o valor armazenado no banco.
-    Aceita texto plano (para compatibilidade com o seed '123456') ou hash SHA-256/MD5.
+    Aceita texto plano ('123456' ou 'amatech123' para contas demo) ou hash SHA-256/MD5.
     """
     if not senha_informada or not senha_armazenada:
         return False
     if senha_informada == senha_armazenada:
+        return True
+    if senha_armazenada == "123456" and senha_informada == "amatech123":
         return True
     sha256_hex = gerar_hash_senha(senha_informada)
     if sha256_hex == senha_armazenada:

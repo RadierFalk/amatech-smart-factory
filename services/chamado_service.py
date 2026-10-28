@@ -53,6 +53,7 @@ def abrir_chamado(
     prioridade: str,
     descricao_falha: str,
     tipo_manutencao: str = "CORRETIVA",
+    parar_maquina: bool = True,
     db_path: str | None = None,
 ) -> int:
     """
@@ -133,20 +134,22 @@ def abrir_chamado(
         )
         chamado_id = int(cursor.lastrowid)
 
-        # 2. Atualiza equipamento para PARADA (Vermelho)
-        conn.execute(
-            "UPDATE equipamentos SET status_operacional = 'PARADA' WHERE id = ?",
-            (equipamento_id,),
-        )
+        # 2. Atualiza equipamento para PARADA (Vermelho) se parar_maquina=True
+        novo_status_maq = "PARADA" if parar_maquina else status_anterior
+        if parar_maquina:
+            conn.execute(
+                "UPDATE equipamentos SET status_operacional = 'PARADA' WHERE id = ?",
+                (equipamento_id,),
+            )
 
         # 3. Grava trilha de auditoria (RN08)
         conn.execute(
             """
             INSERT INTO historico_status (
                 equipamento_id, chamado_id, usuario_id, status_anterior, status_novo, alterado_em
-            ) VALUES (?, ?, ?, ?, 'PARADA', ?)
+            ) VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (equipamento_id, chamado_id, operador_abertura_id, status_anterior, agora),
+            (equipamento_id, chamado_id, operador_abertura_id, status_anterior, novo_status_maq, agora),
         )
 
         return chamado_id

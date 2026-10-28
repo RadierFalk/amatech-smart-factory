@@ -251,7 +251,8 @@ def obter_dados_graficos_dashboard(
             SELECT
                 e.setor,
                 c.status_chamado,
-                COUNT(c.id) AS quantidade
+                COUNT(c.id) AS quantidade,
+                COALESCE(SUM(c.downtime_minutos), 0) AS downtime_min
             FROM chamados_manutencao c
             JOIN equipamentos e ON e.id = c.equipamento_id
             {where_clause}
@@ -261,9 +262,47 @@ def obter_dados_graficos_dashboard(
             tuple(params),
         ).fetchall()
 
+        # 5. Downtime Consolidado por Estação/Setor (para gráfico horizontal "Downtime por estação do processo")
+        rows_estacao = conn.execute(
+            f"""
+            SELECT
+                e.setor AS estacao,
+                COUNT(c.id) AS chamados,
+                COALESCE(SUM(c.downtime_minutos), 0) AS downtime_minutos
+            FROM equipamentos e
+            LEFT JOIN chamados_manutencao c
+                ON c.equipamento_id = e.id AND {' AND '.join(filtros)}
+            WHERE e.ativo = 1 {"AND e.setor = ?" if (setor and setor != "Todos") else ""}
+            GROUP BY e.setor
+            ORDER BY downtime_minutos DESC, chamados DESC
+            """,
+            tuple(params + ([setor] if (setor and setor != "Todos") else [])),
+        ).fetchall()
+
+        # 6. Peças mais consumidas no período
+        rows_pecas = conn.execute(
+            f"""
+            SELECT
+                p.codigo_peca,
+                p.nome,
+                p.unidade_medida,
+                COALESCE(SUM(cpt.quantidade), 0) AS quantidade
+            FROM chamado_pecas_trocadas cpt
+            JOIN pecas p ON p.id = cpt.peca_id
+            JOIN chamados_manutencao c ON c.id = cpt.chamado_id
+            JOIN equipamentos e ON e.id = c.equipamento_id
+            {where_clause}
+            GROUP BY p.id, p.codigo_peca, p.nome, p.unidade_medida
+            ORDER BY quantidade DESC, p.codigo_peca ASC
+            """,
+            tuple(params),
+        ).fetchall()
+
         return {
             "downtime_por_maquina": [dict(r) for r in rows_maq],
             "chamados_por_causa_raiz": [dict(r) for r in rows_causa],
             "evolucao_diaria_paradas": [dict(r) for r in rows_diario],
             "chamados_por_setor": [dict(r) for r in rows_setor],
+            "downtime_por_estacao": [dict(r) for r in rows_estacao],
+            "pecas_consumidas": [dict(r) for r in rows_pecas],
         }

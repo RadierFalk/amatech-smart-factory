@@ -245,12 +245,50 @@ def test_renderizacao_telas_streamlit_sem_erros():
     for tela in [
         "painel_maquinas",
         "abrir_chamado",
+        "meus_chamados",
         "fila_chamados",
+        "preventiva",
         "ordem_servico",
         "dashboard",
         "historico",
         "cadastros",
+        "auditoria",
     ]:
         at.session_state["pagina_atual"] = tela
         at.run()
         assert not at.exception, f"Exceção na tela {tela}: {at.exception}"
+
+
+def test_tela_login_e_botoes_rapidos():
+    """Valida a renderização da tela de login oficial, botão ENTRAR e os 3 botões de login rápido."""
+    from streamlit.testing.v1 import AppTest
+
+    app_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
+    
+    # 1. Login direto com credenciais pré-preenchidas e botão ENTRAR
+    at = AppTest.from_file(app_path, default_timeout=15)
+    at.run()
+    assert not at.exception
+    assert len(at.text_input) == 2
+    assert at.text_input[0].value == "OP-10234"
+    assert at.text_input[1].value == "123456"
+    assert at.button[0].label == "ENTRAR"
+    
+    at.button[0].click().run()
+    assert not at.exception
+    assert at.session_state["usuario_logado"]["matricula"] == "OP-10234"
+
+    # 2. Login rápido de Gestor
+    at_ges = AppTest.from_file(app_path, default_timeout=15)
+    at_ges.run()
+    at_ges.button(key="btn_demo_ges").click().run()
+    assert not at_ges.exception
+    assert at_ges.session_state["usuario_logado"]["perfil"] == "GESTOR"
+
+    # 3. Login rápido de Técnico
+    at_tec = AppTest.from_file(app_path, default_timeout=15)
+    at_tec.run()
+    at_tec.button(key="btn_demo_tec").click().run()
+    assert not at_tec.exception
+    assert at_tec.session_state["usuario_logado"]["perfil"] == "TECNICO"
+
