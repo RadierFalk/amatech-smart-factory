@@ -129,15 +129,14 @@ CREATE TABLE ocorrencia (
 # DADOS INICIAIS — PRODUTOS
 # ============================================================
 
+# Mesmos números de série e modelos da Rastreabilidade (dona desse cadastro): AMT-000001 a AMT-000030,
+# com os modelos AMT N14 a N18 distribuídos em rodízio. Com o sistema da Rastreabilidade no ar, a tela
+# busca também os notebooks novos (integracao.py).
+MODELOS_RASTREABILIDADE = ["AMT N14", "AMT N15", "AMT N16", "AMT N17", "AMT N18"]
+
 produtos = [
-    ("AMT-NB001", "AMATECH Notebook A1"),
-    ("AMT-NB002", "AMATECH Notebook A1"),
-    ("AMT-NB003", "AMATECH Notebook A2"),
-    ("AMT-NB004", "AMATECH Notebook A2"),
-    ("AMT-NB005", "AMATECH Notebook A1"),
-    ("AMT-NB006", "AMATECH Notebook A3"),
-    ("AMT-NB007", "AMATECH Notebook A3"),
-    ("AMT-NB008", "AMATECH Notebook A2"),
+    (f"AMT-{numero:06d}", MODELOS_RASTREABILIDADE[(numero - 1) % len(MODELOS_RASTREABILIDADE)])
+    for numero in range(1, 31)
 ]
 
 cursor.executemany("""
@@ -204,6 +203,7 @@ VALUES (?, ?)
 # DADOS INICIAIS — MÁQUINAS
 # ============================================================
 
+# TAGs da Manutenção (dona das máquinas). As seis primeiras mantêm a ordem antiga, usada pelas ocorrências abaixo.
 maquinas = [
     ("SMT-01", "Máquina da linha SMT 01"),
     ("INS-01", "Equipamento da estação de inserção manual"),
@@ -211,6 +211,10 @@ maquinas = [
     ("TEST-01", "Estação automática de testes funcionais"),
     ("TEST-02", "Estação automática de testes funcionais"),
     ("QC-01", "Equipamento utilizado na inspeção de qualidade"),
+    ("SMT-02", "Forno de Refusão 10 Zonas"),
+    ("SMT-03", "Máquina de Serigrafia (Screen Printer)"),
+    ("TEST-03", "Rack de Burn-in e Stress Térmico"),
+    ("EMB-01", "Encartuchadora Automática"),
 ]
 
 cursor.executemany("""

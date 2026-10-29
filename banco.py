@@ -463,3 +463,77 @@ def ocultar_ocorrencia(id_ocorrencia):
 
     conexao.commit()
     conexao.close()
+
+# ============================================================
+# INTEGRAÇÃO COM OS OUTROS SETORES
+# ============================================================
+
+def buscar_ocorrencia_detalhada(id_ocorrencia):
+    """Ocorrência com os nomes do produto, defeito, estação e máquina (usada ao avisar os outros sistemas)."""
+    conexao = conectar()
+
+    dado = conexao.execute("""
+        SELECT
+            o.id_ocorrencia,
+            o.data_ocorrencia,
+            o.hora_ocorrencia,
+            o.classificacao_defeito,
+            o.situacao_produto,
+            o.observacao_ocorrencia,
+            o.acao_realizada,
+            p.numero_serie_produto,
+            p.modelo_produto,
+            t.nome_tipo_defeito,
+            e.nome_estacao,
+            m.nome_maquina
+        FROM ocorrencia o
+        INNER JOIN produto p ON o.id_produto = p.id_produto
+        INNER JOIN tipo_defeito t ON o.id_tipo_defeito = t.id_tipo_defeito
+        INNER JOIN estacao e ON o.id_estacao = e.id_estacao
+        INNER JOIN maquina m ON o.id_maquina = m.id_maquina
+        WHERE o.id_ocorrencia = ?
+    """, (id_ocorrencia,)).fetchone()
+
+    conexao.close()
+
+    return dado
+
+
+def inserir_produto_se_novo(numero_serie, modelo):
+    """Grava um notebook vindo da Rastreabilidade. Devolve True se ele ainda não existia."""
+    conexao = conectar()
+
+    cursor = conexao.execute("""
+        INSERT OR IGNORE INTO produto (
+            numero_serie_produto,
+            modelo_produto
+        )
+        VALUES (?, ?)
+    """, (numero_serie, modelo))
+
+    conexao.commit()
+    novo = cursor.rowcount > 0
+
+    conexao.close()
+
+    return novo
+
+
+def inserir_maquina_se_nova(tag, descricao):
+    """Grava uma máquina vinda da Manutenção (a TAG é o nome). Devolve True se ela ainda não existia."""
+    conexao = conectar()
+
+    cursor = conexao.execute("""
+        INSERT OR IGNORE INTO maquina (
+            nome_maquina,
+            descricao_maquina
+        )
+        VALUES (?, ?)
+    """, (tag, descricao))
+
+    conexao.commit()
+    nova = cursor.rowcount > 0
+
+    conexao.close()
+
+    return nova

@@ -225,3 +225,47 @@ Não é necessário executar `api.py` separadamente.
 O computador que fornece os dados e o computador que consome os dados devem estar na mesma rede Wi-Fi.
 
 Se a API não puder ser acessada por outro computador, verifique o endereço IPv4 e as configurações do Firewall do Windows.
+
+---
+
+## 9. Integração com a Rastreabilidade e a Manutenção (OA3)
+
+O sistema conversa com os outros setores da fábrica pelas APIs deles. Se algum estiver fora do ar, a Qualidade continua
+funcionando normalmente e só mostra um aviso.
+
+| Sistema | Endereço padrão | Para quê |
+| --- | --- | --- |
+| Rastreabilidade | `http://localhost:8000` | Números de série e modelos dos notebooks; etapa de cada notebook |
+| Manutenção | `http://localhost:5002` | TAGs das máquinas; abertura de chamados |
+
+**Cadastros dos setores donos.** Ao abrir o sistema (e no botão *Atualizar cadastros dos setores*, na barra lateral), os
+notebooks são buscados na Rastreabilidade e as máquinas na Manutenção. Só o que falta é acrescentado; nada é apagado. O
+banco já vem com os notebooks `AMT-000001` a `AMT-000030` (modelos AMT N14 a N18) e as TAGs da Manutenção.
+
+**Ao registrar uma ocorrência**, a Rastreabilidade é avisada pela situação do produto:
+
+| Situação | O que acontece na Rastreabilidade |
+| --- | --- |
+| Reprovado | O notebook vai para a etapa *Reprovado*, com a observação como falha e o tipo de defeito como motivo |
+| Em_reprocesso | O notebook é reprovado e volta para *Em Montagem* |
+| Aprovado | O notebook vai para *Aprovado*, se ainda não tiver passado por essa etapa |
+
+Com a opção **Abrir chamado na manutenção** marcada, um chamado é aberto para a máquina da ocorrência, com prioridade pela
+classificação (Crítico → CRITICA, Maior → ALTA, Menor → MEDIA). Cada ocorrência é enviada com o identificador `QLD-<id>`;
+um reenvio não duplica nada nos outros sistemas.
+
+**Filtro por período na API:** `GET /api/ocorrencias?de=2026-10-01&ate=2026-10-31` (datas da ocorrência, inclusive).
+
+**Variáveis de ambiente** (opcionais):
+
+| Variável | Padrão |
+| --- | --- |
+| `RASTREABILIDADE_URL` | `http://localhost:8000` |
+| `RASTREABILIDADE_CHAVE` | `amt_demo_qualidade` |
+| `MANUTENCAO_URL` | `http://localhost:5002` |
+| `MANUTENCAO_CHAVE` | `amatech-manutencao-demo` |
+| `INTEGRACAO_TEMPO_LIMITE` | `3` (segundos) |
+
+A tela do Streamlit fica na porta `8502` (`.streamlit/config.toml`), para os quatro sistemas poderem rodar juntos.
+
+Testes da integração (não precisam dos outros sistemas no ar): `python -m pytest tests -q`

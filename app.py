@@ -2,6 +2,7 @@ import threading
 
 import streamlit as st
 
+import integracao
 from api import app as api_app
 from telas.dashboard import mostrar_dashboard
 from telas.registro_ocorrencia import mostrar_registro_ocorrencia
@@ -46,6 +47,20 @@ pagina = st.sidebar.radio(
         "Histórico"
     ]
 )
+
+
+# Notebooks da Rastreabilidade e máquinas da Manutenção: busca uma vez por sessão e quando o usuário pedir
+atualizar_cadastros = st.sidebar.button("Atualizar cadastros dos setores")
+
+if atualizar_cadastros or "cadastros_sincronizados" not in st.session_state:
+    st.session_state["cadastros_sincronizados"] = integracao.sincronizar_cadastros()
+
+with st.sidebar.expander("Integração com os setores"):
+    for tipo, mensagem in st.session_state["cadastros_sincronizados"]:
+        if tipo == "sucesso":
+            st.caption(mensagem)
+        else:
+            st.warning(mensagem)
 
 
 if pagina == "Dashboard":

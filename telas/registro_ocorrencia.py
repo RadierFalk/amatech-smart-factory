@@ -2,6 +2,7 @@ import streamlit as st
 from datetime import date, datetime, time
 
 import banco
+import integracao
 import ocorrencia
 
 
@@ -149,6 +150,11 @@ def mostrar_registro_ocorrencia():
             placeholder="Descreva a ação realizada após a identificação do defeito."
         )
 
+        abrir_chamado = st.checkbox(
+            "Abrir chamado na manutenção (defeito causado pela máquina)",
+            help="Envia um chamado para o sistema de Manutenção, com a máquina selecionada acima."
+        )
+
         # ====================================================
         # BOTÃO
         # ====================================================
@@ -215,6 +221,13 @@ def mostrar_registro_ocorrencia():
                 f"Ocorrência registrada com sucesso. "
                 f"ID da ocorrência: {resultado}"
             )
+
+            # Avisa a Rastreabilidade (etapa do notebook) e, se pedido, a Manutenção (chamado)
+            for tipo, mensagem in integracao.notificar_ocorrencia(resultado, abrir_chamado):
+                if tipo == "sucesso":
+                    st.info(mensagem)
+                else:
+                    st.warning(mensagem)
 
         else:
 
