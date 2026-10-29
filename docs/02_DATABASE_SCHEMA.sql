@@ -40,7 +40,9 @@ CREATE TABLE IF NOT EXISTS chamados_manutencao (
     data_hora_abertura TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     data_hora_inicio_atendimento TIMESTAMP,
     data_hora_fim_atendimento TIMESTAMP,
-    downtime_minutos INTEGER CHECK (downtime_minutos IS NULL OR downtime_minutos >= 0)
+    downtime_minutos INTEGER CHECK (downtime_minutos IS NULL OR downtime_minutos >= 0),
+    origem_sistema VARCHAR(50),        -- sistema que abriu o chamado pela API (ex.: qualidade); vazio = tela
+    id_externo VARCHAR(100)            -- id do registro no sistema de origem (evita chamado duplicado)
 );
 
 -- 4. TABELA DO CATÁLOGO DE PEÇAS / INSUMOS
@@ -76,6 +78,8 @@ CREATE INDEX IF NOT EXISTS ix_chamados_status ON chamados_manutencao(status_cham
 CREATE INDEX IF NOT EXISTS ix_chamados_equip_data ON chamados_manutencao(equipamento_id, data_hora_abertura);
 CREATE INDEX IF NOT EXISTS ix_chamados_tecnico ON chamados_manutencao(tecnico_responsavel_id);
 CREATE INDEX IF NOT EXISTS ix_hist_equip ON historico_status(equipamento_id, alterado_em);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_chamados_externo ON chamados_manutencao(origem_sistema, id_externo)
+    WHERE id_externo IS NOT NULL;
 
 -- ==============================================================================
 -- CARGA INICIAL DE DADOS (SEED DATA REALISTA DO PARQUE FABRIL AMATECH)
@@ -89,7 +93,9 @@ INSERT INTO usuarios (nome, matricula, senha_hash, perfil, ativo) VALUES
 ('João Lima Silva', 'TEC-2001', '123456', 'TECNICO', 1),
 ('Mariana Rocha', 'TEC-2002', '123456', 'TECNICO', 1),
 ('Orlando Vandres', 'GES-0001', '123456', 'GESTOR', 1),
-('Dawesley Costa', 'GES-0002', '123456', 'GESTOR', 1);
+('Dawesley Costa', 'GES-0002', '123456', 'GESTOR', 1),
+-- Usuário de serviço (inativo, não faz login): operador de abertura dos chamados que chegam pela API
+('Integração (outros sistemas)', 'SVC-INTEGRACAO', '!', 'OPERADOR', 0);
 
 -- Equipamentos compatíveis com os módulos de Controle de Qualidade e Rastreabilidade
 INSERT INTO equipamentos (codigo_tag, nome, setor, posto_trabalho, status_operacional, ativo) VALUES
@@ -100,7 +106,10 @@ INSERT INTO equipamentos (codigo_tag, nome, setor, posto_trabalho, status_operac
 ('TEST-02', 'Testador Funcional FCT 01', 'Testes Funcionais', 'Posto 02', 'OPERACIONAL', 1),
 ('TEST-03', 'Rack de Burn-in e Stress Térmico', 'Testes Funcionais', 'Posto 03', 'OPERACIONAL', 1),
 ('MONT-01', 'Esteira Automatizada de Montagem', 'Montagem Final', 'Posto 01', 'OPERACIONAL', 1),
-('EMB-01', 'Encartuchadora Automática', 'Embalagem', 'Posto 01', 'OPERACIONAL', 1);
+('EMB-01', 'Encartuchadora Automática', 'Embalagem', 'Posto 01', 'OPERACIONAL', 1),
+-- Máquinas também cadastradas no Controle da Qualidade (integração do ecossistema, OA3)
+('INS-01', 'Bancada de Inserção Manual', 'Inserção Manual', 'Posto 01', 'OPERACIONAL', 1),
+('QC-01', 'Bancada de Inspeção da Qualidade', 'Inspeção da Qualidade', 'Posto 01', 'OPERACIONAL', 1);
 
 -- Catálogo de Peças Sobressalentes
 INSERT INTO pecas (codigo_peca, nome, unidade_medida, ativo) VALUES

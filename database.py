@@ -7,7 +7,7 @@ import sqlite3
 from contextlib import contextmanager
 from typing import Generator
 
-from config import DB_PATH, SCHEMA_PATH
+from config import DB_PATH, MATRICULA_INTEGRACAO, SCHEMA_PATH
 
 
 def get_connection(db_path: str | None = None) -> sqlite3.Connection:
@@ -82,5 +82,39 @@ def ensure_database_initialized(db_path: str | None = None, force_reset: bool = 
                 sql_script = f.read()
             cursor.executescript(sql_script)
             conn.commit()
+
+        _migrar_integracao(conn)
     finally:
         conn.close()
+
+
+def _migrar_integracao(conn: sqlite3.Connection) -> None:
+    """
+    Ajustes da integração com o ecossistema (OA3), aplicados também a bancos que já existiam.
+    Idempotente: só acrescenta o que falta e nunca apaga dados.
+    - origem_sistema e id_externo nos chamados (chamado aberto por outro sistema pela API, sem duplicar);
+    - máquinas INS-01 e QC-01, usadas pelo Controle da Qualidade;
+    - usuário de serviço "Integração" (inativo, não faz login), operador de abertura dos chamados da API.
+    """
+    colunas = {linha["name"] for linha in conn.execute("PRAGMA table_info(chamados_manutencao)")}
+    if "origem_sistema" not in colunas:
+        conn.execute("ALTER TABLE chamados_manutencao ADD COLUMN origem_sistema VARCHAR(50)")
+    if "id_externo" not in colunas:
+        conn.execute("ALTER TABLE chamados_manutencao ADD COLUMN id_externo VARCHAR(100)")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_chamados_externo "
+        "ON chamados_manutencao(origem_sistema, id_externo) WHERE id_externo IS NOT NULL"
+    )
+    conn.executemany(
+        "INSERT OR IGNORE INTO equipamentos (codigo_tag, nome, setor, posto_trabalho) VALUES (?, ?, ?, 'Posto 01')",
+        [
+            ("INS-01", "Bancada de Inserção Manual", "Inserção Manual"),
+            ("QC-01", "Bancada de Inspeção da Qualidade", "Inspeção da Qualidade"),
+        ],
+    )
+    conn.execute(
+        "INSERT OR IGNORE INTO usuarios (nome, matricula, senha_hash, perfil, ativo) "
+        "VALUES ('Integração (outros sistemas)', ?, '!', 'OPERADOR', 0)",
+        (MATRICULA_INTEGRACAO,),
+    )
+    conn.commit()

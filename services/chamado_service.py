@@ -5,7 +5,7 @@ Atende aos requisitos F03–F11, F17 e Regras de Negócio RN02, RN03, RN04, RN05
 from datetime import datetime, timezone
 from typing import Any
 
-from config import PRIORIDADES, TIPOS_MANUTENCAO
+from config import MATRICULA_INTEGRACAO, PRIORIDADES, TIPOS_MANUTENCAO
 from database import get_db
 
 
@@ -57,6 +57,8 @@ def abrir_chamado(
     tipo_manutencao: str = "CORRETIVA",
     parar_maquina: bool = True,
     db_path: str | None = None,
+    origem_sistema: str | None = None,
+    id_externo: str | None = None,
 ) -> int:
     """
     Abre um novo chamado de manutenção (F03):
@@ -122,8 +124,10 @@ def abrir_chamado(
                 tipo_manutencao,
                 status_chamado,
                 descricao_falha,
-                data_hora_abertura
-            ) VALUES (?, ?, ?, ?, 'ABERTO', ?, ?)
+                data_hora_abertura,
+                origem_sistema,
+                id_externo
+            ) VALUES (?, ?, ?, ?, 'ABERTO', ?, ?, ?, ?)
             """,
             (
                 equipamento_id,
@@ -132,6 +136,8 @@ def abrir_chamado(
                 tipo_limpo,
                 descricao_limpa,
                 agora,
+                origem_sistema,
+                id_externo,
             ),
         )
         chamado_id = int(cursor.lastrowid)
@@ -155,6 +161,50 @@ def abrir_chamado(
         )
 
         return chamado_id
+
+
+def abrir_chamado_externo(
+    equipamento_tag: str,
+    descricao_falha: str,
+    prioridade: str = "MEDIA",
+    tipo_manutencao: str = "CORRETIVA",
+    origem_sistema: str | None = None,
+    id_externo: str | None = None,
+    db_path: str | None = None,
+) -> tuple[int, bool]:
+    """
+    Abre um chamado pedido por outro sistema do ecossistema (ex.: a Qualidade encontrou um defeito causado
+    pela máquina). Devolve (id do chamado, criado). Um reenvio com o mesmo (origem_sistema, id_externo)
+    devolve o chamado já aberto, sem duplicar. As regras são as mesmas do formulário (RN02 incluída).
+    """
+    tag = (equipamento_tag or "").strip().upper()
+    with get_db(db_path) as conn:
+        if id_externo:
+            existente = conn.execute(
+                "SELECT id FROM chamados_manutencao WHERE origem_sistema = ? AND id_externo = ?",
+                (origem_sistema, id_externo),
+            ).fetchone()
+            if existente:
+                return int(existente["id"]), False
+        equip = conn.execute("SELECT id FROM equipamentos WHERE UPPER(codigo_tag) = ?", (tag,)).fetchone()
+        if not equip:
+            raise LookupError(f"Máquina com a TAG '{tag}' não encontrada.")
+        servico = conn.execute(
+            "SELECT id FROM usuarios WHERE matricula = ?", (MATRICULA_INTEGRACAO,)
+        ).fetchone()
+        if not servico:
+            raise RuntimeError("Usuário de serviço da integração não está cadastrado.")
+    chamado_id = abrir_chamado(
+        int(equip["id"]),
+        int(servico["id"]),
+        prioridade,
+        descricao_falha,
+        tipo_manutencao=tipo_manutencao,
+        db_path=db_path,
+        origem_sistema=origem_sistema,
+        id_externo=id_externo,
+    )
+    return chamado_id, True
 
 
 def assumir_chamado(
@@ -755,7 +805,9 @@ def listar_historico_chamados(
             c.data_hora_abertura,
             c.data_hora_inicio_atendimento,
             c.data_hora_fim_atendimento,
-            c.downtime_minutos
+            c.downtime_minutos,
+            c.origem_sistema,
+            c.id_externo
         FROM chamados_manutencao c
         JOIN equipamentos e ON e.id = c.equipamento_id
         JOIN usuarios u_op ON u_op.id = c.operador_abertura_id

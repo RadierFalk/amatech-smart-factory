@@ -52,3 +52,50 @@
        "disponibilidade_geral_pct": 98.75
      }
      ```
+
+---
+
+### 4. Integração implementada na OA3 (branch `integracao-ecossistema`)
+
+**Portas:** API REST em `5002` (como antes) e tela Streamlit fixada em `8503` (`.streamlit/config.toml`), para os quatro
+sistemas poderem rodar juntos (Rastreabilidade 8000, Qualidade 5000/8502, Dashboard 8501).
+
+**Datas em UTC com "Z".** O banco sempre gravou em UTC (RN06). Agora `GET /api/manutencao/chamados` devolve as datas
+como `2026-10-28T13:05:00Z`, deixando o fuso explícito. Cada chamado também traz `origem_sistema` e `id_externo`
+(vazios quando o chamado foi aberto pela tela).
+
+**Abrir chamado a partir de outro sistema:** `POST /api/manutencao/chamados`, com o cabeçalho
+`X-API-Key: amatech-manutencao-demo` (variável de ambiente `MANUTENCAO_API_KEY`).
+
+```json
+{
+  "equipamento_tag": "TEST-01",
+  "descricao_falha": "Testador reprovando notebooks bons (QLD-42)",
+  "prioridade": "ALTA",
+  "tipo_manutencao": "CORRETIVA",
+  "origem_sistema": "qualidade",
+  "id_externo": "QLD-42"
+}
+```
+
+| Resposta | Quando |
+| --- | --- |
+| `201 {"id_chamado": 4, "criado": true}` | Chamado aberto; a máquina passa para `PARADA` |
+| `200 {"id_chamado": 4, "criado": false}` | Reenvio com o mesmo `origem_sistema` + `id_externo`: não duplica |
+| `401` | Chave ausente ou errada |
+| `404` | TAG não cadastrada |
+| `409` | Máquina já parada ou em manutenção (RN02, mesma regra da tela) |
+| `422` | Prioridade, tipo ou descrição inválidos |
+
+O chamado fica com o operador de abertura **"Integração (outros sistemas)"** (matrícula `SVC-INTEGRACAO`), um usuário de
+serviço inativo que não faz login. O resto do ciclo (assumir, laudo, peças, concluir) segue normalmente pelas telas.
+
+**Migração automática.** Ao iniciar, `ensure_database_initialized()` acrescenta o que falta em bancos antigos, sem apagar
+nada: colunas `origem_sistema` e `id_externo` em `chamados_manutencao` (com índice único), as máquinas `INS-01`
+(Inserção Manual) e `QC-01` (Inspeção da Qualidade), que o Controle da Qualidade também usa, e o usuário de serviço.
+O `docs/02_DATABASE_SCHEMA.sql` e o `manutencao.db` do repositório já estão atualizados.
+
+**Variáveis de ambiente novas:** `MANUTENCAO_API_KEY` (chave do POST) e `MANUTENCAO_DB` (caminho do banco; padrão
+`manutencao.db`).
+
+Testes: `tests/test_integracao_ecossistema.py`.

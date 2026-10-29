@@ -10,12 +10,13 @@ import threading
 from typing import Any, AsyncIterator
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
-from config import API_HOST, API_PORT
+from config import API_HOST, API_KEY_INTEGRACAO, API_PORT
 from database import ensure_database_initialized
-from services.chamado_service import listar_historico_chamados
+from services.chamado_service import abrir_chamado_externo, listar_historico_chamados
 from services.equipamento_service import listar_equipamentos
 from services.relatorio_service import obter_indicadores_consolidados
 
@@ -43,9 +44,20 @@ app.add_middleware(
 
 
 def _format_iso(ts: str | None) -> str | None:
+    """O banco grava em UTC (RN06); o "Z" deixa isso explícito para os outros sistemas."""
     if not ts:
         return None
-    return str(ts).replace(" ", "T")
+    return str(ts).replace(" ", "T") + "Z"
+
+
+class ChamadoExternoIn(BaseModel):
+    """Chamado aberto por outro sistema do ecossistema (ex.: Controle da Qualidade)."""
+    equipamento_tag: str = Field(min_length=1)
+    descricao_falha: str = Field(min_length=5)
+    prioridade: str = "MEDIA"
+    tipo_manutencao: str = "CORRETIVA"
+    origem_sistema: str = Field(min_length=1)
+    id_externo: str | None = None
 
 
 @app.get("/api/status")
@@ -104,9 +116,41 @@ def obter_chamados() -> list[dict[str, Any]]:
                 "data_hora_fim": _format_iso(c["data_hora_fim_atendimento"]),
                 "downtime_minutos": c["downtime_minutos"],
                 "pecas_trocadas": c["pecas_trocadas"],
+                "origem_sistema": c["origem_sistema"],
+                "id_externo": c["id_externo"],
             }
         )
     return resultado
+
+
+@app.post("/api/manutencao/chamados", status_code=201)
+def criar_chamado_externo(
+    dados: ChamadoExternoIn, response: Response, x_api_key: str | None = Header(None, alias="X-API-Key")
+) -> dict[str, Any]:
+    """
+    Endpoint 5: outro sistema abre um chamado (cabeçalho X-API-Key = MANUTENCAO_API_KEY).
+    Reenvio com o mesmo origem_sistema + id_externo devolve o chamado existente ("criado": false).
+    Máquina já parada ou em manutenção (RN02) responde 409.
+    """
+    if x_api_key != API_KEY_INTEGRACAO:
+        raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
+    try:
+        chamado_id, criado = abrir_chamado_externo(
+            dados.equipamento_tag,
+            dados.descricao_falha,
+            prioridade=dados.prioridade,
+            tipo_manutencao=dados.tipo_manutencao,
+            origem_sistema=dados.origem_sistema.strip().lower(),
+            id_externo=dados.id_externo,
+        )
+    except LookupError as erro:
+        raise HTTPException(status_code=404, detail=str(erro)) from erro
+    except ValueError as erro:
+        codigo = 409 if "RN02" in str(erro) else 422
+        raise HTTPException(status_code=codigo, detail=str(erro)) from erro
+    if not criado:
+        response.status_code = 200
+    return {"id_chamado": chamado_id, "criado": criado}
 
 
 @app.get("/api/manutencao/indicadores")

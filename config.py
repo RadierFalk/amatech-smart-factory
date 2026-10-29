@@ -5,11 +5,16 @@ Projeto 5: Sistema de Controle da Manutenção (management-control)
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "manutencao.db")
+DB_PATH = os.environ.get("MANUTENCAO_DB", os.path.join(BASE_DIR, "manutencao.db"))
 SCHEMA_PATH = os.path.join(BASE_DIR, "docs", "02_DATABASE_SCHEMA.sql")
 
 API_HOST = "0.0.0.0"
 API_PORT = int(os.environ.get("MANUTENCAO_API_PORT", "5002"))
+
+# Integração com o ecossistema (OA3): chave que os outros sistemas enviam no cabeçalho X-API-Key para abrir
+# chamados pela API, e o usuário de serviço que fica como "operador de abertura" desses chamados.
+API_KEY_INTEGRACAO = os.environ.get("MANUTENCAO_API_KEY", "amatech-manutencao-demo")
+MATRICULA_INTEGRACAO = "SVC-INTEGRACAO"
 
 # Paleta Oficial AMATECH (replicada do projeto de referência amatech-manutencao)
 COLORS = {
