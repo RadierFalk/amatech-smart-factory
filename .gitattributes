@@ -1,0 +1,7 @@
+# Arquivos lidos dentro dos contêineres Linux (Docker): sempre com quebra de linha LF, mesmo clonados no Windows.
+Dockerfile        text eol=lf
+docker-compose.yml text eol=lf
+.dockerignore     text eol=lf
+.env.exemplo      text eol=lf
+servidor/**       text eol=lf
+*.sh              text eol=lf
