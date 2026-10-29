@@ -1,5 +1,5 @@
 // Casca do sistema: login, cabeçalho, faixa de módulos (estilo TOTVS RM), abas de telas abertas e rodapé.
-import { api, guardarToken, lerToken, quandoNaoAutorizado } from './api.js';
+import { api, endereco, guardarToken, lerToken, quandoNaoAutorizado } from './api.js';
 import { h, icone, toast } from './ui.js';
 import { telaInicio } from './telas/inicio.js';
 import { telaProdutos, telaComponentes, telaStatus, telaUsuarios, telaIntegracoes } from './telas/cadastros.js';
@@ -35,7 +35,7 @@ let sessao = null;      // { usuario, turno }
 // ------------------------------------------------------------------ login
 async function mostrarLogin(aviso) {
   let turnos = ['Turno 1', 'Turno 2'];
-  try { turnos = await (await fetch('/api/auth/turnos')).json(); } catch { /* usa o padrão */ }
+  try { turnos = await (await fetch(endereco('/api/auth/turnos'))).json(); } catch { /* usa o padrão */ }
   const matricula = h('input', { id: 'l-mat', type: 'text', autocomplete: 'username', placeholder: 'MAT-00000', required: true });
   const senha = h('input', { id: 'l-senha', type: 'password', autocomplete: 'current-password', placeholder: 'Senha', required: true });
   const turno = h('select', { id: 'l-turno' }, turnos.map((t) => h('option', { value: t }, t)));

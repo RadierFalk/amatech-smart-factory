@@ -1,5 +1,5 @@
 // Cadastros: Produtos (com vínculo de componentes), Componentes, Status de produção, Usuários e Integrações.
-import { api } from '../api.js';
+import { api, endereco } from '../api.js';
 import { h, icone, barra, grade, janela, confirmar, dialogo, fmtData, fmtNum, toast } from '../ui.js';
 import { telaCrud, cabecalhoTela } from './crud.js';
 
@@ -265,12 +265,12 @@ export async function telaIntegracoes(container, ctx) {
     try { await api.del(`/api/integracoes/${s.id}`); toast('Sistema excluído.'); await carregar(); } catch (e) { toast(e.message, 'erro'); }
   }
 
-  const base = location.origin;
+  const base = location.origin + endereco('/').replace(/\/$/, '');   // inclui a rota do servidor, se houver
   container.append(
     cabecalhoTela('link', 'Integrações', 'Sistemas de outras equipes autorizados a consultar e enviar dados para este sistema.'),
     h('div', { class: 'aviso info' }, icone('info'),
       h('div', {}, 'Endereço da API: ', h('code', {}, base + '/api/v1'), ' · Documentação interativa: ',
-        h('a', { href: '/docs', target: '_blank', rel: 'noopener' }, '/docs'),
+        h('a', { href: 'docs', target: '_blank', rel: 'noopener' }, 'docs'),
         ' · Teste rápido: ', h('code', {}, base + '/api/v1/saude'))),
     tb.el, g.el);
   atualizarBotoes(null);

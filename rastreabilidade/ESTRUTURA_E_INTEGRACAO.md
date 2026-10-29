@@ -70,6 +70,21 @@ Dashboard (8501) ──GET  /api/v1/produtos, /api/v1/passagens►  (modelos e p
 O sistema **não chama** nenhum outro: só responde. Todas as datas saem em UTC com "Z"; quem consome converte para o
 horário de Manaus (UTC-4).
 
+## Servidor da rede (Docker)
+
+No servidor da fábrica, todos os sistemas ficam no mesmo IP, cada um na sua rota, atrás de um proxy na porta 80
+(guia completo em [`../SERVIDOR.md`](../SERVIDOR.md)):
+
+| Rota | Serviço |
+| --- | --- |
+| `http://IP/rastreabilidade/` | Telas e API no mesmo processo (uvicorn com `--root-path /rastreabilidade`) |
+| `http://IP/rastreabilidade/api/v1/...` e `/rastreabilidade/docs` | API e documentação |
+
+Mudança para o servidor: as telas montavam os endereços da API como `/api/...` (a partir da raiz do site), o que
+quebraria sob a rota `/rastreabilidade/`. Agora o `static/js/api.js` resolve esses endereços a partir da pasta em que o
+sistema está publicado (função `endereco`), e o sistema funciona tanto sozinho (`http://localhost:8000/`) quanto atrás
+do proxy. A tela de Integrações também mostra o endereço da API com a rota.
+
 ## 5. Variáveis de ambiente
 
 | Variável | Para quê | Padrão |

@@ -16,6 +16,13 @@ export function lerToken() {
 }
 export function quandoNaoAutorizado(fn) { aoNaoAutorizado = fn; }
 
+// Pasta em que o sistema está publicado: "/" rodando sozinho, "/rastreabilidade/" atrás do proxy do servidor.
+// Os endereços da API ("/api/...") são resolvidos a partir dela, então o sistema funciona nos dois casos.
+const BASE = new URL('./', window.location.href).pathname;
+export function endereco(url) {
+  return url.startsWith('/') ? BASE + url.slice(1) : url;
+}
+
 async function requisitar(metodo, url, corpo) {
   const headers = {};
   const token = lerToken();
@@ -23,7 +30,7 @@ async function requisitar(metodo, url, corpo) {
   const opcoes = { method: metodo, headers };
   if (corpo !== undefined) { headers['Content-Type'] = 'application/json'; opcoes.body = JSON.stringify(corpo); }
   let resp;
-  try { resp = await fetch(url, opcoes); }
+  try { resp = await fetch(endereco(url), opcoes); }
   catch { throw new ErroApi('Não foi possível conectar ao servidor. Verifique se o sistema está em execução.', 0); }
   if (resp.status === 401 && !url.includes('/auth/login')) aoNaoAutorizado();
   let dados = null;
@@ -44,7 +51,7 @@ export const api = {
 
 // Baixa um arquivo (ex.: CSV) mantendo o cabeçalho de autenticação.
 export async function baixarArquivo(url, nomeArquivo) {
-  const resp = await fetch(url, { headers: { Authorization: 'Bearer ' + lerToken() } });
+  const resp = await fetch(endereco(url), { headers: { Authorization: 'Bearer ' + lerToken() } });
   if (!resp.ok) throw new ErroApi('Não foi possível gerar o arquivo.', resp.status);
   const blob = await resp.blob();
   const a = document.createElement('a');
