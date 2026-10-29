@@ -70,12 +70,12 @@ def test_chamado_aberto_pela_qualidade_nao_duplica(cliente):
     assert de_novo.status_code == 200
     assert de_novo.json() == {"id_chamado": r.json()["id_chamado"], "criado": False}
 
-    chamado = next(c for c in cliente.get("/api/manutencao/chamados").json()
+    chamado = next(c for c in cliente.get("/api/manutencao/chamados", headers=CHAVE).json()
                    if c["id_chamado"] == r.json()["id_chamado"])
     assert (chamado["origem_sistema"], chamado["id_externo"]) == ("qualidade", "QLD-42")
     assert chamado["operador"] == "Integração (outros sistemas)"
     assert chamado["data_hora_abertura"].endswith("Z")
-    maquina = next(e for e in cliente.get("/api/equipamentos").json() if e["codigo_tag"] == "QC-01")
+    maquina = next(e for e in cliente.get("/api/equipamentos", headers=CHAVE).json() if e["codigo_tag"] == "QC-01")
     assert maquina["status_operacional"] == "PARADA"
 
 
@@ -88,3 +88,10 @@ def test_erros_da_abertura_externa(cliente):
     assert cliente.post("/api/manutencao/chamados", json=corpo, headers=CHAVE).status_code == 404
     corpo.update(equipamento_tag="EMB-01", prioridade="URGENTE")
     assert cliente.post("/api/manutencao/chamados", json=corpo, headers=CHAVE).status_code == 422
+
+
+def test_leituras_exigem_chave_e_status_nao(cliente):
+    assert cliente.get("/api/status").status_code == 200
+    for rota in ("/api/equipamentos", "/api/manutencao/chamados", "/api/manutencao/indicadores"):
+        assert cliente.get(rota).status_code == 401
+        assert cliente.get(rota, headers=CHAVE).status_code == 200

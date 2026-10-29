@@ -11,17 +11,17 @@ conversa com os outros três sistemas da AMATECH Smart Factory. O resumo de todo
 | Item | Valor |
 | --- | --- |
 | Tecnologia | Python + Streamlit (telas) + FastAPI (API) + SQLite |
-| Portas | Telas **8503** · API **5002** (sobe junto com as telas, numa thread) |
+| Portas | Telas **8503** · API **5002** (processo separado) · no servidor: `/manutencao/` e `/manutencao/api/` |
 | Banco | `manutencao.db` (está no Git); criado a partir de `docs/02_DATABASE_SCHEMA.sql` se não existir |
 | Dono dos cadastros | **Máquinas** (TAGs como `TEST-01`) e chamados de manutenção |
-| Executar | `streamlit run app.py` → http://localhost:8503 · só a API: `python api.py` |
-| Testes | `python -m pytest -q` (10 testes) |
+| Executar | API: `python -m uvicorn api:app --port 5002` · tela: `streamlit run app.py` → http://localhost:8503 |
+| Testes | `python -m pytest -q` (11 testes) |
 
 ## 2. Estrutura atual
 
 ```
 manutencao/
-├── app.py                   ← entrada do Streamlit: login, menu por perfil; sobe a API em segundo plano
+├── app.py                   ← entrada do Streamlit: login e menu por perfil
 ├── api.py                   ← API FastAPI (porta 5002): status, equipamentos, chamados (GET e POST), indicadores
 ├── config.py                ← caminhos, portas, chave da API de integração, cores e listas do sistema
 ├── database.py              ← conexão SQLite, criação do banco e migração da integração
@@ -79,13 +79,29 @@ Dashboard (8501) ──GET  /api/manutencao/chamados─►                     (
 Chamados cancelados não contam, e um chamado sem fim aparece no painel como **parada em andamento**. O setor da máquina
 define a estação no Dashboard ("Testes Funcionais" = "Teste funcional"; ver `docs/CADASTROS_COMUNS.md` do Dashboard).
 
-As rotas `GET` continuam sem chave, como antes. O sistema **não chama** nenhum outro: só responde.
+Todas as rotas de dados (inclusive os `GET`) exigem a chave `X-API-Key`; só `/api/status` é aberta. O sistema **não
+chama** nenhum outro: só responde.
+
+## Servidor da rede (Docker)
+
+No servidor da fábrica, todos os sistemas ficam no mesmo IP, cada um na sua rota, atrás de um proxy na porta 80
+(guia completo em [`../SERVIDOR.md`](../SERVIDOR.md)):
+
+| Rota | Serviço |
+| --- | --- |
+| `http://IP/manutencao/` | Tela (Streamlit com `--server.baseUrlPath manutencao`) |
+| `http://IP/manutencao/api/...` e `/manutencao/docs` | API (uvicorn com `--root-path /manutencao`) |
+
+Mudanças para o servidor: a API roda **separada da tela** (antes subia numa thread do Streamlit, então só existia depois
+que alguém abria a tela); os `GET` passaram a exigir a chave; o CORS, que liberava qualquer site (`*`), agora só libera
+as origens da variável `MANUTENCAO_CORS` (padrão: nenhuma).
 
 ## 5. Variáveis de ambiente
 
 | Variável | Para quê | Padrão |
 | --- | --- | --- |
-| `MANUTENCAO_API_KEY` | Chave do `POST /api/manutencao/chamados` | `amatech-manutencao-demo` |
+| `MANUTENCAO_API_KEY` | Chave de todas as rotas de dados da API | `amatech-manutencao-demo` |
+| `MANUTENCAO_CORS` | Sites liberados a chamar a API pelo navegador, separados por vírgula | vazio |
 | `MANUTENCAO_DB` | Caminho do banco | `manutencao.db` |
 | `MANUTENCAO_API_PORT` | Porta da API | `5002` |
 
@@ -93,6 +109,7 @@ As rotas `GET` continuam sem chave, como antes. O sistema **não chama** nenhum 
 
 ```bash
 python -m pytest -q
+curl -H "X-API-Key: amatech-manutencao-demo" http://localhost:5002/api/equipamentos
 curl -X POST -H "X-API-Key: amatech-manutencao-demo" -H "Content-Type: application/json" \
      -d '{"equipamento_tag":"EMB-01","descricao_falha":"Teste de integração","origem_sistema":"teste","id_externo":"T-1"}' \
      http://localhost:5002/api/manutencao/chamados

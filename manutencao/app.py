@@ -13,8 +13,6 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-from api import iniciar_api_em_background
-from config import API_PORT
 from database import ensure_database_initialized
 from services.auth_service import PERMISSOES_POR_PERFIL, autenticar_usuario
 from services.chamado_service import listar_fila_chamados
@@ -344,9 +342,8 @@ def _renderizar_sidebar_e_navegacao(usuario: dict) -> str:
 
 
 def main() -> None:
-    """Inicializa banco, API REST em background, estilos e roteador de telas."""
+    """Inicializa banco, estilos e roteador de telas. A API roda à parte (python -m uvicorn api:app --port 5002)."""
     ensure_database_initialized()
-    iniciar_api_em_background(API_PORT)
     aplicar_estilos_amatech()
 
     usuario = st.session_state.get("usuario_logado")

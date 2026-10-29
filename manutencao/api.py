@@ -3,18 +3,19 @@ Servidor de API REST JSON em FastAPI para Integração no Ecossistema Mini-ERP A
 Expõe dados para Controle de Qualidade (Anderson), Rastreabilidade (Waddington)
 e Central de Visualização (Letícia/Radier).
 Porta padrão: 5002
+
+Roda como um processo separado das telas (numa empresa, a API não pode depender de alguém abrir a tela):
+    python -m uvicorn api:app --host 0.0.0.0 --port 5002      (ou: python api.py)
 """
 from contextlib import asynccontextmanager
-import socket
-import threading
 from typing import Any, AsyncIterator
 
 import uvicorn
-from fastapi import FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from config import API_HOST, API_KEY_INTEGRACAO, API_PORT
+from config import API_CORS_ORIGENS, API_HOST, API_KEY_INTEGRACAO, API_PORT
 from database import ensure_database_initialized
 from services.chamado_service import abrir_chamado_externo, listar_historico_chamados
 from services.equipamento_service import listar_equipamentos
@@ -34,13 +35,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS só para as origens configuradas (MANUTENCAO_CORS): telas de outros sistemas que chamem a API pelo navegador.
+if API_CORS_ORIGENS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=API_CORS_ORIGENS,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+
+def exigir_chave(x_api_key: str | None = Header(None, alias="X-API-Key")) -> None:
+    """Todas as rotas de dados exigem a chave de integração (MANUTENCAO_API_KEY) no cabeçalho X-API-Key."""
+    if x_api_key != API_KEY_INTEGRACAO:
+        raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
 
 
 def _format_iso(ts: str | None) -> str | None:
@@ -62,7 +70,7 @@ class ChamadoExternoIn(BaseModel):
 
 @app.get("/api/status")
 def obter_status() -> dict[str, Any]:
-    """Endpoint 1: Healthcheck e Status do Sistema."""
+    """Endpoint 1: Healthcheck e Status do Sistema (sem chave)."""
     return {
         "sistema": "Controle da Manutencao",
         "status": "online",
@@ -71,7 +79,7 @@ def obter_status() -> dict[str, Any]:
     }
 
 
-@app.get("/api/equipamentos")
+@app.get("/api/equipamentos", dependencies=[Depends(exigir_chave)])
 def obter_equipamentos() -> list[dict[str, Any]]:
     """Endpoint 2: Lista de máquinas com status operacional em tempo real."""
     equipamentos = listar_equipamentos(apenas_ativos=True)
@@ -91,7 +99,7 @@ def obter_equipamentos() -> list[dict[str, Any]]:
     return resultado
 
 
-@app.get("/api/manutencao/chamados")
+@app.get("/api/manutencao/chamados", dependencies=[Depends(exigir_chave)])
 def obter_chamados() -> list[dict[str, Any]]:
     """Endpoint 3: Histórico e chamados ativos com timestamps, downtime e peças substituídas."""
     chamados = listar_historico_chamados()
@@ -123,17 +131,13 @@ def obter_chamados() -> list[dict[str, Any]]:
     return resultado
 
 
-@app.post("/api/manutencao/chamados", status_code=201)
-def criar_chamado_externo(
-    dados: ChamadoExternoIn, response: Response, x_api_key: str | None = Header(None, alias="X-API-Key")
-) -> dict[str, Any]:
+@app.post("/api/manutencao/chamados", status_code=201, dependencies=[Depends(exigir_chave)])
+def criar_chamado_externo(dados: ChamadoExternoIn, response: Response) -> dict[str, Any]:
     """
     Endpoint 5: outro sistema abre um chamado (cabeçalho X-API-Key = MANUTENCAO_API_KEY).
     Reenvio com o mesmo origem_sistema + id_externo devolve o chamado existente ("criado": false).
     Máquina já parada ou em manutenção (RN02) responde 409.
     """
-    if x_api_key != API_KEY_INTEGRACAO:
-        raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
     try:
         chamado_id, criado = abrir_chamado_externo(
             dados.equipamento_tag,
@@ -153,7 +157,7 @@ def criar_chamado_externo(
     return {"id_chamado": chamado_id, "criado": criado}
 
 
-@app.get("/api/manutencao/indicadores")
+@app.get("/api/manutencao/indicadores", dependencies=[Depends(exigir_chave)])
 def obter_indicadores() -> dict[str, Any]:
     """Endpoint 4: Métricas consolidadas (Downtime total, MTTR, MTTA, contadores e disponibilidade)."""
     ind = obter_indicadores_consolidados()
@@ -171,46 +175,6 @@ def obter_indicadores() -> dict[str, Any]:
         "maquinas_paradas": ind["maquinas_paradas"],
         "disponibilidade_geral_pct": ind["disponibilidade_geral_pct"],
     }
-
-
-def _porta_em_uso(porta: int) -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.settimeout(0.3)
-        return s.connect_ex(("127.0.0.1", porta)) == 0
-
-
-_api_thread_lock = threading.Lock()
-_api_started = False
-
-
-def iniciar_api_em_background(porta: int = API_PORT) -> bool:
-    """
-    Inicia o servidor FastAPI/Uvicorn em uma thread daemon paralela ao Streamlit,
-    permitindo que `streamlit run app.py` também suba a API REST na porta 5002.
-    """
-    global _api_started
-    with _api_thread_lock:
-        if _api_started or _porta_em_uso(porta):
-            _api_started = True
-            return False
-
-        def _run() -> None:
-            try:
-                config = uvicorn.Config(
-                    app,
-                    host=API_HOST,
-                    port=porta,
-                    log_level="warning",
-                )
-                server = uvicorn.Server(config)
-                server.run()
-            except Exception:
-                pass
-
-        thread = threading.Thread(target=_run, daemon=True, name="amatech-manutencao-api")
-        thread.start()
-        _api_started = True
-        return True
 
 
 if __name__ == "__main__":
