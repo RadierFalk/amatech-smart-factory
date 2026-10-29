@@ -21,7 +21,7 @@ Projeto 3 do **Projeto Integrador** da disciplina Ambiente Fabril I · Engenhari
 | --- | --- |
 | OA1 — Diagnóstico e requisitos | Concluída |
 | OA2 — Modelagem da solução | Concluída (ver `docs/`) |
-| OA3 — Desenvolvimento do MVP | MVP funcionando (10 telas, 40 testes); integração com os outros setores em andamento |
+| OA3 — Desenvolvimento do MVP | MVP funcionando (10 telas, 51 testes), integrado aos outros setores pelas APIs |
 
 | Sprint | Período | Foco |
 | --- | --- | --- |

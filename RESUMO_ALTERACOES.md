@@ -110,7 +110,7 @@ curl -H "X-API-Key: amt_demo_dashboard" "http://localhost:8000/api/v1/passagens?
 `INTEGRACAO_TEMPO_LIMITE`.
 
 **Testes:** o projeto não tinha testes. Foram criados 6, com respostas HTTP simuladas, que rodam sem os outros sistemas
-no ar: `python -m pytest tests -q`.
+no ar, e mais 4 da API em FastAPI (`tests/test_api.py`): 10 passando, `python -m pytest tests -q`.
 
 ---
 
@@ -138,7 +138,7 @@ no ar: `python -m pytest tests -q`.
 `manutencao.db`, `.streamlit/config.toml`, `tests/test_integracao_ecossistema.py` (novo),
 `docs/06_INTEGRACAO_ECOSSISTEMA.md` (seção 4).
 
-**Testes:** 10 passando (os 7 originais e 3 novos).
+**Testes:** 11 passando (os 7 originais e 4 novos).
 
 ```bash
 python -m pytest -q
@@ -164,7 +164,7 @@ convertidos para Manaus (UTC-4). Eventos fora dos turnos (06h–14h e 14h–22h)
 do ar aparece como aviso. A correspondência de nomes entre os sistemas (ex.: "Testes Funcionais" = "Teste funcional")
 está em `docs/CADASTROS_COMUNS.md`.
 
-**Testes:** 46 passando (`python -m pytest testes -q`).
+**Testes:** 51 passando, incluindo os 5 da API nova (`python -m pytest testes -q`).
 
 ---
 

@@ -63,7 +63,7 @@ No início da OA3, o repositório tinha só a documentação da OA2. Todo o cód
 | Importação CSV | Modelos para download, prévia, erros por linha e coluna, tudo ou nada (RN06) |
 | Telas | T01 a T10 conforme os wireframes, com menu por perfil |
 | Integração | `ConectorEcossistema` e a seção "Sincronizar com os setores" na T07 |
-| Testes | 46 testes, incluindo os casos de referência do enunciado (94,7%, 4,2%, 215,7 un/h) |
+| Testes | 51 testes, incluindo os casos de referência do enunciado (94,7%, 4,2%, 215,7 un/h) |
 
 ## 4. Comunicação com os outros sistemas
 

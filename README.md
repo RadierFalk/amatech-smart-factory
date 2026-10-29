@@ -49,11 +49,12 @@ está em [`dashboard/docs/CADASTROS_COMUNS.md`](dashboard/docs/CADASTROS_COMUNS.
 ### No servidor da rede (Docker)
 
 Um IP fixo e uma rota por sistema: `http://IP/rastreabilidade/`, `http://IP/qualidade/`, `http://IP/manutencao/` e
-`http://IP/dashboard/`, mais uma página inicial em `http://IP/`. Guia completo, do IP fixo ao backup:
-**[`SERVIDOR.md`](SERVIDOR.md)**.
+`http://IP/dashboard/`, mais uma página inicial em `http://IP/`. O Docker roda sem o Docker Desktop: é o Docker Engine
+no Ubuntu do WSL 2. Guia completo, da instalação do Docker ao backup: **[`SERVIDOR.md`](SERVIDOR.md)**.
 
-```powershell
-copy .env.exemplo .env          # troque as chaves de API
+```bash
+# no terminal do Ubuntu (WSL), na pasta do repositório
+cp .env.exemplo .env            # troque as chaves de API
 docker compose up -d --build
 ```
 
