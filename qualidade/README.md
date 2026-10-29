@@ -4,15 +4,23 @@
 
 O Sistema de Controle da Qualidade disponibiliza os dados das ocorrências por meio de uma API HTTP.
 
-A API é iniciada automaticamente junto com o sistema e fica disponível na porta `5000`.
+A API é feita com **FastAPI** e roda como um processo próprio, separado das telas, na porta `5000`:
+
+```bash
+python -m uvicorn api:app --host 0.0.0.0 --port 5000
+```
+
+Documentação interativa: `http://IP_DO_COMPUTADOR:5000/docs`. No servidor da fábrica (Docker), a API fica em
+`http://IP_DO_SERVIDOR/qualidade/api/...` (veja o `SERVIDOR.md` na raiz do repositório).
 
 ### 1. Requisitos
 
 Para acessar a API:
 
-* O computador que executa o sistema deve estar conectado à rede Wi-Fi.
-* O computador que irá consumir os dados deve estar conectado à mesma rede Wi-Fi.
-* O sistema de Controle da Qualidade deve estar em execução.
+* O computador que executa a API e o computador que irá consumir os dados devem estar na mesma rede.
+* A API deve estar em execução.
+* As consultas de dados exigem a **chave de API** no cabeçalho `X-API-Key` (padrão de demonstração:
+  `amatech-qualidade-demo`; no servidor, definida pela variável `QUALIDADE_API_KEY`).
 
 ---
 
@@ -69,10 +77,11 @@ Se a API estiver funcionando, será retornado:
 
 ## 4. Consultar as ocorrências
 
-Os dados das ocorrências estão disponíveis em:
+Os dados das ocorrências estão disponíveis em (com o cabeçalho `X-API-Key`):
 
 ```text
 GET /api/ocorrencias
+GET /api/ocorrencias?de=2026-10-01&ate=2026-10-31
 ```
 
 Exemplo:
@@ -91,8 +100,8 @@ Exemplo:
         "id_ocorrencia": 1,
         "data_ocorrencia": "2026-09-20",
         "hora_ocorrencia": "08:30:00",
-        "produto": "AMT-NB001",
-        "modelo_produto": "Notebook AMATECH",
+        "produto": "AMT-000001",
+        "modelo_produto": "AMT N14",
         "tipo_defeito": "Tela",
         "estacao": "Teste Funcional",
         "maquina": "TEST-01",
@@ -125,7 +134,7 @@ import pandas as pd
 
 URL = "http://IP_DO_COMPUTADOR:5000/api/ocorrencias"
 
-resposta = requests.get(URL)
+resposta = requests.get(URL, headers={"X-API-Key": "amatech-qualidade-demo"})
 
 resposta.raise_for_status()
 
@@ -165,7 +174,7 @@ import pandas as pd
 
 URL = "http://192.168.1.100:5000/api/ocorrencias"
 
-resposta = requests.get(URL)
+resposta = requests.get(URL, headers={"X-API-Key": "amatech-qualidade-demo"})
 resposta.raise_for_status()
 
 df = pd.DataFrame(resposta.json())
@@ -203,8 +212,9 @@ Sistema de Controle da Qualidade
 
 | Método | Endpoint           | Função                         |
 | ------ | ------------------ | ------------------------------ |
-| GET    | `/api/status`      | Verificar se a API está online |
-| GET    | `/api/ocorrencias` | Obter as ocorrências           |
+| GET    | `/api/status`      | Verificar se a API está online (sem chave) |
+| GET    | `/api/ocorrencias` | Obter as ocorrências (com chave; filtros `de` e `ate`) |
+| GET    | `/docs`            | Documentação interativa |
 
 A API disponibiliza os dados apenas para consulta. O acesso pela API não permite alterar ou excluir registros do banco de dados.
 
@@ -212,17 +222,20 @@ A API disponibiliza os dados apenas para consulta. O acesso pela API não permit
 
 ## 8. Importante
 
-O Sistema de Controle da Qualidade precisa estar aberto para que a API esteja disponível.
-
-A API é iniciada automaticamente quando o projeto é executado com:
+A tela e a API são processos separados. Para usar os dois no próprio computador:
 
 ```bash
-streamlit run app.py
+python -m uvicorn api:app --host 0.0.0.0 --port 5000     # API
+streamlit run app.py                                     # tela (porta 8502)
 ```
 
-Não é necessário executar `api.py` separadamente.
+Assim a API continua no ar mesmo que ninguém esteja com a tela aberta, como num servidor de verdade. O `iniciar.ps1`
+da raiz do repositório sobe os dois automaticamente.
 
-O computador que fornece os dados e o computador que consome os dados devem estar na mesma rede Wi-Fi.
+O banco usado é `banco/controle_qualidade.db`. A variável `QUALIDADE_DB` aponta para outro arquivo (no servidor, um
+volume do Docker); se ele ainda não existir, começa com uma cópia do banco do projeto.
+
+O computador que fornece os dados e o computador que consome os dados devem estar na mesma rede.
 
 Se a API não puder ser acessada por outro computador, verifique o endereço IPv4 e as configurações do Firewall do Windows.
 

@@ -10,19 +10,19 @@ conversa com os outros três sistemas da AMATECH Smart Factory. O resumo de todo
 
 | Item | Valor |
 | --- | --- |
-| Tecnologia | Python + Streamlit (telas) + Flask (API) + SQLite + matplotlib |
-| Portas | Telas **8502** · API **5000** (sobe junto com as telas) |
+| Tecnologia | Python + Streamlit (telas) + FastAPI (API) + SQLite + matplotlib |
+| Portas | Telas **8502** · API **5000** (processo separado) · no servidor: `/qualidade/` e `/qualidade/api/` |
 | Banco | `banco/controle_qualidade.db` (está no Git) |
 | Dono dos cadastros | **Ocorrências de defeito**. Notebooks vêm da Rastreabilidade; máquinas, da Manutenção |
-| Executar | `streamlit run app.py` → http://localhost:8502 (API em http://localhost:5000) |
-| Testes | `python -m pytest tests -q` (6 testes; não precisam dos outros sistemas no ar) |
+| Executar | API: `python -m uvicorn api:app --port 5000` · tela: `streamlit run app.py` → http://localhost:8502 |
+| Testes | `python -m pytest tests -q` (10 testes; não precisam dos outros sistemas no ar) |
 
 ## 2. Estrutura atual
 
 ```
 qualidade/
-├── app.py                   ← entrada do Streamlit; sobe a API Flask numa thread; menu; busca os cadastros dos setores
-├── api.py                   ← API Flask: GET /api/status e GET /api/ocorrencias?de=&ate=
+├── app.py                   ← entrada do Streamlit: menu e busca dos cadastros dos setores
+├── api.py                   ← API FastAPI (processo próprio): GET /api/status e GET /api/ocorrencias?de=&ate= (com chave)
 ├── integracao.py            ← NOVO: conversa com a Rastreabilidade e a Manutenção
 ├── banco.py                 ← todas as consultas SQL (inclui as funções usadas pela integração)
 ├── ocorrencia.py            ← validação e regras das ocorrências
@@ -88,7 +88,21 @@ Dashboard; *Em_reprocesso* também vira retrabalho na Montagem final.
 | --- | --- |
 | Rastreabilidade | `amt_demo_qualidade` |
 | Manutenção (abrir chamado) | `amatech-manutencao-demo` |
-| API da Qualidade (lida pelo Dashboard) | sem chave |
+| API da Qualidade (lida pelo Dashboard) | `amatech-qualidade-demo` (`QUALIDADE_API_KEY`) |
+
+## Servidor da rede (Docker)
+
+No servidor da fábrica, todos os sistemas ficam no mesmo IP, cada um na sua rota, atrás de um proxy na porta 80
+(guia completo em [`../SERVIDOR.md`](../SERVIDOR.md)):
+
+| Rota | Serviço |
+| --- | --- |
+| `http://IP/qualidade/` | Tela (Streamlit com `--server.baseUrlPath qualidade`) |
+| `http://IP/qualidade/api/...` e `/qualidade/docs` | API (uvicorn com `--root-path /qualidade`) |
+
+Mudanças para o servidor: a API passou de **Flask para FastAPI**, roda **separada da tela** (antes subia numa thread do
+Streamlit, então só existia depois que alguém abria a tela) e exige a chave `X-API-Key` em `/api/ocorrencias`. O banco
+pode ficar num volume (`QUALIDADE_DB`), começando com uma cópia de `banco/controle_qualidade.db`.
 
 ## 5. Variáveis de ambiente
 
@@ -97,6 +111,8 @@ Dashboard; *Em_reprocesso* também vira retrabalho na Montagem final.
 | `RASTREABILIDADE_URL` / `RASTREABILIDADE_CHAVE` | `http://localhost:8000` / `amt_demo_qualidade` |
 | `MANUTENCAO_URL` / `MANUTENCAO_CHAVE` | `http://localhost:5002` / `amatech-manutencao-demo` |
 | `INTEGRACAO_TEMPO_LIMITE` | `3` segundos |
+| `QUALIDADE_API_KEY` | `amatech-qualidade-demo` (chave da API desta equipe) |
+| `QUALIDADE_DB` | `banco/controle_qualidade.db` |
 
 ## 6. Como conferir
 

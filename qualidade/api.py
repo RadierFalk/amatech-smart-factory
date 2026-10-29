@@ -1,17 +1,61 @@
-from flask import Flask, jsonify, request
+"""
+API HTTP do Controle da Qualidade (FastAPI), usada pelos outros sistemas da fábrica.
+
+Roda como um processo separado das telas:
+    python -m uvicorn api:app --host 0.0.0.0 --port 5000
+Documentação interativa: http://localhost:5000/docs
+"""
+import os
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, Header, HTTPException
 
 import banco
 
 
-app = Flask(__name__)
+# ============================================================
+# CONFIGURAÇÃO
+# ============================================================
+
+# Chave que os outros sistemas enviam no cabeçalho X-API-Key (troque no servidor pela variável de ambiente)
+CHAVE_API = os.environ.get("QUALIDADE_API_KEY", "amatech-qualidade-demo")
 
 
-@app.route("/api/ocorrencias", methods=["GET"])
-def obter_ocorrencias():
-    # Filtros opcionais por período: ?de=AAAA-MM-DD&ate=AAAA-MM-DD (datas da ocorrência, inclusive)
-    de = request.args.get("de")
-    ate = request.args.get("ate")
+@asynccontextmanager
+async def ciclo_de_vida(_app):
+    banco.preparar_banco()
+    yield
 
+
+app = FastAPI(
+    title="AMATECH Smart Factory - API do Controle da Qualidade",
+    description="Ocorrências de defeito registradas na inspeção (Projeto 4).",
+    version="2.0.0",
+    lifespan=ciclo_de_vida
+)
+
+
+def exigir_chave(x_api_key: str | None = Header(None, alias="X-API-Key")):
+    if x_api_key != CHAVE_API:
+        raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
+
+
+# ============================================================
+# ROTAS
+# ============================================================
+
+@app.get("/api/status")
+def status():
+    """Sem chave: serve para testar se o sistema está no ar."""
+    return {
+        "sistema": "Controle da Qualidade",
+        "status": "online"
+    }
+
+
+@app.get("/api/ocorrencias", dependencies=[Depends(exigir_chave)])
+def obter_ocorrencias(de: str | None = None, ate: str | None = None):
+    """Ocorrências visíveis. Filtros opcionais por período: ?de=AAAA-MM-DD&ate=AAAA-MM-DD (inclusive)."""
     ocorrencias = banco.listar_ocorrencias()
 
     dados = []
@@ -40,20 +84,4 @@ def obter_ocorrencias():
             "status_ocorrencia": ocorrencia["status_ocorrencia"]
         })
 
-    return jsonify(dados)
-
-
-@app.route("/api/status", methods=["GET"])
-def status():
-    return jsonify({
-        "sistema": "Controle da Qualidade",
-        "status": "online"
-    })
-
-
-if __name__ == "__main__":
-    app.run(
-        host="0.0.0.0",
-        port=5000,
-        debug=False
-    )
+    return dados

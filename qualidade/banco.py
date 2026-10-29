@@ -1,3 +1,5 @@
+import os
+import shutil
 import sqlite3
 from pathlib import Path
 
@@ -6,7 +8,18 @@ from pathlib import Path
 # CONFIGURAÇÃO
 # ============================================================
 
-CAMINHO_BANCO = Path(__file__).parent / "banco" / "controle_qualidade.db"
+# Banco que vem com o projeto (dados iniciais)
+BANCO_INICIAL = Path(__file__).parent / "banco" / "controle_qualidade.db"
+
+# Banco em uso. No servidor (Docker), QUALIDADE_DB aponta para um volume, para os dados sobreviverem às atualizações.
+CAMINHO_BANCO = Path(os.environ.get("QUALIDADE_DB", BANCO_INICIAL))
+
+
+def preparar_banco():
+    """Se o banco em uso ainda não existe (ex.: primeiro início no servidor), começa com uma cópia do banco inicial."""
+    if not CAMINHO_BANCO.exists():
+        CAMINHO_BANCO.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(BANCO_INICIAL, CAMINHO_BANCO)
 
 
 # ============================================================

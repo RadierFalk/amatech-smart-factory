@@ -1,3 +1,6 @@
+> **Nota (OA3):** este documento descreve a primeira versão. A API agora é **FastAPI**, roda separada das telas e
+> exige chave; veja `README.md` e `ESTRUTURA_E_INTEGRACAO.md`.
+
 # Sistema de Controle da Qualidade — Documentação Técnica
 
 ## 1. Sobre o projeto
