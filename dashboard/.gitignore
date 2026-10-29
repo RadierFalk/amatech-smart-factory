@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Banco de dados local (é recriado a partir de database/banco_dashboard_industrial.sql)
+database/*.db
+*.sqlite
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Cópias de segurança do draw.io
+*.drawio.bkp
+.$*.drawio.bkp
+
+# Sistema operacional e editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

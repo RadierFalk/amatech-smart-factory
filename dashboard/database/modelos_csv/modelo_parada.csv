@@ -1,0 +1,2 @@
+﻿estacao;maquina_codigo;turno;motivo;inicio;fim;observacao
+Teste funcional;TST-02;1º turno;Falha de equipamento;16/08/2026 10:00;16/08/2026 10:45;Cabo de teste rompido

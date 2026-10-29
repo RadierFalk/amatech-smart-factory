@@ -1,0 +1,2 @@
+﻿data;turno;produto;tipo_defeito;estacao;maquina_codigo;quantidade;data_hora;observacao;estacao_retorno;motivo_retrabalho;qtd_retrabalho
+16/08/2026;1º turno;Notebook modelo A;Falha no teclado;Teste funcional;TST-02;12;16/08/2026 09:40;Teclas travando;Montagem final;Troca do teclado;12
