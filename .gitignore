@@ -11,3 +11,6 @@ Thumbs.db
 .DS_Store
 .vscode/
 .idea/
+
+# Chaves de API do servidor (modelo em .env.exemplo)
+.env

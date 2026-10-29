@@ -1,0 +1,58 @@
+# Proxy do servidor (Caddy): um único endereço, uma rota por sistema. Usado pelo docker-compose.yml.
+# Cada API recebe o pedido sem o prefixo do sistema (ex.: /qualidade/api/x chega como /api/x) e sabe a sua rota
+# pelo --root-path do uvicorn, usado na documentação /docs. As telas Streamlit usam --server.baseUrlPath.
+
+:80 {
+	encode gzip
+
+	# ---------------------------------------------------------------- Rastreabilidade (telas e API no mesmo serviço)
+	redir /rastreabilidade /rastreabilidade/
+	handle_path /rastreabilidade/* {
+		reverse_proxy rastreabilidade:8000
+	}
+
+	# ---------------------------------------------------------------- Controle da Qualidade
+	redir /qualidade /qualidade/
+	handle /qualidade/* {
+		@api path /qualidade/api/* /qualidade/docs /qualidade/openapi.json
+		handle @api {
+			uri strip_prefix /qualidade
+			reverse_proxy qualidade-api:5000
+		}
+		handle {
+			reverse_proxy qualidade-tela:8502
+		}
+	}
+
+	# ---------------------------------------------------------------- Controle da Manutenção
+	redir /manutencao /manutencao/
+	handle /manutencao/* {
+		@api path /manutencao/api/* /manutencao/docs /manutencao/openapi.json
+		handle @api {
+			uri strip_prefix /manutencao
+			reverse_proxy manutencao-api:5002
+		}
+		handle {
+			reverse_proxy manutencao-tela:8503
+		}
+	}
+
+	# ---------------------------------------------------------------- Dashboard Industrial
+	redir /dashboard /dashboard/
+	handle /dashboard/* {
+		@api path /dashboard/api/* /dashboard/docs /dashboard/openapi.json
+		handle @api {
+			uri strip_prefix /dashboard
+			reverse_proxy dashboard-api:5003
+		}
+		handle {
+			reverse_proxy dashboard-tela:8501
+		}
+	}
+
+	# ---------------------------------------------------------------- página inicial com os links
+	handle {
+		root * /srv
+		file_server
+	}
+}

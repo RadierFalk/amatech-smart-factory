@@ -6,12 +6,15 @@ Quatro sistemas da fábrica fictícia AMATECH Electronics (notebooks, Polo Indus
 diferentes, reunidos num só repositório e **conversando pelas APIs** uns dos outros. Isso responde ao problema da
 "ausência de integração entre setores" (enunciado, seção 1.2).
 
-| Pasta | Setor | Projeto | Tecnologia | Portas |
-| --- | --- | --- | --- | --- |
-| [`rastreabilidade/`](rastreabilidade/) | Rastreabilidade e fluxo de materiais | Projeto 2 → Problema 5 | FastAPI + HTML/JS + SQLite | 8000 |
-| [`dashboard/`](dashboard/) | Painel central de indicadores | Projeto 3 → Problema 8 | Streamlit + Plotly + SQLite | 8501 |
-| [`qualidade/`](qualidade/) | Qualidade (testes e inspeção) | Projeto 4 → Problema 3 | Streamlit + Flask + SQLite | 8502 (tela) · 5000 (API) |
-| [`manutencao/`](manutencao/) | Manutenção | Projeto 5 → Problema 4 | Streamlit + FastAPI + SQLite | 8503 (tela) · 5002 (API) |
+| Pasta | Setor | Projeto | Tecnologia | Rota no servidor | Portas locais |
+| --- | --- | --- | --- | --- | --- |
+| [`rastreabilidade/`](rastreabilidade/) | Rastreabilidade e fluxo de materiais | Projeto 2 → Problema 5 | FastAPI + HTML/JS + SQLite | `/rastreabilidade/` | 8000 (telas e API) |
+| [`dashboard/`](dashboard/) | Painel central de indicadores | Projeto 3 → Problema 8 | Streamlit + FastAPI + Plotly + SQLite | `/dashboard/` | 8501 (tela) · 5003 (API) |
+| [`qualidade/`](qualidade/) | Qualidade (testes e inspeção) | Projeto 4 → Problema 3 | Streamlit + FastAPI + SQLite | `/qualidade/` | 8502 (tela) · 5000 (API) |
+| [`manutencao/`](manutencao/) | Manutenção | Projeto 5 → Problema 4 | Streamlit + FastAPI + SQLite | `/manutencao/` | 8503 (tela) · 5002 (API) |
+
+Todas as APIs são **FastAPI**, rodam em processo próprio (separadas das telas) e pedem a chave `X-API-Key` nas rotas de
+dados. Cada API tem a documentação interativa em `/docs`.
 
 Cada pasta tem um **`ESTRUTURA_E_INTEGRACAO.md`** com a estrutura do sistema, o que mudou na OA3 e com quem ele
 conversa. O resumo das alterações por setor está em [`RESUMO_ALTERACOES.md`](RESUMO_ALTERACOES.md).
@@ -41,26 +44,39 @@ Todo dado enviado a outro sistema leva `origem_sistema` + `id_externo` (ex.: `qu
 atualiza em vez de duplicar. A correspondência de nomes entre os sistemas ("Testes Funcionais" = "Teste funcional")
 está em [`dashboard/docs/CADASTROS_COMUNS.md`](dashboard/docs/CADASTROS_COMUNS.md).
 
-## Como executar os quatro juntos (Windows)
+## Como executar
+
+### No servidor da rede (Docker)
+
+Um IP fixo e uma rota por sistema: `http://IP/rastreabilidade/`, `http://IP/qualidade/`, `http://IP/manutencao/` e
+`http://IP/dashboard/`, mais uma página inicial em `http://IP/`. Guia completo, do IP fixo ao backup:
+**[`SERVIDOR.md`](SERVIDOR.md)**.
+
+```powershell
+copy .env.exemplo .env          # troque as chaves de API
+docker compose up -d --build
+```
+
+### No próprio computador, sem Docker (para desenvolver)
 
 ```powershell
 # 1. Uma vez: ambiente virtual com as bibliotecas dos quatro sistemas
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 
-# 2. Sobe os quatro sistemas, cada um numa janela
+# 2. Sobe as 4 telas e as 3 APIs separadas (mais a Rastreabilidade), em janelas minimizadas
 powershell -ExecutionPolicy Bypass -File iniciar.ps1
 ```
 
-| Sistema | Endereço | Login de teste |
-| --- | --- | --- |
-| Rastreabilidade | http://localhost:8000 | `MAT-0001` / `amatech123` (Administrador) |
-| Dashboard | http://localhost:8501 | `supervisor` / `super123` |
-| Qualidade | http://localhost:8502 | (sem login) |
-| Manutenção | http://localhost:8503 | `GES-0001` / `123456` (Gestor) |
+| Sistema | Endereço local | Rota no servidor | Login de teste |
+| --- | --- | --- | --- |
+| Rastreabilidade | http://localhost:8000 | `/rastreabilidade/` | `MAT-0001` / `amatech123` (Administrador) |
+| Dashboard | http://localhost:8501 · API 5003 | `/dashboard/` | `supervisor` / `super123` |
+| Qualidade | http://localhost:8502 · API 5000 | `/qualidade/` | (sem login) |
+| Manutenção | http://localhost:8503 · API 5002 | `/manutencao/` | `GES-0001` / `123456` (Gestor) |
 
-O `requirements.txt` da raiz reúne as bibliotecas dos quatro, em versões testadas juntas. Cada pasta também tem o seu,
-para rodar o sistema sozinho.
+O `requirements.txt` da raiz reúne as bibliotecas dos quatro, em versões testadas juntas (é ele que a imagem Docker
+usa). Cada pasta também tem o seu, para rodar o sistema sozinho.
 
 ### Roteiro de demonstração
 
@@ -78,9 +94,9 @@ modelo (RN06).
 
 ```powershell
 cd rastreabilidade; ..\.venv\Scripts\python -m pytest -q; cd ..      # 37 testes
-cd manutencao;      ..\.venv\Scripts\python -m pytest -q; cd ..      # 10 testes
-cd qualidade;       ..\.venv\Scripts\python -m pytest tests -q; cd .. # 6 testes
-cd dashboard;       ..\.venv\Scripts\python -m pytest testes -q; cd .. # 46 testes
+cd manutencao;      ..\.venv\Scripts\python -m pytest -q; cd ..      # 11 testes
+cd qualidade;       ..\.venv\Scripts\python -m pytest tests -q; cd .. # 10 testes
+cd dashboard;       ..\.venv\Scripts\python -m pytest testes -q; cd .. # 51 testes
 ```
 
 ## Histórico do repositório

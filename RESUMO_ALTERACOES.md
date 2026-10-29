@@ -21,14 +21,15 @@ Cada sistema mantém o seu banco e conversa com os outros **só pelas APIs**. Ni
                         Dashboard Industrial (8501) ◄─────────────────────────────────┘
 ```
 
-| Sistema | API | Tela | Dono dos cadastros |
-| --- | --- | --- | --- |
-| Rastreabilidade (Projeto 2) | 8000 | 8000 | Modelos de notebook e números de série |
-| Controle da Qualidade (Projeto 4) | 5000 | **8502** | Ocorrências de defeito |
-| Controle da Manutenção (Projeto 5) | 5002 | **8503** | Máquinas (TAGs) |
-| Dashboard Industrial (Projeto 3) | (não expõe API) | 8501 | Estações, turnos e indicadores |
+| Sistema | API | Tela | Rota no servidor | Dono dos cadastros |
+| --- | --- | --- | --- | --- |
+| Rastreabilidade (Projeto 2) | 8000 | 8000 | `/rastreabilidade/` | Modelos de notebook e números de série |
+| Controle da Qualidade (Projeto 4) | 5000 | **8502** | `/qualidade/` | Ocorrências de defeito |
+| Controle da Manutenção (Projeto 5) | 5002 | **8503** | `/manutencao/` | Máquinas (TAGs) |
+| Dashboard Industrial (Projeto 3) | **5003** (nova) | 8501 | `/dashboard/` | Estações, turnos e indicadores |
 
-As portas das telas foram fixadas (`.streamlit/config.toml`) para os quatro rodarem juntos no mesmo computador.
+As portas das telas foram fixadas (`.streamlit/config.toml`) para os quatro rodarem juntos no mesmo computador. No
+servidor da rede, todos ficam no mesmo IP, cada um na sua rota (veja a última seção e o `SERVIDOR.md`).
 
 ### Chaves de demonstração
 
@@ -150,7 +151,7 @@ curl -X POST -H "X-API-Key: amatech-manutencao-demo" -H "Content-Type: applicati
 
 ## Dashboard Industrial (`dashboard/`)
 
-O Dashboard só **consome** as APIs, não expõe nenhuma. Na tela **Importação**, a seção *Sincronizar com os setores*:
+Para buscar dados, o Dashboard só **consome** as APIs. Na tela **Importação**, a seção *Sincronizar com os setores*:
 
 | Busca em | Vira | Regras |
 | --- | --- | --- |
@@ -169,17 +170,21 @@ está em `docs/CADASTROS_COMUNS.md`.
 
 ## Como testar os quatro juntos
 
-Na raiz do repositório, `powershell -ExecutionPolicy Bypass -File iniciar.ps1` sobe os quatro, cada um numa janela
-(veja o `README.md`). Ou, à mão, cada comando num terminal, a partir da pasta de cada projeto:
+No servidor: `docker compose up -d --build` (veja o `SERVIDOR.md`). No próprio computador, sem Docker:
+`powershell -ExecutionPolicy Bypass -File iniciar.ps1`, na raiz do repositório, sobe as telas e as APIs (veja o
+`README.md`). Ou, à mão, cada comando num terminal, a partir da pasta de cada projeto:
 
 ```bash
-# 1. Rastreabilidade (API e tela em http://localhost:8000)
+# Rastreabilidade (API e telas em http://localhost:8000)
 python -m uvicorn app.main:app --port 8000
-# 2. Manutenção (tela em http://localhost:8503; a API na 5002 sobe junto)
+# Manutenção: API na 5002 e tela em http://localhost:8503
+python -m uvicorn api:app --port 5002
 streamlit run app.py
-# 3. Qualidade (tela em http://localhost:8502; a API na 5000 sobe junto)
+# Qualidade: API na 5000 e tela em http://localhost:8502
+python -m uvicorn api:app --port 5000
 streamlit run app.py
-# 4. Dashboard (http://localhost:8501; login supervisor / super123)
+# Dashboard: API na 5003 e tela em http://localhost:8501 (login supervisor / super123)
+python -m uvicorn api:app --port 5003
 streamlit run app.py
 ```
 
@@ -195,3 +200,38 @@ Roteiro de demonstração:
 **Atenção a um limite da regra RN06 no Dashboard.** Um defeito só é aceito se houver produção (Aprovado ou Reprovado na
 Rastreabilidade) no mesmo dia, turno e modelo. Uma ocorrência registrada com hora muito diferente do momento real faz o
 Dashboard recusar todos os defeitos daquele período. A tela mostra qual linha causou a recusa.
+
+---
+
+## Etapa 2: servidor da rede (Docker)
+
+Para todos na mesma rede usarem os sistemas, como numa empresa: **um servidor Windows com Docker, um IP fixo e uma rota
+para cada sistema**, atrás de um proxy (Caddy) na porta 80. Guia completo em `SERVIDOR.md`.
+
+| Rota | Telas | API (FastAPI) |
+| --- | --- | --- |
+| `http://IP/rastreabilidade/` | Rastreabilidade | `/rastreabilidade/api/v1/...` |
+| `http://IP/qualidade/` | Qualidade | `/qualidade/api/...` |
+| `http://IP/manutencao/` | Manutenção | `/manutencao/api/...` |
+| `http://IP/dashboard/` | Dashboard | `/dashboard/api/...` |
+
+O que mudou em cada sistema para isso:
+
+| Sistema | Mudança |
+| --- | --- |
+| Todos | Cada **API roda num processo próprio**, separado da tela. Antes, as APIs da Qualidade e da Manutenção subiam numa thread do Streamlit e só existiam depois que alguém abria a tela. Cada API tem documentação em `/docs` |
+| Rastreabilidade | As telas resolvem os endereços da API a partir da rota em que estão publicadas (funcionam em `/` e em `/rastreabilidade/`) |
+| Qualidade | API migrada de **Flask para FastAPI**; `/api/ocorrencias` exige a chave `QUALIDADE_API_KEY`; banco configurável (`QUALIDADE_DB`), começando com uma cópia do banco do projeto |
+| Manutenção | Os `GET` também exigem a chave `MANUTENCAO_API_KEY`; CORS só para as origens de `MANUTENCAO_CORS` (antes, `*`) |
+| Dashboard | **API nova** (porta 5003): `/api/indicadores`, `/api/graficos` e `/api/paradas-em-andamento`, com a cor do semáforo; chave `DASHBOARD_API_KEY`. O conector envia as chaves da Qualidade e da Manutenção |
+
+Arquivos novos na raiz: `Dockerfile` (uma imagem para os quatro), `docker-compose.yml` (8 contêineres: o proxy, a
+Rastreabilidade e a tela e a API de cada um dos outros três), `servidor/Caddyfile` (as rotas), `servidor/portal/`
+(página inicial), `.env.exemplo` (as chaves) e `SERVIDOR.md`.
+
+| Chave (`X-API-Key`) | Variável no `.env` | Padrão de demonstração |
+| --- | --- | --- |
+| Qualidade e Dashboard → Rastreabilidade | `RASTREABILIDADE_CHAVE_QUALIDADE`, `RASTREABILIDADE_CHAVE_DASHBOARD` | `amt_demo_qualidade`, `amt_demo_dashboard` |
+| → API da Qualidade | `QUALIDADE_API_KEY` | `amatech-qualidade-demo` |
+| → API da Manutenção | `MANUTENCAO_API_KEY` | `amatech-manutencao-demo` |
+| → API do Dashboard | `DASHBOARD_API_KEY` | `amatech-dashboard-demo` |

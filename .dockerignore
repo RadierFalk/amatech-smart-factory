@@ -1,0 +1,9 @@
+.git
+.venv
+.env
+**/__pycache__
+**/.pytest_cache
+**/*.pyc
+# Bancos gerados na execução local (no servidor, os bancos ficam nos volumes do Docker)
+rastreabilidade/database/*.db*
+dashboard/database/*.db

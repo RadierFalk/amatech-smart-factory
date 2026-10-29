@@ -1,0 +1,152 @@
+# Ecossistema AMATECH Smart Factory no servidor: um IP, uma rota por sistema.
+#
+#   http://IP/                  página inicial com os links
+#   http://IP/rastreabilidade/  telas e API da Rastreabilidade   (API: /rastreabilidade/api/v1/...)
+#   http://IP/qualidade/        tela da Qualidade                 (API: /qualidade/api/...)
+#   http://IP/manutencao/       tela da Manutenção                (API: /manutencao/api/...)
+#   http://IP/dashboard/        tela do Dashboard                 (API: /dashboard/api/...)
+#
+# Subir:  docker compose up -d --build        Guia completo: SERVIDOR.md
+# As chaves de API vêm do arquivo .env (copie .env.exemplo); sem ele, valem as chaves de demonstração.
+# Entre si, os sistemas se falam pela rede interna do Docker, pelo nome do serviço (ex.: http://rastreabilidade:8000).
+
+name: amatech-smart-factory
+
+x-sistema: &sistema
+  build: .
+  image: amatech-smart-factory:latest
+  restart: unless-stopped
+
+services:
+
+  # ------------------------------------------------------------------ proxy: a única porta aberta (80)
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./servidor/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./servidor/portal:/srv:ro
+      - caddy-dados:/data
+    depends_on:
+      - rastreabilidade
+      - qualidade-tela
+      - manutencao-tela
+      - dashboard-tela
+
+  # ------------------------------------------------------------------ Rastreabilidade (Projeto 2)
+  rastreabilidade:
+    <<: *sistema
+    working_dir: /app/rastreabilidade
+    command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --root-path /rastreabilidade --proxy-headers --forwarded-allow-ips "*"
+    environment:
+      AMATECH_DB: /dados/amatech.db
+      AMATECH_CHAVE_QUALIDADE: ${RASTREABILIDADE_CHAVE_QUALIDADE:-amt_demo_qualidade}
+      AMATECH_CHAVE_DASHBOARD: ${RASTREABILIDADE_CHAVE_DASHBOARD:-amt_demo_dashboard}
+      AMATECH_CHAVE_MANUTENCAO: ${RASTREABILIDADE_CHAVE_MANUTENCAO:-amt_demo_manutencao}
+      AMATECH_API_KEY: ${RASTREABILIDADE_CHAVE_IOT:-amatech-iot-demo}
+    volumes:
+      - dados-rastreabilidade:/dados
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/saude')"]
+      interval: 15s
+      start_period: 20s
+
+  # ------------------------------------------------------------------ Controle da Qualidade (Projeto 4)
+  qualidade-api:
+    <<: *sistema
+    working_dir: /app/qualidade
+    command: python -m uvicorn api:app --host 0.0.0.0 --port 5000 --root-path /qualidade
+    environment:
+      QUALIDADE_DB: /dados/controle_qualidade.db
+      QUALIDADE_API_KEY: ${QUALIDADE_API_KEY:-amatech-qualidade-demo}
+    volumes:
+      - dados-qualidade:/dados
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/status')"]
+      interval: 15s
+      start_period: 15s
+
+  qualidade-tela:
+    <<: *sistema
+    working_dir: /app/qualidade
+    command: python -m streamlit run app.py --server.port 8502 --server.address 0.0.0.0 --server.baseUrlPath qualidade --server.headless true
+    environment:
+      QUALIDADE_DB: /dados/controle_qualidade.db
+      RASTREABILIDADE_URL: http://rastreabilidade:8000
+      RASTREABILIDADE_CHAVE: ${RASTREABILIDADE_CHAVE_QUALIDADE:-amt_demo_qualidade}
+      MANUTENCAO_URL: http://manutencao-api:5002
+      MANUTENCAO_CHAVE: ${MANUTENCAO_API_KEY:-amatech-manutencao-demo}
+    volumes:
+      - dados-qualidade:/dados
+    depends_on:
+      qualidade-api:
+        condition: service_healthy
+
+  # ------------------------------------------------------------------ Controle da Manutenção (Projeto 5)
+  manutencao-api:
+    <<: *sistema
+    working_dir: /app/manutencao
+    command: python -m uvicorn api:app --host 0.0.0.0 --port 5002 --root-path /manutencao
+    environment:
+      MANUTENCAO_DB: /dados/manutencao.db
+      MANUTENCAO_API_KEY: ${MANUTENCAO_API_KEY:-amatech-manutencao-demo}
+    volumes:
+      - dados-manutencao:/dados
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/api/status')"]
+      interval: 15s
+      start_period: 15s
+
+  manutencao-tela:
+    <<: *sistema
+    working_dir: /app/manutencao
+    command: python -m streamlit run app.py --server.port 8503 --server.address 0.0.0.0 --server.baseUrlPath manutencao --server.headless true
+    environment:
+      MANUTENCAO_DB: /dados/manutencao.db
+    volumes:
+      - dados-manutencao:/dados
+    depends_on:
+      manutencao-api:
+        condition: service_healthy
+
+  # ------------------------------------------------------------------ Dashboard Industrial (Projeto 3)
+  dashboard-api:
+    <<: *sistema
+    working_dir: /app/dashboard
+    command: python -m uvicorn api:app --host 0.0.0.0 --port 5003 --root-path /dashboard
+    environment:
+      DASHBOARD_DB: /dados/banco.db
+      DASHBOARD_API_KEY: ${DASHBOARD_API_KEY:-amatech-dashboard-demo}
+    volumes:
+      - dados-dashboard:/dados
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5003/api/status')"]
+      interval: 15s
+      start_period: 15s
+
+  dashboard-tela:
+    <<: *sistema
+    working_dir: /app/dashboard
+    command: python -m streamlit run app.py --server.port 8501 --server.address 0.0.0.0 --server.baseUrlPath dashboard --server.headless true
+    environment:
+      DASHBOARD_DB: /dados/banco.db
+      RASTREABILIDADE_URL: http://rastreabilidade:8000
+      RASTREABILIDADE_CHAVE: ${RASTREABILIDADE_CHAVE_DASHBOARD:-amt_demo_dashboard}
+      QUALIDADE_URL: http://qualidade-api:5000
+      QUALIDADE_CHAVE: ${QUALIDADE_API_KEY:-amatech-qualidade-demo}
+      MANUTENCAO_URL: http://manutencao-api:5002
+      MANUTENCAO_CHAVE: ${MANUTENCAO_API_KEY:-amatech-manutencao-demo}
+    volumes:
+      - dados-dashboard:/dados
+    depends_on:
+      dashboard-api:
+        condition: service_healthy
+
+volumes:
+  dados-rastreabilidade:
+  dados-qualidade:
+  dados-manutencao:
+  dados-dashboard:
+  caddy-dados:
