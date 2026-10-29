@@ -91,7 +91,9 @@ class ConectorEcossistema:
 
     def _importar(self, setor, tipo, linhas, ignorados, usuario_id, nome):
         if not linhas:
-            return ResultadoSetor(setor, "sem_dados", "Nenhum registro no período.", ignorados=ignorados)
+            mensagem = (f"Nenhum registro aproveitável no período ({len(ignorados)} ignorado(s), veja abaixo)."
+                        if ignorados else "Nenhum registro no período.")
+            return ResultadoSetor(setor, "sem_dados", mensagem, ignorados=ignorados)
         r = self.importador.importar_linhas(linhas, tipo, usuario_id, nome)
         if r.aceita:
             mensagem = f"{r.importadas} registro(s) sincronizado(s)."
@@ -111,7 +113,7 @@ class ConectorEcossistema:
         except SistemaForaDoAr:
             pass
         try:
-            for maquina in self._get(f"{config.MANUTENCAO_URL}/api/equipamentos"):
+            for maquina in self._get(f"{config.MANUTENCAO_URL}/api/equipamentos", chave=config.MANUTENCAO_CHAVE):
                 id_estacao = self.cadastros.buscar_id("estacao", maquina["setor"])
                 if id_estacao is None:
                     avisos.append(f"Máquina {maquina['codigo_tag']}: setor \"{maquina['setor']}\" sem estação "
@@ -157,7 +159,7 @@ class ConectorEcossistema:
     def linhas_defeitos(self, data_inicial, data_final):
         """Uma ocorrência = um defeito de quantidade 1. Em_reprocesso também gera retrabalho na Montagem final."""
         ocorrencias = self._get(f"{config.QUALIDADE_URL}/api/ocorrencias",
-                                {"de": texto_data(data_inicial), "ate": texto_data(data_final)})
+                                {"de": texto_data(data_inicial), "ate": texto_data(data_final)}, config.QUALIDADE_CHAVE)
         linhas, ignorados = [], []
         for o in ocorrencias:
             momento = datetime.fromisoformat(f"{o['data_ocorrencia']}T{o['hora_ocorrencia']}"[:19])
@@ -181,7 +183,7 @@ class ConectorEcossistema:
     # ------------------------------------------------------------ Manutenção -> paradas
     def linhas_paradas(self, data_inicial, data_final):
         """Chamado = parada da máquina, da abertura ao fim do atendimento. Cancelados não contam."""
-        chamados = self._get(f"{config.MANUTENCAO_URL}/api/manutencao/chamados")
+        chamados = self._get(f"{config.MANUTENCAO_URL}/api/manutencao/chamados", chave=config.MANUTENCAO_CHAVE)
         linhas, ignorados = [], []
         for c in chamados:
             id_externo = f"MNT-{c['id_chamado']}"

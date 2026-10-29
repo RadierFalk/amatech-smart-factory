@@ -13,11 +13,11 @@ três sistemas da AMATECH Smart Factory. O resumo de todos os setores está em
 | Item | Valor |
 | --- | --- |
 | Tecnologia | Python + Streamlit + Plotly + pandas + SQLite (`sqlite3` puro) |
-| Porta | **8501** |
+| Portas | Tela **8501** · API **5003** (processo separado) · no servidor: `/dashboard/` e `/dashboard/api/` |
 | Banco | `database/banco.db`, criado na primeira execução a partir de `database/banco_dashboard_industrial.sql` (fora do Git) |
 | Dono dos cadastros | Estações, turnos, tipos de defeito, motivos de parada, metas e limites do semáforo |
-| Executar | `streamlit run app.py` → http://localhost:8501 (ex.: `supervisor` / `super123`) |
-| Testes | `python -m pytest testes -q` (46 testes) |
+| Executar | Tela: `streamlit run app.py` → http://localhost:8501 (ex.: `supervisor` / `super123`) · API: `python -m uvicorn api:app --port 5003` |
+| Testes | `python -m pytest testes -q` (51 testes) |
 
 ## 2. Estrutura atual
 
@@ -26,6 +26,7 @@ Quatro camadas; cada uma só conversa com a camada logo abaixo.
 ```
 dashboard/
 ├── app.py                   ← camada 1: login (T01) e menu com as telas do perfil (st.navigation)
+├── api.py                   ← camada 1: API FastAPI com os indicadores do painel, para outros sistemas da rede
 ├── pages/                   ← camada 1: telas T02 a T10
 │   ├── comum.py             ← permissões, formatação brasileira, cartões do semáforo e filtros
 │   ├── 1_Painel.py          ← T02: seis indicadores, semáforo, paradas em andamento e gráficos
@@ -66,7 +67,8 @@ No início da OA3, o repositório tinha só a documentação da OA2. Todo o cód
 
 ## 4. Comunicação com os outros sistemas
 
-O Dashboard **só consome** APIs; não expõe nenhuma e não lê o banco de ninguém.
+Para buscar dados, o Dashboard **só consome** APIs e não lê o banco de ninguém. Para fora, ele expõe a própria API
+(`api.py`, seção 5).
 
 ```
 Rastreabilidade (8000) ──/api/v1/produtos, /api/v1/passagens──┐
@@ -94,17 +96,48 @@ Regras:
 - A tradução dos nomes ("Testes Funcionais" = "Teste funcional", "Teclado" = "Falha no teclado"...) está em
   `servicos/cadastros_comuns.py` e documentada em `docs/CADASTROS_COMUNS.md`.
 
-## 5. Variáveis de ambiente
+## 5. API do Dashboard (`api.py`)
+
+Para outros sistemas e programas da rede lerem os indicadores consolidados. Faz parte da camada 1, como as telas: não
+calcula nada, só chama a `CalculadoraIndicadores` e o `AvaliadorAlertas`. Chave `X-API-Key` = `DASHBOARD_API_KEY`
+(padrão `amatech-dashboard-demo`); só `/api/status` é aberta.
+
+| Rota | Devolve |
+| --- | --- |
+| `GET /api/indicadores?de=&ate=&turno=&produto=` | Os seis indicadores do período, com a cor do semáforo (datas AAAA-MM-DD ou DD/MM/AAAA; turno e produto pelo nome; sem datas, hoje) |
+| `GET /api/graficos?de=&ate=&turno=&produto=` | Os dados dos quatro gráficos do painel |
+| `GET /api/paradas-em-andamento` | Máquinas paradas agora |
+| `GET /api/status` | Sem chave: se o sistema está no ar |
+
+Exemplo: `/api/indicadores?de=2026-08-15&ate=2026-08-15` devolve, entre outros,
+`"atendimento_meta": {"valor": 94.7, "unidade": "%", "semaforo": "amarelo"}`.
+
+## 6. Servidor da rede (Docker)
+
+No servidor da fábrica, todos os sistemas ficam no mesmo IP, cada um na sua rota, atrás de um proxy na porta 80
+(guia completo em [`../SERVIDOR.md`](../SERVIDOR.md)):
+
+| Rota | Serviço |
+| --- | --- |
+| `http://IP/dashboard/` | Tela (Streamlit com `--server.baseUrlPath dashboard`) |
+| `http://IP/dashboard/api/...` e `/dashboard/docs` | API (uvicorn com `--root-path /dashboard`) |
+
+No servidor, o conector lê os outros sistemas pela rede interna do Docker (`http://rastreabilidade:8000`,
+`http://qualidade-api:5000`, `http://manutencao-api:5002`), já com as chaves de cada um.
+
+## 7. Variáveis de ambiente
 
 | Variável | Padrão |
 | --- | --- |
 | `DASHBOARD_DB` | `database/banco.db` |
 | `RASTREABILIDADE_URL` / `RASTREABILIDADE_CHAVE` | `http://localhost:8000` / `amt_demo_dashboard` |
 | `QUALIDADE_URL` | `http://localhost:5000` |
-| `MANUTENCAO_URL` | `http://localhost:5002` |
+| `QUALIDADE_CHAVE` | `amatech-qualidade-demo` |
+| `MANUTENCAO_URL` / `MANUTENCAO_CHAVE` | `http://localhost:5002` / `amatech-manutencao-demo` |
+| `DASHBOARD_API_KEY` | `amatech-dashboard-demo` (chave da API do próprio Dashboard) |
 | `DASHBOARD_TEMPO_LIMITE` | `5` segundos |
 
-## 6. Como conferir
+## 8. Como conferir
 
 ```bash
 python -m pytest testes -q
