@@ -95,26 +95,33 @@ def _migrar_integracao(conn: sqlite3.Connection) -> None:
     - origem_sistema e id_externo nos chamados (chamado aberto por outro sistema pela API, sem duplicar);
     - máquinas INS-01 e QC-01, usadas pelo Controle da Qualidade;
     - usuário de serviço "Integração" (inativo, não faz login), operador de abertura dos chamados da API.
+    Só grava quando falta algo: assim, abrir o sistema não altera o manutencao.db versionado no Git.
     """
     colunas = {linha["name"] for linha in conn.execute("PRAGMA table_info(chamados_manutencao)")}
     if "origem_sistema" not in colunas:
         conn.execute("ALTER TABLE chamados_manutencao ADD COLUMN origem_sistema VARCHAR(50)")
     if "id_externo" not in colunas:
         conn.execute("ALTER TABLE chamados_manutencao ADD COLUMN id_externo VARCHAR(100)")
-    conn.execute(
-        "CREATE UNIQUE INDEX IF NOT EXISTS ux_chamados_externo "
-        "ON chamados_manutencao(origem_sistema, id_externo) WHERE id_externo IS NOT NULL"
-    )
-    conn.executemany(
-        "INSERT OR IGNORE INTO equipamentos (codigo_tag, nome, setor, posto_trabalho) VALUES (?, ?, ?, 'Posto 01')",
-        [
-            ("INS-01", "Bancada de Inserção Manual", "Inserção Manual"),
-            ("QC-01", "Bancada de Inspeção da Qualidade", "Inspeção da Qualidade"),
-        ],
-    )
-    conn.execute(
-        "INSERT OR IGNORE INTO usuarios (nome, matricula, senha_hash, perfil, ativo) "
-        "VALUES ('Integração (outros sistemas)', ?, '!', 'OPERADOR', 0)",
-        (MATRICULA_INTEGRACAO,),
-    )
-    conn.commit()
+    if not conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'ux_chamados_externo'").fetchone():
+        conn.execute(
+            "CREATE UNIQUE INDEX ux_chamados_externo "
+            "ON chamados_manutencao(origem_sistema, id_externo) WHERE id_externo IS NOT NULL"
+        )
+    tags = {linha["codigo_tag"] for linha in conn.execute("SELECT codigo_tag FROM equipamentos")}
+    for tag, nome, setor in [
+        ("INS-01", "Bancada de Inserção Manual", "Inserção Manual"),
+        ("QC-01", "Bancada de Inspeção da Qualidade", "Inspeção da Qualidade"),
+    ]:
+        if tag not in tags:
+            conn.execute(
+                "INSERT INTO equipamentos (codigo_tag, nome, setor, posto_trabalho) VALUES (?, ?, ?, 'Posto 01')",
+                (tag, nome, setor),
+            )
+    if not conn.execute("SELECT 1 FROM usuarios WHERE matricula = ?", (MATRICULA_INTEGRACAO,)).fetchone():
+        conn.execute(
+            "INSERT INTO usuarios (nome, matricula, senha_hash, perfil, ativo) "
+            "VALUES ('Integração (outros sistemas)', ?, '!', 'OPERADOR', 0)",
+            (MATRICULA_INTEGRACAO,),
+        )
+    if conn.in_transaction:
+        conn.commit()

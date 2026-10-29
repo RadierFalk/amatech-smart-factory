@@ -500,40 +500,49 @@ def buscar_ocorrencia_detalhada(id_ocorrencia):
 
 
 def inserir_produto_se_novo(numero_serie, modelo):
-    """Grava um notebook vindo da Rastreabilidade. Devolve True se ele ainda não existia."""
+    """Grava um notebook vindo da Rastreabilidade. Devolve True se ele ainda não existia.
+    Só grava quando é novo: assim, abrir o sistema não altera o banco versionado no Git."""
     conexao = conectar()
 
-    cursor = conexao.execute("""
-        INSERT OR IGNORE INTO produto (
-            numero_serie_produto,
-            modelo_produto
-        )
-        VALUES (?, ?)
-    """, (numero_serie, modelo))
+    existe = conexao.execute("""
+        SELECT 1 FROM produto WHERE numero_serie_produto = ?
+    """, (numero_serie,)).fetchone()
 
-    conexao.commit()
-    novo = cursor.rowcount > 0
+    if not existe:
+        conexao.execute("""
+            INSERT INTO produto (
+                numero_serie_produto,
+                modelo_produto
+            )
+            VALUES (?, ?)
+        """, (numero_serie, modelo))
+
+        conexao.commit()
 
     conexao.close()
 
-    return novo
+    return not existe
 
 
 def inserir_maquina_se_nova(tag, descricao):
     """Grava uma máquina vinda da Manutenção (a TAG é o nome). Devolve True se ela ainda não existia."""
     conexao = conectar()
 
-    cursor = conexao.execute("""
-        INSERT OR IGNORE INTO maquina (
-            nome_maquina,
-            descricao_maquina
-        )
-        VALUES (?, ?)
-    """, (tag, descricao))
+    existe = conexao.execute("""
+        SELECT 1 FROM maquina WHERE nome_maquina = ?
+    """, (tag,)).fetchone()
 
-    conexao.commit()
-    nova = cursor.rowcount > 0
+    if not existe:
+        conexao.execute("""
+            INSERT INTO maquina (
+                nome_maquina,
+                descricao_maquina
+            )
+            VALUES (?, ?)
+        """, (tag, descricao))
+
+        conexao.commit()
 
     conexao.close()
 
-    return nova
+    return not existe
