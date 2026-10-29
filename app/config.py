@@ -14,6 +14,14 @@ FUSO_HORAS = int(os.environ.get("AMATECH_FUSO", "-4"))
 API_KEY_MAQUINAS = os.environ.get("AMATECH_API_KEY", "amatech-iot-demo")
 MATRICULA_IOT = "MAT-IOT"          # usuário de serviço usado nas atualizações automáticas
 
+# Chaves de demonstração dos outros sistemas do ecossistema (OA3), criadas ao iniciar se o nome ainda não existir.
+# Mesmo espírito da chave amatech-iot-demo: só para a demonstração. AMATECH_CHAVES_DEMO=0 desliga.
+CHAVES_DEMO = {} if os.environ.get("AMATECH_CHAVES_DEMO", "1") == "0" else {
+    "qualidade": os.environ.get("AMATECH_CHAVE_QUALIDADE", "amt_demo_qualidade"),
+    "dashboard": os.environ.get("AMATECH_CHAVE_DASHBOARD", "amt_demo_dashboard"),
+    "manutencao": os.environ.get("AMATECH_CHAVE_MANUTENCAO", "amt_demo_manutencao"),
+}
+
 SESSAO_HORAS = 12                  # validade do login
 PREFIXO_SERIE = "AMT"              # número de série: AMT-000245
 ESTOQUE_CRITICO = 50               # abaixo (ou igual) disso o componente aparece como crítico

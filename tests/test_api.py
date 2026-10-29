@@ -123,6 +123,7 @@ class TestIntegracao(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         config.DB_PATH = Path(cls.tmp.name) / "integ.db"
+        config.CHAVES_DEMO = {}   # estes testes criam as próprias chaves "qualidade" e "manutencao"
         seed.recriar_banco()
         cls.cm = TestClient(app)
         cls.client = cls.cm.__enter__()
@@ -195,3 +196,66 @@ class TestIntegracao(unittest.TestCase):
         self.assertNotIn("chave_hash", lista[0])
         op = self.client.post("/api/auth/login", json={"matricula": "MAT-00421", "senha": seed.SENHA_DEMO}).json()["token"]
         self.assertEqual(self.client.get("/api/integracoes", headers={"Authorization": "Bearer " + op}).status_code, 403)
+
+
+class TestEcossistema(unittest.TestCase):
+    """Integração da OA3: chaves de demonstração, histórico de etapas (/passagens) e reprovação vinda da Qualidade."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        config.DB_PATH = Path(cls.tmp.name) / "eco.db"
+        config.CHAVES_DEMO = {"qualidade": "amt_demo_qualidade", "dashboard": "amt_demo_dashboard"}
+        seed.recriar_banco()
+        cls.cm = TestClient(app)
+        cls.client = cls.cm.__enter__()   # inicia o sistema: cria as chaves de demonstração
+        cls.qualidade = {"X-API-Key": "amt_demo_qualidade"}
+        cls.dashboard = {"X-API-Key": "amt_demo_dashboard"}
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.cm.__exit__(None, None, None)
+        cls.tmp.cleanup()
+
+    def test_chaves_de_demonstracao(self):
+        self.assertEqual(self.client.get("/api/v1/produtos", headers=self.dashboard).status_code, 200)
+        from app.db import conectar
+        from app.servicos import integracao
+        conn = conectar()
+        config.CHAVES_DEMO = {"dashboard": "outra-chave"}
+        integracao.garantir_chaves_demo(conn)   # cliente já existe: a chave não é trocada
+        conn.close()
+        self.assertEqual(self.client.get("/api/v1/produtos", headers=self.dashboard).status_code, 200)
+
+    def test_passagens_incluem_o_historico_de_demonstracao(self):
+        todas = self.client.get("/api/v1/passagens", headers=self.dashboard).json()
+        self.assertGreater(len(todas), 30)
+        self.assertTrue(all(p["em"].endswith("Z") for p in todas))
+        self.assertEqual(set(todas[0]), {"numero_serie", "modelo", "status", "em", "origem"})
+        aprovados = self.client.get("/api/v1/passagens?status=aprovado", headers=self.dashboard).json()
+        self.assertTrue(aprovados and all(p["status"] == "Aprovado" for p in aprovados))
+        meio = todas[len(todas) // 2]["em"]
+        depois = self.client.get(f"/api/v1/passagens?de={meio}", headers=self.dashboard).json()
+        self.assertTrue(0 < len(depois) < len(todas) and all(p["em"] >= meio for p in depois))
+
+    def test_reprovacao_da_qualidade_usa_a_falha_real_e_nao_duplica(self):
+        corpo = {"status": "Reprovado", "descricao_falha": "Teclado sem resposta", "motivo_reprovacao": "Teclado",
+                 "id_externo": "QLD-15"}
+        r = self.client.post("/api/v1/producoes/AMT-000028/status", json=corpo, headers=self.qualidade)
+        self.assertTrue(r.json()["alterado"])
+        self.client.post("/api/v1/producoes/AMT-000028/status", json={"status": "Em Montagem"}, headers=self.qualidade)
+        de_novo = self.client.post("/api/v1/producoes/AMT-000028/status", json=corpo, headers=self.qualidade)
+        self.assertFalse(de_novo.json()["alterado"])   # reenvio do mesmo QLD-15: não reprova de novo
+        d = self.client.get("/api/v1/producoes/AMT-000028", headers=self.qualidade).json()
+        self.assertEqual(d["status"], "Em Montagem")
+        ncs = [n for n in d["nao_conformidades"] if n["id_externo"] == "QLD-15"]
+        self.assertEqual(len(ncs), 1)
+        self.assertEqual((ncs[0]["falha"], ncs[0]["motivo"], ncs[0]["origem"]),
+                         ("Teclado sem resposta", "Teclado", "qualidade"))
+
+    def test_maquina_sem_falha_continua_com_o_texto_padrao(self):
+        r = self.client.post("/api/v1/producoes/AMT-000027/status", json={"status": "Reprovado", "maquina": "TEST-01"},
+                             headers=self.qualidade)
+        self.assertTrue(r.json()["alterado"])
+        nc = self.client.get("/api/v1/producoes/AMT-000027", headers=self.qualidade).json()["nao_conformidades"][-1]
+        self.assertEqual(nc["falha"], "Reprovado automaticamente pela máquina TEST-01")

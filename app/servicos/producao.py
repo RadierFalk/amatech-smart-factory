@@ -141,7 +141,7 @@ def excluir_producao(conn, producao_id):
 
 
 def avancar_etapa(conn, producao_id, status_id, responsavel_id, usuario,
-                  descricao_falha=None, motivo_reprovacao=None, origem="MANUAL"):
+                  descricao_falha=None, motivo_reprovacao=None, origem="MANUAL", origem_sistema=None, id_externo=None):
     """RF006 + RF008 + RF012: muda a etapa e guarda dia/horário, quem atualizou e o novo responsável."""
     prod = um(conn, """SELECT pr.id, pr.numero_serie_notebook AS numero_serie, pr.status_atual_id, pr.responsavel_etapa_id,
                               s.nome_status AS status_nome
@@ -166,9 +166,10 @@ def avancar_etapa(conn, producao_id, status_id, responsavel_id, usuario,
         conn.execute(
             "INSERT INTO historico_passagem (producao_id, status_id, usuario_id, responsavel_etapa_id, origem_atualizacao) "
             "VALUES (?, ?, ?, ?, ?)", (producao_id, status_id, usuario["id"], responsavel_id, origem))
-        if reprovado:
-            conn.execute("INSERT INTO nao_conformidades (producao_id, usuario_id, descricao_falha, motivo_reprovacao) "
-                         "VALUES (?, ?, ?, ?)", (producao_id, usuario["id"], falha, motivo))
+        if reprovado:   # origem_sistema/id_externo: NC vinda de outro sistema pela API (ex.: QLD-12 da Qualidade)
+            conn.execute("INSERT INTO nao_conformidades (producao_id, usuario_id, descricao_falha, motivo_reprovacao, "
+                         "origem_sistema, id_externo) VALUES (?, ?, ?, ?, COALESCE(?, 'AMATECH'), ?)",
+                         (producao_id, usuario["id"], falha, motivo, origem_sistema, id_externo))
             registrar_evento(conn, "nao_conformidade.registrada", prod["numero_serie"],
                              {"numero_serie": prod["numero_serie"], "falha": falha, "motivo": motivo, "origem": origem})
         registrar_evento(conn, "producao.etapa_alterada", prod["numero_serie"],
@@ -189,9 +190,13 @@ def registrar_nao_conformidade(conn, producao_id, descricao_falha, motivo_reprov
     return obter_producao(conn, producao_id)
 
 
-def atualizar_por_maquina(conn, numero_serie, nome_status, maquina=None, origem="MAQUINA/IOT"):
+def atualizar_por_maquina(conn, numero_serie, nome_status, maquina=None, origem="MAQUINA/IOT", descricao_falha=None,
+                          motivo_reprovacao=None, origem_sistema=None, id_externo=None):
     """RF017: uma máquina (ou outro sistema, via /api/v1) informa o status e a produção é atualizada.
-    A origem fica gravada no histórico: MAQUINA/IOT ou API:<nome do sistema>."""
+    A origem fica gravada no histórico: MAQUINA/IOT ou API:<nome do sistema>.
+
+    Outro sistema pode mandar a falha e o motivo reais da reprovação e o id do registro dele (id_externo).
+    Uma reprovação com o mesmo id_externo já registrada não é aplicada de novo (reenvio)."""
     prod = um(conn, "SELECT id, status_atual_id FROM producoes WHERE numero_serie_notebook = ?", (numero_serie.strip(),))
     if not prod:
         raise ErroNegocio("Número de série não encontrado.", 404)
@@ -201,10 +206,13 @@ def atualizar_por_maquina(conn, numero_serie, nome_status, maquina=None, origem=
     iot = um(conn, "SELECT id, nome FROM usuarios WHERE matricula = ?", (config.MATRICULA_IOT,))
     if not iot:
         raise ErroNegocio("Usuário de serviço da integração não está cadastrado.", 500)
-    if prod["status_atual_id"] == status["id"]:
+    ja_registrada = id_externo and um(conn, "SELECT 1 AS ok FROM nao_conformidades WHERE origem_sistema = ? "
+                                            "AND id_externo = ?", (origem_sistema, id_externo))
+    if prod["status_atual_id"] == status["id"] or (ja_registrada and nome_status.strip().lower() == "reprovado"):
         return {"alterado": False, "producao": obter_producao(conn, prod["id"])}
     origem_txt = "Reprovado automaticamente pela máquina" + (f" {maquina}" if maquina else "")
     producao = avancar_etapa(conn, prod["id"], status["id"], None, iot,
-                             descricao_falha=origem_txt, motivo_reprovacao="Detecção por equipamento",
-                             origem=origem)
+                             descricao_falha=(descricao_falha or "").strip() or origem_txt,
+                             motivo_reprovacao=(motivo_reprovacao or "").strip() or "Detecção por equipamento",
+                             origem=origem, origem_sistema=origem_sistema, id_externo=id_externo)
     return {"alterado": True, "producao": producao}

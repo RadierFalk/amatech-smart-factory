@@ -20,6 +20,12 @@ Entre como **MAT-0001 (Administrador)** → módulo **Cadastros → Integraçõe
 (ex.: `qualidade`). A chave (`amt_...`) aparece **uma única vez** — copie e entregue à outra equipe.
 Só o *hash* é guardado; se perder, use *Gerar nova chave*. Dá para desativar um sistema sem apagá-lo.
 
+**Chaves de demonstração do ecossistema (OA3).** Para a demonstração com os outros sistemas da sala, o sistema
+cria ao iniciar três clientes, se ainda não existirem: `qualidade` (`amt_demo_qualidade`), `dashboard`
+(`amt_demo_dashboard`) e `manutencao` (`amt_demo_manutencao`). Um cliente que já existe nunca é alterado: se o
+administrador gerar uma chave nova, ela continua valendo. As chaves podem ser trocadas pelas variáveis de ambiente
+(tabela abaixo), e `AMATECH_CHAVES_DEMO=0` desliga a criação. São só para a demonstração, como a `amatech-iot-demo`.
+
 ### 2. Chamar
 Todas as chamadas (menos `/saude`) levam o cabeçalho `X-API-Key: amt_...`.
 
@@ -31,7 +37,8 @@ Todas as chamadas (menos `/saude`) levam o cabeçalho `X-API-Key: amt_...`.
 | GET | `/api/v1/componentes` | Componentes e estoque |
 | GET | `/api/v1/producoes?atualizado_apos=...&status=...&limite=200&offset=0` | Produções (filtro incremental por data) |
 | GET | `/api/v1/producoes/{numero_serie}` | Uma produção, com histórico e NCs |
-| POST | `/api/v1/producoes/{numero_serie}/status` | Outro sistema muda a etapa: `{"status":"Em Teste","maquina":"BANCADA-03"}` |
+| POST | `/api/v1/producoes/{numero_serie}/status` | Outro sistema muda a etapa: `{"status":"Em Teste","maquina":"BANCADA-03"}`. Ao reprovar, pode mandar a falha real: `{"status":"Reprovado","descricao_falha":"...","motivo_reprovacao":"...","id_externo":"QLD-15"}` (veja abaixo) |
+| GET | `/api/v1/passagens?de=...&ate=...&status=...&limite=5000` | Histórico de etapas de todas as produções no período (`de`/`ate` em ISO 8601, UTC). Inclui o histórico de demonstração, que a fila de eventos não tem |
 | POST | `/api/v1/nao-conformidades` | Registrar falha: `{"numero_serie":"AMT-000012","descricao_falha":"...","motivo_reprovacao":"...","id_externo":"QLD-77"}` |
 | GET | `/api/v1/solicitacoes?status=PENDENTE` | Solicitações de material |
 | GET | `/api/v1/eventos?apos_id=0&limite=100&tipo=...` | Fila de eventos (veja abaixo) |
@@ -42,6 +49,20 @@ curl -H "X-API-Key: amt_SUA_CHAVE" http://localhost:8000/api/v1/producoes?limite
 curl -X POST -H "X-API-Key: amt_SUA_CHAVE" -H "Content-Type: application/json" \
      -d '{"status":"Em Teste","maquina":"BANCADA-03"}' \
      http://localhost:8000/api/v1/producoes/AMT-000012/status
+```
+
+### Reprovação vinda de outro sistema
+
+Quando o corpo de `POST /api/v1/producoes/{numero_serie}/status` traz `"status": "Reprovado"`, a não conformidade
+é gravada com `descricao_falha` e `motivo_reprovacao` (sem eles, continua o texto padrão "Reprovado automaticamente
+pela máquina"), com `origem_sistema` = nome do cliente da chave e com o `id_externo`. Se já existe uma NC com o
+mesmo `id_externo` desse sistema, a reprovação não é aplicada de novo e a resposta vem com `"alterado": false`.
+Assim, a Qualidade não precisa chamar também `POST /api/v1/nao-conformidades` (isso geraria NC duplicada).
+
+Exemplo de resposta de `/api/v1/passagens`:
+```json
+[{"numero_serie": "AMT-000004", "modelo": {"codigo": "N16-I7-16-512", "nome": "AMT N16"}, "status": "Aprovado",
+  "em": "2026-10-20T14:32:00Z", "origem": "MANUAL"}]
 ```
 
 ### Convenções do contrato
@@ -115,6 +136,8 @@ Tipos: `producao.criada`, `producao.etapa_alterada`, `nao_conformidade.registrad
 |---|---|---|
 | `AMATECH_DB` | Caminho do arquivo `.db` (use para o banco unido) | `database/amatech.db` |
 | `AMATECH_API_KEY` | Chave da rota de máquinas/IoT | `amatech-iot-demo` |
+| `AMATECH_CHAVES_DEMO` | `0` desliga a criação das chaves de demonstração do ecossistema | `1` |
+| `AMATECH_CHAVE_QUALIDADE`, `AMATECH_CHAVE_DASHBOARD`, `AMATECH_CHAVE_MANUTENCAO` | Chaves de demonstração de cada sistema | `amt_demo_qualidade`, `amt_demo_dashboard`, `amt_demo_manutencao` |
 | `AMATECH_CORS` | Origens liberadas para outro front-end, separadas por vírgula (`http://localhost:3000,http://192.168.0.20:8501`) | vazio |
 | `AMATECH_FUSO` | Fuso em horas para exibição | `-4` |
 

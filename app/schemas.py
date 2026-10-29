@@ -92,6 +92,11 @@ class MaquinaStatusIn(BaseModel):
 class StatusExternoIn(BaseModel):
     status: str = Field(min_length=1)
     maquina: str | None = None
+    # Ao reprovar: a falha e o motivo reais (sem eles, a NC usa o texto padrão da máquina) e o id do registro
+    # no sistema de origem, que evita NC duplicada em reenvios.
+    descricao_falha: str | None = None
+    motivo_reprovacao: str | None = None
+    id_externo: str | None = None
 
 
 class NaoConformidadeExternaIn(BaseModel):

@@ -52,8 +52,16 @@ def producao(numero_serie: str, conn=Depends(get_conn), cliente=Depends(cliente_
 
 @router.post("/producoes/{numero_serie}/status")
 def atualizar_status(numero_serie: str, dados: StatusExternoIn, conn=Depends(get_conn), cliente=Depends(cliente_integracao)):
-    r = svc.atualizar_status_externo(conn, cliente, numero_serie, dados.status, dados.maquina)
+    r = svc.atualizar_status_externo(conn, cliente, numero_serie, dados.status, dados.maquina, dados.descricao_falha,
+                                     dados.motivo_reprovacao, dados.id_externo)
     return {"alterado": r["alterado"], "status": r["producao"]["status_nome"]}
+
+
+@router.get("/passagens")
+def passagens(de: str | None = None, ate: str | None = None, status: str | None = None, limite: int = 5000,
+              conn=Depends(get_conn), cliente=Depends(cliente_integracao)):
+    """Histórico de etapas de todas as produções no período (de/ate em ISO 8601, UTC)."""
+    return svc.passagens_v1(conn, de, ate, status, limite)
 
 
 @router.post("/nao-conformidades", status_code=201)

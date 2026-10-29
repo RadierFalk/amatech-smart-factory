@@ -58,6 +58,7 @@ def inicializar():
     """Aplica as migrações pendentes. Se o arquivo do banco ainda não existia, também carrega os dados de
     demonstração. Um banco que já existe (ex.: compartilhado com outras equipes) nunca é apagado nem repovoado."""
     from app import migracoes, seed  # import tardio para evitar import circular
+    from app.servicos import integracao
     novo = not config.DB_PATH.exists()
     config.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = conectar()
@@ -65,5 +66,6 @@ def inicializar():
         migracoes.aplicar(conn)
         if novo:
             seed.popular(conn)
+        integracao.garantir_chaves_demo(conn)
     finally:
         conn.close()

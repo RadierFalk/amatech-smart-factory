@@ -94,6 +94,15 @@ def excluir_cliente(conn, cliente_id):
         raise ErroNegocio("Sistema não encontrado.", 404)
 
 
+def garantir_chaves_demo(conn):
+    """Cria os clientes de demonstração do ecossistema (config.CHAVES_DEMO) que ainda não existem.
+    Um cliente já cadastrado nunca é alterado: se o administrador trocou a chave, a nova continua valendo."""
+    with conn:
+        for nome, chave in config.CHAVES_DEMO.items():
+            conn.execute("INSERT OR IGNORE INTO integracao_clientes (nome, chave_hash) VALUES (?, ?)",
+                         (nome, _hash(chave)))
+
+
 def autenticar_cliente(conn, chave):
     if not chave:
         raise ErroNegocio("Informe a chave no cabeçalho X-API-Key.", 401)
@@ -171,6 +180,32 @@ def producao_v1(conn, numero_serie):
     return r
 
 
+def passagens_v1(conn, de=None, ate=None, status=None, limite=5000):
+    """Histórico de etapas de todas as produções num período (ex.: o Dashboard conta Aprovados e Reprovados por
+    turno). Diferente da fila /eventos, inclui o histórico de demonstração gravado pelo povoamento inicial."""
+    limite = max(1, min(limite, 20000))
+    filtros, params = [], []
+    if de:
+        filtros.append("h.data_horario >= ?")
+        params.append(para_sqlite(de))
+    if ate:
+        filtros.append("h.data_horario <= ?")
+        params.append(para_sqlite(ate))
+    if status:
+        filtros.append("lower(s.nome_status) = lower(?)")
+        params.append(status)
+    where = ("WHERE " + " AND ".join(filtros)) if filtros else ""
+    linhas = consultar(conn, f"""
+        SELECT pr.numero_serie_notebook AS numero_serie, p.codigo_modelo, p.nome_modelo, s.nome_status,
+               h.data_horario, h.origem_atualizacao
+        FROM historico_passagem h JOIN producoes pr ON pr.id = h.producao_id
+        LEFT JOIN produtos p ON p.idprd = pr.produto_id LEFT JOIN status_producao s ON s.id = h.status_id
+        {where} ORDER BY h.data_horario, h.id LIMIT ?""", params + [limite])
+    return [{"numero_serie": l["numero_serie"], "modelo": {"codigo": l["codigo_modelo"], "nome": l["nome_modelo"]},
+             "status": l["nome_status"], "em": iso(l["data_horario"]), "origem": l["origem_atualizacao"]}
+            for l in linhas]
+
+
 def solicitacoes_v1(conn, status=None):
     from app.servicos import materiais
     return [{"id": s["id"], "numero_serie": s["numero_serie"], "sku": s["codigo_sku"], "componente": s["componente_nome"],
@@ -187,9 +222,12 @@ def _usuario_servico(conn):
     return u
 
 
-def atualizar_status_externo(conn, cliente, numero_serie, status, maquina=None):
+def atualizar_status_externo(conn, cliente, numero_serie, status, maquina=None, descricao_falha=None,
+                             motivo_reprovacao=None, id_externo=None):
     from app.servicos import producao as svc
-    return svc.atualizar_por_maquina(conn, numero_serie, status, maquina, origem="API:" + cliente["nome"])
+    return svc.atualizar_por_maquina(conn, numero_serie, status, maquina, origem="API:" + cliente["nome"],
+                                     descricao_falha=descricao_falha, motivo_reprovacao=motivo_reprovacao,
+                                     origem_sistema=cliente["nome"], id_externo=id_externo)
 
 
 def registrar_nc_externa(conn, cliente, numero_serie, falha, motivo, id_externo=None):
