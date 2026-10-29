@@ -8,6 +8,7 @@
 #
 # Subir:  docker compose up -d --build        Guia completo: SERVIDOR.md
 # As chaves de API vêm do arquivo .env (copie .env.exemplo); sem ele, valem as chaves de demonstração.
+# Também no .env: PORTA (padrão 80) e REDE_DOCKER (faixa da rede interna, padrão 10.201.0.0/24).
 # Entre si, os sistemas se falam pela rede interna do Docker, pelo nome do serviço (ex.: http://rastreabilidade:8000).
 
 name: amatech-smart-factory
@@ -24,7 +25,7 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "${PORTA:-80}:80"
     volumes:
       - ./servidor/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./servidor/portal:/srv:ro
@@ -143,6 +144,14 @@ services:
     depends_on:
       dashboard-api:
         condition: service_healthy
+
+# Faixa fixa da rede interna: com ela, o Docker não precisa procurar uma faixa livre, o que falha quando uma VPN
+# ocupa todas as rotas ("all predefined address pools have been fully subnetted"). Troque no .env se colidir.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${REDE_DOCKER:-10.201.0.0/24}
 
 volumes:
   dados-rastreabilidade:
