@@ -15,28 +15,35 @@ conversa com os outros três sistemas da AMATECH Smart Factory. O resumo de todo
 | Banco | `banco/controle_qualidade.db` (está no Git) |
 | Dono dos cadastros | **Ocorrências de defeito**. Notebooks vêm da Rastreabilidade; máquinas, da Manutenção |
 | Executar | API: `python -m uvicorn api:app --port 5000` · tela: `streamlit run app.py` → http://localhost:8502 |
-| Testes | `python -m pytest tests -q` (10 testes; não precisam dos outros sistemas no ar) |
+| Login | Só na tela: matrícula + senha (`ADM-0001`, `OPE-0001`, `ALM-0001`, `QUA-0001`; senha inicial `amatech1234`). A API usa `X-API-Key` |
+| Testes | `python -m pytest tests -q` (59 testes; não precisam dos outros sistemas no ar) |
 
 ## 2. Estrutura atual
 
 ```
 qualidade/
-├── app.py                   ← entrada do Streamlit: menu e busca dos cadastros dos setores
+├── app.py                   ← entrada do Streamlit: login, menu por perfil e busca dos cadastros dos setores
 ├── api.py                   ← API FastAPI (processo próprio): GET /api/status e GET /api/ocorrencias?de=&ate= (com chave)
 ├── integracao.py            ← NOVO: conversa com a Rastreabilidade e a Manutenção
 ├── banco.py                 ← todas as consultas SQL (inclui as funções usadas pela integração)
-├── ocorrencia.py            ← validação e regras das ocorrências
+├── ocorrencia.py            ← validação e regras das ocorrências (registrar/editar/ocultar exigem permissão)
+├── autenticacao.py          ← NOVO: login, hash Argon2 e gestão de contas
+├── permissoes.py            ← NOVO: matriz de permissões por perfil
+├── sessao.py                ← NOVO: sessão (expiração e logout)
+├── migracao.py              ← NOVO: backup + conversão da tabela usuario (repetível)
 ├── indicadores.py, graficos.py ← cálculos e gráficos do dashboard da Qualidade
 ├── criar_banco.py           ← recria o banco do zero com os dados iniciais
 ├── simular_dados.py         ← gera ocorrências aleatórias para demonstração
 ├── telas/
 │   ├── dashboard.py
 │   ├── registro_ocorrencia.py ← registro + opção "Abrir chamado na manutenção"
-│   └── historico_ocorrencias.py
+│   ├── historico_ocorrencias.py
+│   ├── login.py               ← NOVO
+│   └── usuarios.py            ← NOVO: gestão de usuários (Administrador)
 ├── banco/controle_qualidade.db
-├── tests/test_integracao.py ← NOVO
+├── tests/                   ← test_integracao.py, test_api.py + NOVOS: conftest.py, test_autenticacao.py, test_permissoes.py, test_migracao.py
 ├── .streamlit/config.toml   ← NOVO: porta 8502
-└── requirements.txt         ← + requests
+└── requirements.txt         ← + requests, + argon2-cffi
 ```
 
 ## 3. O que foi alterado na OA3
@@ -53,6 +60,23 @@ qualidade/
 
 O banco do repositório **foi atualizado no lugar, sem recriar**: as 39 ocorrências foram mantidas e continuam ligadas
 aos mesmos produtos (AMT-NB001 virou AMT-000001, e assim por diante).
+
+## 3.1. Login e permissões
+
+O acesso à **tela** exige matrícula e senha. A API e a integração com os outros setores **não mudaram** e continuam
+usando as chaves `X-API-Key`; não importam nenhum módulo do login.
+
+| Matrícula | Nome | Perfil | Era no banco antigo |
+| --- | --- | --- | --- |
+| `ADM-0001` | Ana Souza | Administrador | Gestor |
+| `OPE-0001` | João Silva | Operador | Operador |
+| `ALM-0001` | Carlos Oliveira | Almoxarife | Supervisor de produção |
+| `QUA-0001` | Maria Santos | Inspetor de Qualidade | Responsável pela qualidade |
+
+Os quatro usuários antigos **foram convertidos** (mesmo `id_usuario`), então as 39 ocorrências continuam ligadas às
+mesmas pessoas. A migração roda na primeira abertura da tela, cria um backup em `banco/backups/` e não altera nenhuma
+ocorrência. O Administrador cria usuários e gerencia contas na página **Usuários**. Matriz de permissões, sessão,
+migração e recuperação de acesso: [`README.md`](README.md), seção 6.
 
 ## 4. Comunicação com os outros sistemas
 
@@ -102,7 +126,9 @@ No servidor da fábrica, todos os sistemas ficam no mesmo IP, cada um na sua rot
 
 Mudanças para o servidor: a API passou de **Flask para FastAPI**, roda **separada da tela** (antes subia numa thread do
 Streamlit, então só existia depois que alguém abria a tela) e exige a chave `X-API-Key` em `/api/ocorrencias`. O banco
-pode ficar num volume (`QUALIDADE_DB`), começando com uma cópia de `banco/controle_qualidade.db`.
+pode ficar num volume (`QUALIDADE_DB`), começando com uma cópia de `banco/controle_qualidade.db`. A imagem instala o
+`requirements.txt` da raiz, que agora inclui `argon2-cffi` (login); a migração do login roda na primeira abertura da tela e
+grava o backup em `/dados/backups/`.
 
 ## 5. Variáveis de ambiente
 
@@ -113,10 +139,12 @@ pode ficar num volume (`QUALIDADE_DB`), começando com uma cópia de `banco/cont
 | `INTEGRACAO_TEMPO_LIMITE` | `3` segundos |
 | `QUALIDADE_API_KEY` | `amatech-qualidade-demo` (chave da API desta equipe) |
 | `QUALIDADE_DB` | `banco/controle_qualidade.db` |
+| `QUALIDADE_SENHA_INICIAL` | `amatech1234` (só na criação das contas) |
+| `QUALIDADE_SESSAO_MINUTOS` | `30` (inatividade até a sessão expirar) |
 
 ## 6. Como conferir
 
-1. Suba a Rastreabilidade e a Manutenção; depois `streamlit run app.py`.
+1. Suba a Rastreabilidade e a Manutenção; depois `streamlit run app.py` e entre (ex.: `QUA-0001` / `amatech1234`).
 2. Na barra lateral, *Integração com os setores* mostra quantos notebooks e máquinas foram consultados.
 3. Registre uma ocorrência **Reprovado** para `AMT-000017`, máquina `TEST-02`, com a opção de chamado marcada.
 4. A tela mostra os avisos; na Rastreabilidade o notebook fica *Reprovado* e na Manutenção a TEST-02 fica *PARADA*.

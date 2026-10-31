@@ -42,7 +42,6 @@ sistema_controle_qualidade/
 ├── indicadores.py
 ├── ocorrencia.py
 ├── README.md
-├── README_ESTUDO.md
 │
 ├── banco/
 │   └── controle_qualidade.db

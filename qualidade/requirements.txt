@@ -3,3 +3,4 @@ uvicorn>=0.30
 matplotlib==3.11.2
 streamlit==1.64.0
 requests>=2.31.0
+argon2-cffi>=23.1.0

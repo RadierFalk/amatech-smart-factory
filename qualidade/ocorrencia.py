@@ -1,6 +1,9 @@
 from datetime import date, datetime, time
 
+import autenticacao
 import banco
+import integracao
+import permissoes
 
 
 # ============================================================
@@ -90,6 +93,7 @@ def validar_ocorrencia(
 # ============================================================
 
 def registrar_ocorrencia(
+    usuario,
     data_ocorrencia,
     hora_ocorrencia,
     classificacao_defeito,
@@ -100,9 +104,12 @@ def registrar_ocorrencia(
     id_produto,
     id_estacao,
     id_tipo_defeito,
-    id_maquina,
-    id_usuario
+    id_maquina
 ):
+    # O responsável é sempre o usuário autenticado (lido do banco), nunca um valor enviado pela tela
+    responsavel = autenticacao.validar_ator(usuario)
+    permissoes.exigir(responsavel, permissoes.REGISTRAR_OCORRENCIA)
+
     erros = validar_ocorrencia(
         data_ocorrencia,
         hora_ocorrencia,
@@ -115,7 +122,7 @@ def registrar_ocorrencia(
         id_estacao,
         id_tipo_defeito,
         id_maquina,
-        id_usuario
+        responsavel["id_usuario"]
     )
 
     if erros:
@@ -142,10 +149,24 @@ def registrar_ocorrencia(
         id_estacao=id_estacao,
         id_tipo_defeito=id_tipo_defeito,
         id_maquina=id_maquina,
-        id_usuario=id_usuario
+        id_usuario=responsavel["id_usuario"]
     )
 
     return True, id_ocorrencia
+
+
+def notificar_setores(usuario, id_ocorrencia, abrir_chamado=False):
+    """
+    Avisa a Rastreabilidade (e, se pedido, a Manutenção) sobre uma ocorrência registrada.
+    Abrir chamado na Manutenção exige a permissão própria. A integração em si (integracao.py) não mudou.
+    """
+    responsavel = autenticacao.validar_ator(usuario)
+    permissoes.exigir(responsavel, permissoes.REGISTRAR_OCORRENCIA)
+
+    if abrir_chamado:
+        permissoes.exigir(responsavel, permissoes.ABRIR_CHAMADO)
+
+    return integracao.notificar_ocorrencia(id_ocorrencia, abrir_chamado)
 
 
 # ============================================================
@@ -153,6 +174,7 @@ def registrar_ocorrencia(
 # ============================================================
 
 def editar_ocorrencia(
+    usuario,
     id_ocorrencia,
     data_ocorrencia,
     hora_ocorrencia,
@@ -164,11 +186,21 @@ def editar_ocorrencia(
     id_produto,
     id_estacao,
     id_tipo_defeito,
-    id_maquina,
-    id_usuario
+    id_maquina
 ):
+    editor = autenticacao.validar_ator(usuario)
+    permissoes.exigir(editor, permissoes.EDITAR_OCORRENCIA)
+
     if not id_ocorrencia:
         return False, ["Identificador da ocorrência não informado."]
+
+    ocorrencia = banco.buscar_ocorrencia(id_ocorrencia)
+
+    if ocorrencia is None:
+        return False, ["Ocorrência não encontrada."]
+
+    # Quem registrou continua sendo o responsável: a edição não troca o responsável do registro
+    id_usuario = ocorrencia["id_usuario"]
 
     erros = validar_ocorrencia(
         data_ocorrencia,
@@ -187,11 +219,6 @@ def editar_ocorrencia(
 
     if erros:
         return False, erros
-
-    ocorrencia = banco.buscar_ocorrencia(id_ocorrencia)
-
-    if ocorrencia is None:
-        return False, ["Ocorrência não encontrada."]
 
     if isinstance(data_ocorrencia, date):
         data_ocorrencia = data_ocorrencia.isoformat()
@@ -225,7 +252,10 @@ def editar_ocorrencia(
 # OCULTAR OCORRÊNCIA
 # ============================================================
 
-def ocultar_ocorrencia(id_ocorrencia):
+def ocultar_ocorrencia(usuario, id_ocorrencia):
+    ator = autenticacao.validar_ator(usuario)
+    permissoes.exigir(ator, permissoes.OCULTAR_OCORRENCIA)
+
     if not id_ocorrencia:
         return False, "Identificador da ocorrência não informado."
 
@@ -272,4 +302,4 @@ def filtrar_ocorrencias(
 
 
 def buscar_ocorrencia(id_ocorrencia):
-    return banco.buscar_ocorrencia(id_ocorrencia)
+    return banco.buscar_ocorrencia(id_ocorrencia)
