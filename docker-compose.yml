@@ -33,36 +33,6 @@ x-sistema: &sistema
 
 services:
 
-  # ------------------------------------------------------------------ Proxy / Portal (Caddy -> Traefik)
-  proxy:
-    image: caddy:2-alpine
-    networks:
-      - VandreNet
-    volumes:
-      - ./servidor/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./servidor/portal:/srv:ro
-      - caddy-dados:/data
-    depends_on:
-      - rastreabilidade
-      - qualidade-tela
-      - manutencao-tela
-      - dashboard-tela
-    # Descomente a porta se desejar mapear direto no host (fora do Traefik)
-    # ports:
-    #   - "${PORTA:-80}:80"
-    deploy:
-      <<: *default-deploy
-      labels:
-        - traefik.enable=1
-        - traefik.docker.network=VandreNet
-        - traefik.http.routers.amatech.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`)
-        - traefik.http.routers.amatech.entrypoints=websecure
-        - traefik.http.routers.amatech.priority=1
-        - traefik.http.routers.amatech.tls.certresolver=letsencryptresolver
-        - traefik.http.routers.amatech.service=amatech
-        - traefik.http.services.amatech.loadbalancer.server.port=80
-        - traefik.http.services.amatech.loadbalancer.passHostHeader=true
-
   # ------------------------------------------------------------------ Rastreabilidade (Projeto 2)
   rastreabilidade:
     <<: *sistema
@@ -76,6 +46,18 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/saude')"]
       interval: 15s
       start_period: 20s
+    deploy:
+      <<: *default-deploy
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=VandreNet
+        - traefik.http.routers.rastreabilidade.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && PathPrefix(`/rastreabilidade`)
+        - traefik.http.routers.rastreabilidade.entrypoints=websecure
+        - traefik.http.routers.rastreabilidade.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.rastreabilidade.middlewares=rastreabilidade-strip
+        - traefik.http.middlewares.rastreabilidade-strip.stripprefix.prefixes=/rastreabilidade
+        - traefik.http.services.rastreabilidade.loadbalancer.server.port=8000
+        - traefik.http.services.rastreabilidade.loadbalancer.passHostHeader=true
 
   # ------------------------------------------------------------------ Controle da Qualidade (Projeto 4)
   qualidade-api:
@@ -90,6 +72,19 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/status')"]
       interval: 15s
       start_period: 15s
+    deploy:
+      <<: *default-deploy
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=VandreNet
+        - traefik.http.routers.qualidade-api.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && (PathPrefix(`/qualidade/api`) || PathPrefix(`/qualidade/docs`) || PathPrefix(`/qualidade/openapi.json`))
+        - traefik.http.routers.qualidade-api.entrypoints=websecure
+        - traefik.http.routers.qualidade-api.priority=20
+        - traefik.http.routers.qualidade-api.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.qualidade-api.middlewares=qualidade-strip
+        - traefik.http.middlewares.qualidade-strip.stripprefix.prefixes=/qualidade
+        - traefik.http.services.qualidade-api.loadbalancer.server.port=5000
+        - traefik.http.services.qualidade-api.loadbalancer.passHostHeader=true
 
   qualidade-tela:
     <<: *sistema
@@ -103,6 +98,17 @@ services:
       - dados-qualidade:/dados
     depends_on:
       - qualidade-api
+    deploy:
+      <<: *default-deploy
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=VandreNet
+        - traefik.http.routers.qualidade-tela.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && PathPrefix(`/qualidade`)
+        - traefik.http.routers.qualidade-tela.entrypoints=websecure
+        - traefik.http.routers.qualidade-tela.priority=10
+        - traefik.http.routers.qualidade-tela.tls.certresolver=letsencryptresolver
+        - traefik.http.services.qualidade-tela.loadbalancer.server.port=8502
+        - traefik.http.services.qualidade-tela.loadbalancer.passHostHeader=true
 
   # ------------------------------------------------------------------ Controle da Manutencao (Projeto 5)
   manutencao-api:
@@ -117,6 +123,19 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/api/status')"]
       interval: 15s
       start_period: 15s
+    deploy:
+      <<: *default-deploy
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=VandreNet
+        - traefik.http.routers.manutencao-api.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && (PathPrefix(`/manutencao/api`) || PathPrefix(`/manutencao/docs`) || PathPrefix(`/manutencao/openapi.json`))
+        - traefik.http.routers.manutencao-api.entrypoints=websecure
+        - traefik.http.routers.manutencao-api.priority=20
+        - traefik.http.routers.manutencao-api.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.manutencao-api.middlewares=manutencao-strip
+        - traefik.http.middlewares.manutencao-strip.stripprefix.prefixes=/manutencao
+        - traefik.http.services.manutencao-api.loadbalancer.server.port=5002
+        - traefik.http.services.manutencao-api.loadbalancer.passHostHeader=true
 
   manutencao-tela:
     <<: *sistema
@@ -128,6 +147,17 @@ services:
       - dados-manutencao:/dados
     depends_on:
       - manutencao-api
+    deploy:
+      <<: *default-deploy
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=VandreNet
+        - traefik.http.routers.manutencao-tela.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && PathPrefix(`/manutencao`)
+        - traefik.http.routers.manutencao-tela.entrypoints=websecure
+        - traefik.http.routers.manutencao-tela.priority=10
+        - traefik.http.routers.manutencao-tela.tls.certresolver=letsencryptresolver
+        - traefik.http.services.manutencao-tela.loadbalancer.server.port=8503
+        - traefik.http.services.manutencao-tela.loadbalancer.passHostHeader=true
 
   # ------------------------------------------------------------------ Dashboard Industrial (Projeto 3)
   dashboard-api:
@@ -142,6 +172,19 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5003/api/status')"]
       interval: 15s
       start_period: 15s
+    deploy:
+      <<: *default-deploy
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=VandreNet
+        - traefik.http.routers.dashboard-api.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && (PathPrefix(`/dashboard/api`) || PathPrefix(`/dashboard/docs`) || PathPrefix(`/dashboard/openapi.json`))
+        - traefik.http.routers.dashboard-api.entrypoints=websecure
+        - traefik.http.routers.dashboard-api.priority=20
+        - traefik.http.routers.dashboard-api.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.dashboard-api.middlewares=dashboard-strip
+        - traefik.http.middlewares.dashboard-strip.stripprefix.prefixes=/dashboard
+        - traefik.http.services.dashboard-api.loadbalancer.server.port=5003
+        - traefik.http.services.dashboard-api.loadbalancer.passHostHeader=true
 
   dashboard-tela:
     <<: *sistema
@@ -156,13 +199,32 @@ services:
       - dados-dashboard:/dados
     depends_on:
       - dashboard-api
+    deploy:
+      <<: *default-deploy
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=VandreNet
+        - traefik.http.routers.dashboard-tela.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && PathPrefix(`/dashboard`)
+        - traefik.http.routers.dashboard-tela.entrypoints=websecure
+        - traefik.http.routers.dashboard-tela.priority=10
+        - traefik.http.routers.dashboard-tela.tls.certresolver=letsencryptresolver
+        - traefik.http.services.dashboard-tela.loadbalancer.server.port=8501
+        - traefik.http.services.dashboard-tela.loadbalancer.passHostHeader=true
+        # Redirecionamento da raiz / para /dashboard/
+        - traefik.http.routers.amatech-root.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && Path(`/`)
+        - traefik.http.routers.amatech-root.entrypoints=websecure
+        - traefik.http.routers.amatech-root.priority=1
+        - traefik.http.routers.amatech-root.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.amatech-root.middlewares=root-redirect
+        - traefik.http.routers.amatech-root.service=dashboard-tela
+        - traefik.http.middlewares.root-redirect.redirectregex.regex=^https?://[^/]+/?$$
+        - traefik.http.middlewares.root-redirect.redirectregex.replacement=/dashboard/
 
 volumes:
   dados-rastreabilidade:
   dados-qualidade:
   dados-manutencao:
   dados-dashboard:
-  caddy-dados:
 
 networks:
   VandreNet:
