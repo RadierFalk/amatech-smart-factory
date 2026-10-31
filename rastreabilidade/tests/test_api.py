@@ -140,7 +140,9 @@ class TestIntegracao(unittest.TestCase):
 
     def test_saude_publica_e_chave_obrigatoria(self):
         self.assertEqual(self.client.get("/api/v1/saude").json()["status"], "ok")
-        self.assertEqual(self.client.get("/api/v1/producoes").status_code, 401)
+        # Na rede interna (Abordagem 1), sem chave e permitido:
+        self.assertEqual(self.client.get("/api/v1/producoes").status_code, 200)
+        # Chave invalida informada e rejeitada:
         self.assertEqual(self.client.get("/api/v1/producoes", headers={"X-API-Key": "errada"}).status_code, 401)
 
     def test_leituras_do_contrato_v1(self):

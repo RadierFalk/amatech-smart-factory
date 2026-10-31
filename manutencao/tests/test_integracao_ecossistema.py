@@ -81,7 +81,8 @@ def test_chamado_aberto_pela_qualidade_nao_duplica(cliente):
 
 def test_erros_da_abertura_externa(cliente):
     corpo = {"equipamento_tag": "TEST-01", "descricao_falha": "Falha no testador", "origem_sistema": "qualidade"}
-    assert cliente.post("/api/manutencao/chamados", json=corpo).status_code == 401
+    # Na rede interna (Abordagem 1), sem chave e aceito (retorna 409 porque TEST-01 ja esta PARADA):
+    assert cliente.post("/api/manutencao/chamados", json=corpo).status_code == 409
     assert cliente.post("/api/manutencao/chamados", json=corpo, headers={"X-API-Key": "errada"}).status_code == 401
     assert cliente.post("/api/manutencao/chamados", json=corpo, headers=CHAVE).status_code == 409   # já PARADA (RN02)
     corpo["equipamento_tag"] = "XYZ-99"
@@ -93,5 +94,8 @@ def test_erros_da_abertura_externa(cliente):
 def test_leituras_exigem_chave_e_status_nao(cliente):
     assert cliente.get("/api/status").status_code == 200
     for rota in ("/api/equipamentos", "/api/manutencao/chamados", "/api/manutencao/indicadores"):
-        assert cliente.get(rota).status_code == 401
+        # Na rede interna, leitura liberada sem chave:
+        assert cliente.get(rota).status_code == 200
+        # Chave invalida rejeitada com 401:
+        assert cliente.get(rota, headers={"X-API-Key": "errada"}).status_code == 401
         assert cliente.get(rota, headers=CHAVE).status_code == 200

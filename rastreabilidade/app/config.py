@@ -21,6 +21,7 @@ CHAVES_DEMO = {} if os.environ.get("AMATECH_CHAVES_DEMO", "1") == "0" else {
     "dashboard": os.environ.get("AMATECH_CHAVE_DASHBOARD", "amt_demo_dashboard"),
     "manutencao": os.environ.get("AMATECH_CHAVE_MANUTENCAO", "amt_demo_manutencao"),
 }
+EXIGIR_CHAVE_INTEGRACAO = os.environ.get("RASTREABILIDADE_EXIGIR_CHAVE", "0") == "1"
 
 SESSAO_HORAS = 12                  # validade do login
 PREFIXO_SERIE = "AMT"              # número de série: AMT-000245

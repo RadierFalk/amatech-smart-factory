@@ -1,31 +1,43 @@
-# Ecossistema AMATECH Smart Factory no servidor: um IP, uma rota por sistema.
-#
-#   http://IP/                  página inicial com os links
-#   http://IP/rastreabilidade/  telas e API da Rastreabilidade   (API: /rastreabilidade/api/v1/...)
-#   http://IP/qualidade/        tela da Qualidade                 (API: /qualidade/api/...)
-#   http://IP/manutencao/       tela da Manutenção                (API: /manutencao/api/...)
-#   http://IP/dashboard/        tela do Dashboard                 (API: /dashboard/api/...)
-#
-# Subir:  docker compose up -d --build        Guia completo: SERVIDOR.md
-# As chaves de API vêm do arquivo .env (copie .env.exemplo); sem ele, valem as chaves de demonstração.
-# Também no .env: PORTA (padrão 80) e REDE_DOCKER (faixa da rede interna, padrão 10.201.0.0/24).
-# Entre si, os sistemas se falam pela rede interna do Docker, pelo nome do serviço (ex.: http://rastreabilidade:8000).
+version: "3.7"
 
-name: amatech-smart-factory
+## ================================================================== ##
+## AMATECH Smart Factory - Stack Docker Swarm / Portainer             ##
+## ================================================================== ##
+##
+##   Roteamento via Traefik (VandreNet):
+##     https://${AMATECH_HOST:-amatech.automakad.com.br}/                  -> Portal
+##     https://${AMATECH_HOST:-amatech.automakad.com.br}/rastreabilidade/  -> Rastreabilidade
+##     https://${AMATECH_HOST:-amatech.automakad.com.br}/qualidade/        -> Qualidade
+##     https://${AMATECH_HOST:-amatech.automakad.com.br}/manutencao/       -> Manutencao
+##     https://${AMATECH_HOST:-amatech.automakad.com.br}/dashboard/        -> Dashboard
+##
+##   Rede interna: VandreNet (criada externamente no Portainer/Swarm)
+##   Imagem GHCR:  ghcr.io/radierfalk/amatech-smart-factory:latest
+##
+## ================================================================== ##
+
+x-deploy: &default-deploy
+  mode: replicated
+  replicas: 1
+  placement:
+    constraints:
+      - node.role == manager
 
 x-sistema: &sistema
   build: .
-  image: amatech-smart-factory:latest
-  restart: unless-stopped
+  image: ${AMATECH_IMAGE:-ghcr.io/radierfalk/amatech-smart-factory:latest}
+  networks:
+    - VandreNet
+  deploy:
+    <<: *default-deploy
 
 services:
 
-  # ------------------------------------------------------------------ proxy: a única porta aberta (80)
+  # ------------------------------------------------------------------ Proxy / Portal (Caddy -> Traefik)
   proxy:
     image: caddy:2-alpine
-    restart: unless-stopped
-    ports:
-      - "${PORTA:-80}:80"
+    networks:
+      - VandreNet
     volumes:
       - ./servidor/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./servidor/portal:/srv:ro
@@ -35,6 +47,21 @@ services:
       - qualidade-tela
       - manutencao-tela
       - dashboard-tela
+    # Descomente a porta se desejar mapear direto no host (fora do Traefik)
+    # ports:
+    #   - "${PORTA:-80}:80"
+    deploy:
+      <<: *default-deploy
+      labels:
+        - traefik.enable=1
+        - traefik.docker.network=VandreNet
+        - traefik.http.routers.amatech.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`)
+        - traefik.http.routers.amatech.entrypoints=websecure
+        - traefik.http.routers.amatech.priority=1
+        - traefik.http.routers.amatech.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.amatech.service=amatech
+        - traefik.http.services.amatech.loadbalancer.server.port=80
+        - traefik.http.services.amatech.loadbalancer.passHostHeader=true
 
   # ------------------------------------------------------------------ Rastreabilidade (Projeto 2)
   rastreabilidade:
@@ -43,10 +70,6 @@ services:
     command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --root-path /rastreabilidade --proxy-headers --forwarded-allow-ips "*"
     environment:
       AMATECH_DB: /dados/amatech.db
-      AMATECH_CHAVE_QUALIDADE: ${RASTREABILIDADE_CHAVE_QUALIDADE:-amt_demo_qualidade}
-      AMATECH_CHAVE_DASHBOARD: ${RASTREABILIDADE_CHAVE_DASHBOARD:-amt_demo_dashboard}
-      AMATECH_CHAVE_MANUTENCAO: ${RASTREABILIDADE_CHAVE_MANUTENCAO:-amt_demo_manutencao}
-      AMATECH_API_KEY: ${RASTREABILIDADE_CHAVE_IOT:-amatech-iot-demo}
     volumes:
       - dados-rastreabilidade:/dados
     healthcheck:
@@ -61,7 +84,6 @@ services:
     command: python -m uvicorn api:app --host 0.0.0.0 --port 5000 --root-path /qualidade
     environment:
       QUALIDADE_DB: /dados/controle_qualidade.db
-      QUALIDADE_API_KEY: ${QUALIDADE_API_KEY:-amatech-qualidade-demo}
     volumes:
       - dados-qualidade:/dados
     healthcheck:
@@ -76,23 +98,19 @@ services:
     environment:
       QUALIDADE_DB: /dados/controle_qualidade.db
       RASTREABILIDADE_URL: http://rastreabilidade:8000
-      RASTREABILIDADE_CHAVE: ${RASTREABILIDADE_CHAVE_QUALIDADE:-amt_demo_qualidade}
       MANUTENCAO_URL: http://manutencao-api:5002
-      MANUTENCAO_CHAVE: ${MANUTENCAO_API_KEY:-amatech-manutencao-demo}
     volumes:
       - dados-qualidade:/dados
     depends_on:
-      qualidade-api:
-        condition: service_healthy
+      - qualidade-api
 
-  # ------------------------------------------------------------------ Controle da Manutenção (Projeto 5)
+  # ------------------------------------------------------------------ Controle da Manutencao (Projeto 5)
   manutencao-api:
     <<: *sistema
     working_dir: /app/manutencao
     command: python -m uvicorn api:app --host 0.0.0.0 --port 5002 --root-path /manutencao
     environment:
       MANUTENCAO_DB: /dados/manutencao.db
-      MANUTENCAO_API_KEY: ${MANUTENCAO_API_KEY:-amatech-manutencao-demo}
     volumes:
       - dados-manutencao:/dados
     healthcheck:
@@ -109,8 +127,7 @@ services:
     volumes:
       - dados-manutencao:/dados
     depends_on:
-      manutencao-api:
-        condition: service_healthy
+      - manutencao-api
 
   # ------------------------------------------------------------------ Dashboard Industrial (Projeto 3)
   dashboard-api:
@@ -119,7 +136,6 @@ services:
     command: python -m uvicorn api:app --host 0.0.0.0 --port 5003 --root-path /dashboard
     environment:
       DASHBOARD_DB: /dados/banco.db
-      DASHBOARD_API_KEY: ${DASHBOARD_API_KEY:-amatech-dashboard-demo}
     volumes:
       - dados-dashboard:/dados
     healthcheck:
@@ -134,24 +150,12 @@ services:
     environment:
       DASHBOARD_DB: /dados/banco.db
       RASTREABILIDADE_URL: http://rastreabilidade:8000
-      RASTREABILIDADE_CHAVE: ${RASTREABILIDADE_CHAVE_DASHBOARD:-amt_demo_dashboard}
       QUALIDADE_URL: http://qualidade-api:5000
-      QUALIDADE_CHAVE: ${QUALIDADE_API_KEY:-amatech-qualidade-demo}
       MANUTENCAO_URL: http://manutencao-api:5002
-      MANUTENCAO_CHAVE: ${MANUTENCAO_API_KEY:-amatech-manutencao-demo}
     volumes:
       - dados-dashboard:/dados
     depends_on:
-      dashboard-api:
-        condition: service_healthy
-
-# Faixa fixa da rede interna: com ela, o Docker não precisa procurar uma faixa livre, o que falha quando uma VPN
-# ocupa todas as rotas ("all predefined address pools have been fully subnetted"). Troque no .env se colidir.
-networks:
-  default:
-    ipam:
-      config:
-        - subnet: ${REDE_DOCKER:-10.201.0.0/24}
+      - dashboard-api
 
 volumes:
   dados-rastreabilidade:
@@ -159,3 +163,8 @@ volumes:
   dados-manutencao:
   dados-dashboard:
   caddy-dados:
+
+networks:
+  VandreNet:
+    external: true
+    name: VandreNet

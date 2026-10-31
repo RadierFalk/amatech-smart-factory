@@ -13,8 +13,7 @@ diferentes, reunidos num só repositório e **conversando pelas APIs** uns dos o
 | [`qualidade/`](qualidade/) | Qualidade (testes e inspeção) | Projeto 4 → Problema 3 | Streamlit + FastAPI + SQLite | `/qualidade/` | 8502 (tela) · 5000 (API) |
 | [`manutencao/`](manutencao/) | Manutenção | Projeto 5 → Problema 4 | Streamlit + FastAPI + SQLite | `/manutencao/` | 8503 (tela) · 5002 (API) |
 
-Todas as APIs são **FastAPI**, rodam em processo próprio (separadas das telas) e pedem a chave `X-API-Key` nas rotas de
-dados. Cada API tem a documentação interativa em `/docs`.
+Todas as APIs são **FastAPI**, rodam em processo próprio (separadas das telas) e adotam segurança por perímetro de rede (comunicação interna direta sem necessidade de chaves no `.env`, com validação opcional de `X-API-Key`). Cada API tem a documentação interativa em `/docs`.
 
 Cada pasta tem um **`ESTRUTURA_E_INTEGRACAO.md`** com a estrutura do sistema, o que mudou na OA3 e com quem ele
 conversa. O resumo das alterações por setor está em [`RESUMO_ALTERACOES.md`](RESUMO_ALTERACOES.md).
@@ -54,7 +53,7 @@ no Ubuntu do WSL 2. Guia completo, da instalação do Docker ao backup: **[`SERV
 
 ```bash
 # no terminal do Ubuntu (WSL), na pasta do repositório
-cp .env.exemplo .env            # troque as chaves de API
+cp .env.exemplo .env            # opcional: configure host/porta se desejar
 docker compose up -d --build
 ```
 

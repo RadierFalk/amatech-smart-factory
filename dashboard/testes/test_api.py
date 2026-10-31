@@ -17,7 +17,9 @@ def cliente(repo, monkeypatch):
 
 def test_status_sem_chave_e_dados_com_chave(cliente):
     assert cliente.get("/api/status").json()["status"] == "online"
-    assert cliente.get("/api/indicadores").status_code == 401
+    # Na rede interna (Abordagem 1), rota de indicadores acessivel sem chave:
+    assert cliente.get("/api/indicadores").status_code == 200
+    # Chave invalida informada e rejeitada:
     assert cliente.get("/api/paradas-em-andamento", headers={"X-API-Key": "errada"}).status_code == 401
 
 

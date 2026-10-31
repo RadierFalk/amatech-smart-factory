@@ -31,7 +31,14 @@ app = FastAPI(title="AMATECH Smart Factory - API do Dashboard Industrial",
 
 
 def exigir_chave(x_api_key: str | None = Header(None, alias="X-API-Key")):
-    if x_api_key != config.DASHBOARD_API_KEY:
+    """Autenticação por perímetro de rede (Abordagem 1):
+    - Chamadas internas sem cabeçalho são permitidas.
+    - Se uma chave for enviada, valida se confere com a configurada."""
+    if not x_api_key:
+        if getattr(config, "EXIGIR_CHAVE", False):
+            raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
+        return
+    if config.DASHBOARD_API_KEY and x_api_key != config.DASHBOARD_API_KEY:
         raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
 
 

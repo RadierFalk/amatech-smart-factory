@@ -20,10 +20,10 @@ import banco
 # ============================================================
 
 RASTREABILIDADE_URL = os.environ.get("RASTREABILIDADE_URL", "http://localhost:8000").rstrip("/")
-RASTREABILIDADE_CHAVE = os.environ.get("RASTREABILIDADE_CHAVE", "amt_demo_qualidade")
+RASTREABILIDADE_CHAVE = os.environ.get("RASTREABILIDADE_CHAVE", "")
 
 MANUTENCAO_URL = os.environ.get("MANUTENCAO_URL", "http://localhost:5002").rstrip("/")
-MANUTENCAO_CHAVE = os.environ.get("MANUTENCAO_CHAVE", "amatech-manutencao-demo")
+MANUTENCAO_CHAVE = os.environ.get("MANUTENCAO_CHAVE", "")
 
 TEMPO_LIMITE = float(os.environ.get("INTEGRACAO_TEMPO_LIMITE", "3"))
 
@@ -42,14 +42,15 @@ ETAPAS_ANTES_DA_APROVACAO = {"em fila", "em montagem", "em teste", "reprovado", 
 # CHAMADAS HTTP
 # ============================================================
 
-def _chamar(metodo, url, chave, corpo=None):
+def _chamar(metodo, url, chave="", corpo=None):
     """Devolve (resposta em JSON, None) ou (None, mensagem de erro). Nunca levanta exceção."""
     try:
+        cabecalhos = {"X-API-Key": chave} if chave else {}
         resposta = requests.request(
             metodo,
             url,
             json=corpo,
-            headers={"X-API-Key": chave},
+            headers=cabecalhos,
             timeout=TEMPO_LIMITE
         )
     except requests.RequestException:

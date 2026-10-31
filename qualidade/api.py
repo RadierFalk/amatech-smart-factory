@@ -17,8 +17,9 @@ import banco
 # CONFIGURAÇÃO
 # ============================================================
 
-# Chave que os outros sistemas enviam no cabeçalho X-API-Key (troque no servidor pela variável de ambiente)
+# Chave opcional de acesso (se omitida na rede interna, o acesso é livre)
 CHAVE_API = os.environ.get("QUALIDADE_API_KEY", "amatech-qualidade-demo")
+EXIGIR_CHAVE = os.environ.get("QUALIDADE_EXIGIR_CHAVE", "0") == "1"
 
 
 @asynccontextmanager
@@ -36,7 +37,14 @@ app = FastAPI(
 
 
 def exigir_chave(x_api_key: str | None = Header(None, alias="X-API-Key")):
-    if x_api_key != CHAVE_API:
+    """Autenticação por perímetro de rede (Abordagem 1):
+    - Chamadas internas sem cabeçalho são permitidas.
+    - Se uma chave for enviada, valida se confere com a configurada."""
+    if not x_api_key:
+        if EXIGIR_CHAVE:
+            raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
+        return
+    if CHAVE_API and x_api_key != CHAVE_API:
         raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
 
 

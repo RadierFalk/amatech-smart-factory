@@ -11,9 +11,9 @@ SCHEMA_PATH = os.path.join(BASE_DIR, "docs", "02_DATABASE_SCHEMA.sql")
 API_HOST = "0.0.0.0"
 API_PORT = int(os.environ.get("MANUTENCAO_API_PORT", "5002"))
 
-# Integração com o ecossistema (OA3): chave que os outros sistemas enviam no cabeçalho X-API-Key para abrir
-# chamados pela API, e o usuário de serviço que fica como "operador de abertura" desses chamados.
+# Integração com o ecossistema (OA3): chave opcional para validação externa (se omitida na rede interna, liberada).
 API_KEY_INTEGRACAO = os.environ.get("MANUTENCAO_API_KEY", "amatech-manutencao-demo")
+EXIGIR_CHAVE = os.environ.get("MANUTENCAO_EXIGIR_CHAVE", "0") == "1"
 # Origens (sites) autorizadas a chamar a API pelo navegador, separadas por vírgula. Vazio = nenhuma (padrão).
 API_CORS_ORIGENS = [o.strip() for o in os.environ.get("MANUTENCAO_CORS", "").split(",") if o.strip()]
 MATRICULA_INTEGRACAO = "SVC-INTEGRACAO"

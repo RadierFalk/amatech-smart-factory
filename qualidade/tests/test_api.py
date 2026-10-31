@@ -31,7 +31,9 @@ def test_status_nao_precisa_de_chave(cliente):
 
 
 def test_ocorrencias_exigem_chave(cliente):
-    assert cliente.get("/api/ocorrencias").status_code == 401
+    # Na rede interna (Abordagem 1), rota de ocorrencias e acessivel sem chave:
+    assert cliente.get("/api/ocorrencias").status_code == 200
+    # Chave invalida informada continua sendo rejeitada:
     assert cliente.get("/api/ocorrencias", headers={"X-API-Key": "errada"}).status_code == 401
     ocorrencias = cliente.get("/api/ocorrencias", headers=CHAVE).json()
     assert ocorrencias and {"id_ocorrencia", "produto", "modelo_produto", "maquina"} <= set(ocorrencias[0])

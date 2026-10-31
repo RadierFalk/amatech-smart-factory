@@ -104,14 +104,25 @@ def garantir_chaves_demo(conn):
 
 
 def autenticar_cliente(conn, chave):
-    if not chave:
+    if chave:
+        c = um(conn, "SELECT id, nome, ativo FROM integracao_clientes WHERE chave_hash = ?", (_hash(chave),))
+        if not c or not c["ativo"]:
+            raise ErroNegocio("Chave de API inválida ou inativa.", 401)
+        with conn:
+            conn.execute("UPDATE integracao_clientes SET ultimo_uso_em = CURRENT_TIMESTAMP WHERE id = ?", (c["id"],))
+        return c
+
+    # Autenticação por perímetro de rede (Abordagem 1):
+    # Chamadas internas sem chave são atribuídas ao cliente 'integracao'
+    if getattr(config, "EXIGIR_CHAVE_INTEGRACAO", False):
         raise ErroNegocio("Informe a chave no cabeçalho X-API-Key.", 401)
-    c = um(conn, "SELECT id, nome, ativo FROM integracao_clientes WHERE chave_hash = ?", (_hash(chave),))
-    if not c or not c["ativo"]:
-        raise ErroNegocio("Chave de API inválida ou inativa.", 401)
-    with conn:
-        conn.execute("UPDATE integracao_clientes SET ultimo_uso_em = CURRENT_TIMESTAMP WHERE id = ?", (c["id"],))
-    return c
+
+    c = um(conn, "SELECT id, nome, ativo FROM integracao_clientes WHERE nome = 'integracao'")
+    if not c:
+        with conn:
+            conn.execute("INSERT OR IGNORE INTO integracao_clientes (nome, chave_hash, ativo) VALUES ('integracao', '', 1)")
+        c = um(conn, "SELECT id, nome, ativo FROM integracao_clientes WHERE nome = 'integracao'")
+    return c or {"id": 0, "nome": "integracao", "ativo": 1}
 
 
 # ------------------------------------------------------------------ contrato v1 (leitura)

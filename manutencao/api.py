@@ -15,7 +15,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from config import API_CORS_ORIGENS, API_HOST, API_KEY_INTEGRACAO, API_PORT
+from config import API_CORS_ORIGENS, API_HOST, API_KEY_INTEGRACAO, API_PORT, EXIGIR_CHAVE
 from database import ensure_database_initialized
 from services.chamado_service import abrir_chamado_externo, listar_historico_chamados
 from services.equipamento_service import listar_equipamentos
@@ -46,8 +46,14 @@ if API_CORS_ORIGENS:
 
 
 def exigir_chave(x_api_key: str | None = Header(None, alias="X-API-Key")) -> None:
-    """Todas as rotas de dados exigem a chave de integração (MANUTENCAO_API_KEY) no cabeçalho X-API-Key."""
-    if x_api_key != API_KEY_INTEGRACAO:
+    """Autenticação por perímetro de rede (Abordagem 1):
+    - Chamadas internas sem cabeçalho são permitidas.
+    - Se uma chave for enviada, valida se confere com a configurada."""
+    if not x_api_key:
+        if EXIGIR_CHAVE:
+            raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
+        return
+    if API_KEY_INTEGRACAO and x_api_key != API_KEY_INTEGRACAO:
         raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
 
 

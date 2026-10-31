@@ -17,15 +17,16 @@ FUSO = timezone(timedelta(hours=FUSO_HORAS))
 
 # ---------------------------------------------------------------- sistemas dos outros setores (sincronização)
 RASTREABILIDADE_URL = os.environ.get("RASTREABILIDADE_URL", "http://localhost:8000").rstrip("/")
-RASTREABILIDADE_CHAVE = os.environ.get("RASTREABILIDADE_CHAVE", "amt_demo_dashboard")
+RASTREABILIDADE_CHAVE = os.environ.get("RASTREABILIDADE_CHAVE", "")
 QUALIDADE_URL = os.environ.get("QUALIDADE_URL", "http://localhost:5000").rstrip("/")
-QUALIDADE_CHAVE = os.environ.get("QUALIDADE_CHAVE", "amatech-qualidade-demo")
+QUALIDADE_CHAVE = os.environ.get("QUALIDADE_CHAVE", "")
 MANUTENCAO_URL = os.environ.get("MANUTENCAO_URL", "http://localhost:5002").rstrip("/")
-MANUTENCAO_CHAVE = os.environ.get("MANUTENCAO_CHAVE", "amatech-manutencao-demo")
+MANUTENCAO_CHAVE = os.environ.get("MANUTENCAO_CHAVE", "")
 TEMPO_LIMITE_HTTP = float(os.environ.get("DASHBOARD_TEMPO_LIMITE", "5"))
 
 # ---------------------------------------------------------------- API do próprio Dashboard (api.py)
 DASHBOARD_API_KEY = os.environ.get("DASHBOARD_API_KEY", "amatech-dashboard-demo")
+EXIGIR_CHAVE = os.environ.get("DASHBOARD_EXIGIR_CHAVE", "0") == "1"
 
 
 def agora():
