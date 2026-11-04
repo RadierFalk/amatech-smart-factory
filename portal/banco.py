@@ -2,6 +2,7 @@
 Persistência e Gerenciamento do Banco de Identidades do ERP AMATECH.
 Banco SQLite: portal/banco/erp_usuarios.db
 """
+from contextlib import contextmanager
 import hashlib
 import hmac
 import sqlite3
@@ -15,6 +16,7 @@ from permissoes import (
     INSPETOR,
     OPERADOR,
     PREFIXOS_MATRICULA,
+    SUPERVISOR,
     TECNICO,
 )
 
@@ -67,13 +69,21 @@ def verificar_hash(senha: str, hash_gravado: str) -> bool:
 # CONEXÃO E INICIALIZAÇÃO
 # ============================================================
 
-def conectar(caminho: Path | None = None) -> sqlite3.Connection:
+@contextmanager
+def conectar(caminho: Path | None = None):
     target = caminho or DB_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(target)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def inicializar_banco(caminho: Path | None = None) -> None:
@@ -95,16 +105,17 @@ def inicializar_banco(caminho: Path | None = None) -> None:
         cursor = conn.execute("SELECT COUNT(*) as total FROM usuarios")
         total = cursor.fetchone()["total"]
 
+        usuarios_seed = [
+            ("ADM-0001", "Ana Souza", ADMINISTRADOR),
+            ("GES-0001", "Orlando Vandres", SUPERVISOR),
+            ("QUA-0001", "Maria Santos", INSPETOR),
+            ("OPE-0001", "João Silva", OPERADOR),
+            ("TEC-2001", "João Lima Silva", TECNICO),
+            ("ALM-0001", "Carlos Oliveira", ALMOXARIFE),
+        ]
+
         if total == 0:
-            # Seed com as 5 personas canônicas
             hash_padrao = gerar_hash(SENHA_INICIAL_PADRAO)
-            usuarios_seed = [
-                ("ADM-0001", "Ana Souza", ADMINISTRADOR),
-                ("QUA-0001", "Maria Santos", INSPETOR),
-                ("OPE-0001", "João Silva", OPERADOR),
-                ("TEC-2001", "João Lima Silva", TECNICO),
-                ("ALM-0001", "Carlos Oliveira", ALMOXARIFE),
-            ]
             for mat, nome, perfil in usuarios_seed:
                 conn.execute(
                     """
@@ -114,6 +125,20 @@ def inicializar_banco(caminho: Path | None = None) -> None:
                     (mat, nome, hash_padrao, perfil),
                 )
             conn.commit()
+        else:
+            # Garante que a persona Supervisor / Gestor (GES-0001) exista em bancos já inicializados
+            existe_ges = conn.execute(
+                "SELECT id FROM usuarios WHERE UPPER(matricula) = 'GES-0001'"
+            ).fetchone()
+            if not existe_ges:
+                conn.execute(
+                    """
+                    INSERT INTO usuarios (matricula, nome, senha_hash, perfil, ativo)
+                    VALUES (?, ?, ?, ?, 1)
+                    """,
+                    ("GES-0001", "Orlando Vandres", gerar_hash(SENHA_INICIAL_PADRAO), SUPERVISOR),
+                )
+                conn.commit()
 
 
 # ============================================================

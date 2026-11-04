@@ -9,6 +9,7 @@ Ordem: cadastros dos donos (modelos e máquinas) -> produção -> defeitos -> pa
 """
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+import os
 
 import requests
 
@@ -54,6 +55,9 @@ def local_para_utc(momento):
 class ConectorEcossistema:
     def __init__(self, repo=None, http=None):
         self.repo = repo or Repositorio()
+        if http is None and os.environ.get("AMATECH_INTEGRACAO_LOCAL") == "1":
+            from portal.integracao_local import ClienteHttpLocal
+            http = ClienteHttpLocal()
         self.http = http or requests
         self.importador = ImportadorCSV(self.repo)
         self.cadastros = ServicoCadastros(self.repo)

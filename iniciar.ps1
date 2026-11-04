@@ -1,44 +1,43 @@
-# Sobe o ecossistema ERP completo no Windows, sem Docker (para desenvolver e testar), cada processo numa janela
-# minimizada. No servidor, use a stack do Docker Swarm (veja SERVIDOR.md).
-# Uso (na raiz do repositório):  powershell -ExecutionPolicy Bypass -File iniciar.ps1
-# Antes, uma vez:  python -m venv .venv ; .venv\Scripts\python -m pip install -r requirements.txt
-param(
-    [string]$Python = (Join-Path $PSScriptRoot ".venv\Scripts\python.exe")
-)
+# Inicia o ERP Unificado AMATECH em uma única porta (8501) e única sessão.
+# Todos os 5 módulos (Rastreabilidade, Qualidade, Manutenção, Dashboard e Gestão de Usuários)
+# rodam de forma integrada no mesmo sistema.
+#
+# Uso:  .\iniciar.ps1
 
-if (-not (Test-Path $Python)) {
-    Write-Host "Python do ambiente virtual não encontrado em $Python." -ForegroundColor Red
-    Write-Host "Crie o ambiente: python -m venv .venv ; .venv\Scripts\python -m pip install -r requirements.txt"
-    exit 1
+$ErrorActionPreference = "Stop"
+$raiz = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $raiz
+
+$python = Join-Path $raiz ".venv\Scripts\python.exe"
+if (-not (Test-Path $python)) {
+    Write-Host "Criando ambiente virtual (.venv)..." -ForegroundColor Cyan
+    python -m venv .venv
+    & $python -m pip install --upgrade pip
+    & $python -m pip install -r requirements.txt
 }
 
-# Ordem: as APIs e os donos dos cadastros primeiro; depois as telas operacionais e o Portal ERP Central.
-$sistemas = @(
-    @{ Nome = "Rastreabilidade (8000)"; Pasta = "rastreabilidade"; Comando = "-m uvicorn app.main:app --port 8000" },
-    @{ Nome = "Manutencao - API (5002)"; Pasta = "manutencao"; Comando = "-m uvicorn api:app --port 5002" },
-    @{ Nome = "Qualidade - API (5000)"; Pasta = "qualidade"; Comando = "-m uvicorn api:app --port 5000" },
-    @{ Nome = "Dashboard - API (5003)"; Pasta = "dashboard"; Comando = "-m uvicorn api:app --port 5003" },
-    @{ Nome = "Portal ERP Hub (8500)"; Pasta = "portal"; Comando = "-m streamlit run app.py --server.port 8500" },
-    @{ Nome = "Manutencao - tela (8503)"; Pasta = "manutencao"; Comando = "-m streamlit run app.py --server.port 8503" },
-    @{ Nome = "Qualidade - tela (8502)"; Pasta = "qualidade"; Comando = "-m streamlit run app.py --server.port 8502" },
-    @{ Nome = "Dashboard - tela (8501)"; Pasta = "dashboard"; Comando = "-m streamlit run app.py --server.port 8501" }
-)
-
-foreach ($s in $sistemas) {
-    $pasta = Join-Path $PSScriptRoot $s.Pasta
-    $script = "`$Host.UI.RawUI.WindowTitle = '$($s.Nome)'; Set-Location -LiteralPath '$pasta'; & '$Python' $($s.Comando)"
-    Start-Process powershell -ArgumentList "-NoExit", "-Command", $script -WindowStyle Minimized
-    Write-Host "Iniciando $($s.Nome)..."
-    Start-Sleep -Seconds 2
-}
+$env:AMATECH_INTEGRACAO_LOCAL = "1"
 
 Write-Host ""
-Write-Host "==========================================================================" -ForegroundColor Cyan
-Write-Host "🚀 PORTAL ERP AMATECH (Entrada Principal): http://localhost:8500" -ForegroundColor Green
-Write-Host "==========================================================================" -ForegroundColor Cyan
-Write-Host "Módulos: Rastreabilidade: http://localhost:8000"
-Write-Host "         Qualidade:       http://localhost:8502"
-Write-Host "         Manutenção:      http://localhost:8503"
-Write-Host "         Dashboard Geral: http://localhost:8501"
-Write-Host "APIs:    Qualidade http://localhost:5000/docs | Manutenção http://localhost:5002/docs | Dashboard http://localhost:5003/docs"
-Write-Host "Para encerrar, feche as janelas minimizadas na barra de tarefas."
+Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host "  ERP AMATECH (Aplicacao Unificada Modular) — Porta 8501" -ForegroundColor Green
+Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host "  URL Unica:  http://localhost:8501"
+Write-Host "  Modulos Integrados:"
+Write-Host "    1. Rastreabilidade e Materiais (RAS)"
+Write-Host "    2. Controle da Qualidade e Defeitos (QLD)"
+Write-Host "    3. Gestao da Manutencao de Ativos (MNT)"
+Write-Host "    4. Dashboard Industrial e Metas (DSH)"
+Write-Host "    5. Gestao de Usuarios e Acessos (USR)"
+Write-Host ""
+Write-Host "  Contas de Demonstracao (Senha unica: amatech1234):"
+Write-Host "    - ADM-0001 (Administrador):       5 modulos (RAS, QLD, MNT, DSH, USR)"
+Write-Host "    - GES-0001 (Supervisor / Gestor): 4 modulos (RAS, QLD, MNT, DSH)"
+Write-Host "    - OPE-0001 (Operador):            4 modulos (RAS, QLD, MNT, DSH)"
+Write-Host "    - QUA-0001 (Inspetor Qualidade):  3 modulos (RAS, QLD, DSH)"
+Write-Host "    - TEC-2001 (Tecnico Manutencao):  2 modulos (MNT, DSH)"
+Write-Host "    - ALM-0001 (Almoxarife):          2 modulos (RAS, QLD)"
+Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host ""
+
+& $python -m streamlit run app.py --server.port 8501

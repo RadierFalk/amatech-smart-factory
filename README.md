@@ -1,284 +1,64 @@
-# AMATECH Smart Factory: Ecossistema Integrado
+# AMATECH — ERP Industrial Modular Unificado
 
-<div align="center">
-
-![Python](https://img.shields.io/badge/Python-3.12%2B-blue?logo=python)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.162-green?logo=fastapi)
-![Streamlit](https://img.shields.io/badge/Streamlit-1.66-red?logo=streamlit)
-![Docker](https://img.shields.io/badge/Docker-Swarm%20%2B%20Traefik-2496ED?logo=docker)
-![Status](https://img.shields.io/badge/Testes-109%20passed-brightgreen)
-![Instituição](https://img.shields.io/badge/FMM-Engenharia%20da%20Computa%C3%A7%C3%A3o-darkblue)
-
-**Fundação Matias Machline · Engenharia da Computação · 2026**  
-*Projeto Integrador · Ambiente Fabril I (OA3)*
-
-</div>
+Sistema ERP integrado da fábrica de notebooks **AMATECH**, consolidando os subsistemas setoriais em **uma única aplicação, uma única porta (`8501`) e um único login corporativo**, mantendo a identidade visual oficial (`identidade/amatech.py`).
 
 ---
 
-## 📌 1. Visão Geral do Projeto
+## Arquitetura Modular Integrada (Porta Única)
 
-Este projeto consolida a integração horizontal dos quatro sistemas da fábrica fictícia **AMATECH Electronics** (fabricante de notebooks sediada no Polo Industrial de Manaus - PIM). Originalmente desenvolvidos por equipes independentes, os módulos foram unificados neste monorepo para solucionar o problema central de **"ausência de integração entre setores"** (Enunciado do Projeto Integrador, Seção 1.2).
+Ao contrário de múltiplos sistemas isolados rodando em portas diferentes e exigindo senhas separadas, o ERP AMATECH unifica a navegação e as regras de negócio num único processo (`app.py`):
 
-### 🏭 Módulos do Ecossistema
+1. **Login Único Corporativo**: O colaborador informa sua matrícula funcional e senha uma única vez.
+2. **Sincronização Automática de Sessão**: O motor de integração (`portal/integracao_local.py`) provisiona e sincroniza automaticamente o perfil do usuário nos bancos dos módulos e compartilha a sessão autenticada.
+3. **Seletor de Módulos Pós-Login (RBAC)**: Exibe exclusivamente os cartões dos módulos que a persona do usuário logado tem poder para acessar.
+4. **Navegação Interna & Integração In-Process**: Ao selecionar um módulo, as telas e funcionalidades abrem dentro do próprio sistema, e toda a comunicação entre Rastreabilidade, Qualidade, Manutenção e Dashboard ocorre diretamente em memória (`AMATECH_INTEGRACAO_LOCAL=1`).
 
-| Pasta | Setor / Domínio | Projeto Origem | Stack Tecnológica | Rota no Servidor | Portas Locais |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| [`portal/`](portal/) | **Portal ERP & Hub Modular** | **Núcleo do ERP** | Streamlit · SQLite · RBAC | `/` e `/portal/` | `8500` (Entrada Central) |
-| [`rastreabilidade/`](rastreabilidade/) | **Rastreabilidade e Materiais** | Projeto 2 → Problema 5 | FastAPI · HTML5/Vanilla JS · SQLite | `/rastreabilidade/` | `8000` (Web e API) |
-| [`qualidade/`](qualidade/) | **Controle da Qualidade** | Projeto 4 → Problema 3 | Streamlit · FastAPI · SQLite | `/qualidade/` | `8502` (Tela) · `5000` (API) |
-| [`manutencao/`](manutencao/) | **Gestão da Manutenção** | Projeto 5 → Problema 4 | Streamlit · FastAPI · SQLite | `/manutencao/` | `8503` (Tela) · `5002` (API) |
-| [`dashboard/`](dashboard/) | **Dashboard Industrial** | Projeto 3 → Problema 8 | Streamlit · FastAPI · Plotly · SQLite | `/dashboard/` | `8501` (Tela) · `5003` (API) |
-
-Cada diretório mantém sua própria documentação detalhada em `ESTRUTURA_E_INTEGRACAO.md`. O histórico de alterações da integração está documentado em [`RESUMO_ALTERACOES.md`](RESUMO_ALTERACOES.md).
-
-### 🎨 Identidade visual comum
-Os quatro sistemas usam a mesma marca, cores, fontes (IBM Plex) e estrutura de tela: cabeçalho escuro com o código do setor (`RAS`, `QLD`, `MNT`, `DSH`), menu lateral, login e cores de estado iguais. A fonte única fica em [`identidade/`](identidade/) (`tokens.json`), e `python identidade/gerar_temas.py` gera o tema de cada sistema. O guia de estilo com as regras de uso está em [`identidade/README.md`](identidade/README.md).
+| Módulo | Sigla | Código Base Reutilizado | Escopo Principal |
+|--------|-------|-------------------------|------------------|
+| **1. Rastreabilidade e Materiais** | `RAS` | `rastreabilidade/app/servicos/` | Terminal do operador, ordens seriadas (`AMT-...`), avanço de etapas, solicitações e baixas de estoque (BOM) e relatórios CSV |
+| **2. Controle da Qualidade** | `QLD` | `qualidade/` | Dashboard estatístico, registro/edição/ocultação de ocorrências de defeitos e integração com Rastreabilidade e Manutenção |
+| **3. Gestão da Manutenção** | `MNT` | `manutencao/` | Painel de máquinas por estação (TAGs), chamados corretivos, Ordens de Serviço (O.S.), preventivas, MTTR/MTBF e peças |
+| **4. Dashboard Industrial** | `DSH` | `dashboard/` | Indicadores consolidados (meta, defeitos, retrabalho, produtividade, paradas, perdas), semáforo de alertas e sincronização |
+| **5. Gestão de Usuários** | `USR` | `portal/` | Cadastro central de colaboradores, atribuição de personas, ativação/bloqueio, redefinição de senha e matriz RBAC |
 
 ---
 
-## 🏗️ 2. Arquitetura e Comunicação entre Setores
+## Matriz de Personas e Poder de Acesso
 
-Adotou-se o padrão **Database-per-Service**: cada setor é dono estrito dos seus dados e mantém seu próprio banco SQLite. Nenhuma aplicação acessa diretamente o banco de outra; toda a troca de informações ocorre **exclusivamente via APIs REST síncronas**.
+Todas as contas de demonstração utilizam a senha única **`amatech1234`**:
 
-```
-                        séries e etapas do notebook
-   Rastreabilidade ◄──────────────────────────────── Qualidade ──── chamado (defeito da máquina) ───► Manutenção
-     (Porta 8000)      reprovado / reprocesso / aprovado (Porta 5000)                                   (Porta 5002)
-          │                                               │                                             │
-          │ produção (Aprovados + Reprovados)             │ defeitos e retrabalho                       │ paradas
-          └──────────────────────────────►  Dashboard Industrial (8501)  ◄──────────────────────────────┘
-```
-
-### Matriz de Responsabilidade de Dados
-
-| Entidade de Dados | Setor Proprietário (Single Source of Truth) | Consumidores |
-| :--- | :--- | :--- |
-| **Modelos de Notebook e Números de Série** | Rastreabilidade | Qualidade, Dashboard Industrial |
-| **Máquinas e Ativos Fabris (TAGs)** | Manutenção | Qualidade, Dashboard Industrial |
-| **Ocorrências de Não Conformidade e Defeitos** | Qualidade | Rastreabilidade (etapa), Manutenção (chamados), Dashboard |
-| **Chamados e Paradas de Máquina** | Manutenção | Dashboard Industrial (OEE / Paradas) |
-| **Indicadores, Metas e Turnos** | Dashboard Industrial | Gestão Geral / Supervisão |
-
-### Idempotência e Rastreabilidade Cruzada
-Toda requisição intersetorial trafega com os campos de rastreabilidade:
-* `origem_sistema` (ex.: `"qualidade"`)
-* `id_externo` (ex.: `"QLD-15"`, `"MNT-42"`, `"2026-10-30|1|AMT-A"`)
-
-Graças a esse padrão, reenvios de chamados ou sincronizações repetidas atualizam registros existentes sem gerar duplicidade.
-
-### Segurança por Perímetro de Rede (*Zero-Key Internal Trust*)
-* **Chamadas Internas (S2S):** As chamadas entre containers na rede Docker privada (ou em `localhost`) operam sob modelo de perímetro confiável, **sem necessidade de configuração manual de chaves no `.env`**.
-* **Chamadas Externas:** Toda requisição que chega pelo Traefik (identificada pelo cabeçalho `X-Forwarded-For`, que o proxy sempre acrescenta) **precisa** da chave `X-API-Key`; sem ela ou com chave incorreta, a resposta é `401 Unauthorized`.
-* **Modo Estrito (Opcional):** É possível exigir a chave também na rede interna definindo `<SISTEMA>_EXIGIR_CHAVE=1`.
-* **Chaves de demonstração:** os valores padrão (`amatech-qualidade-demo` etc.) estão neste repositório; troque-os no `.env` do servidor.
+| Matrícula | Colaborador | Persona | Módulos Visíveis no Seletor | Poderes de Acesso por Módulo |
+|-----------|-------------|---------|-----------------------------|------------------------------|
+| `ADM-0001` | Ana Souza | **Administrador** | `RAS`, `QLD`, `MNT`, `DSH`, `USR` (**5**) | Acesso total administrativo, cadastros mestres, auditoria e gestão de usuários |
+| `GES-0001` | Orlando Vandres | **Supervisor / Gestor** | `RAS`, `QLD`, `MNT`, `DSH` (**4**) | Painel de indicadores, metas, perdas, sincronização, gestão de O.S. e relatórios |
+| `OPE-0001` | João Silva | **Operador de Produção** | `RAS`, `QLD`, `MNT`, `DSH` (**4**) | Terminal/avanço de série (`RAS`), apontamento de defeito (`QLD`/`DSH`), produção do turno (`DSH`) e abertura de chamado (`MNT`) |
+| `QUA-0001` | Maria Santos | **Inspetor de Qualidade** | `RAS`, `QLD`, `DSH` (**3**) | Registro/edição/ocultação de ocorrências (`QLD`), retrabalho (`DSH`), consulta de série e não conformidade (`RAS`) |
+| `TEC-2001` | João Lima Silva | **Técnico de Manutenção** | `MNT`, `DSH` (**2**) | Fila de chamados, execução de O.S., preventivas e indicadores (`MNT`), início/encerramento de paradas (`DSH`) |
+| `ALM-0001` | Carlos Oliveira | **Almoxarife** | `RAS`, `QLD` (**2**) | Solicitações e baixas de material no estoque, componentes BOM (`RAS`) e consulta de reprovações (`QLD`) |
 
 ---
 
-## 🚀 3. Como Rodar Localmente (Ambiente de Desenvolvimento)
+## Como Executar
 
-Recomendado para avaliação do código, execução rápida no Windows e desenvolvimento.
-
-### Pré-requisitos
-* **Python 3.12+** instalado (a imagem Docker usa Python 3.14).
-* **PowerShell 5.1+** (padrão no Windows 10/11).
-* Git.
-
----
-
-### Passo a Passo Rápido (Automatizado)
-
-1. **Clone o repositório:**
-   ```powershell
-   git clone https://github.com/RadierFalk/amatech-smart-factory.git
-   cd amatech-smart-factory
-   ```
-
-2. **Crie o ambiente virtual e instale as dependências unificadas:**
-   ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\python -m pip install -r requirements.txt
-   ```
-
-3. **Inicie todos os sistemas com um comando:**
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File iniciar.ps1
-   ```
-   > O script inicializará as 4 telas e as 4 APIs em janelas minimizadas na barra de tarefas.
-
----
-
-### Passo a Passo Manual (Terminal a Terminal)
-
-Se preferir rodar cada serviço individualmente em terminais separados:
+### Opção 1: Script PowerShell (Recomendado no Windows)
 
 ```powershell
-# Ative o ambiente virtual em cada terminal antes de rodar o comando:
-.\.venv\Scripts\Activate.ps1
-
-# 1. Rastreabilidade (Telas + API na porta 8000)
-cd rastreabilidade; python -m uvicorn app.main:app --port 8000
-
-# 2. Manutenção - API (porta 5002)
-cd manutencao; python -m uvicorn api:app --port 5002
-
-# 3. Qualidade - API (porta 5000)
-cd qualidade; python -m uvicorn api:app --port 5000
-
-# 4. Dashboard - API (porta 5003)
-cd dashboard; python -m uvicorn api:app --port 5003
-
-# 5. Qualidade - Tela Streamlit (porta 8502)
-cd qualidade; python -m streamlit run app.py --server.port 8502
-
-# 6. Manutenção - Tela Streamlit (porta 8503)
-cd manutencao; python -m streamlit run app.py --server.port 8503
-
-# 7. Dashboard - Tela Streamlit (porta 8501)
-cd dashboard; python -m streamlit run app.py --server.port 8501
+.\iniciar.ps1
 ```
 
----
-
-### 🌐 Endereços e Credenciais de Teste
-
-| Aplicação | Interface Web (Frontend) | Documentação da API (Swagger) | Usuário de Teste | Senha de Teste | Perfil / Módulos Visíveis |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Portal ERP Hub** | [http://localhost:8500](http://localhost:8500) | — | `ADM-0001` | `amatech1234` | **Administrador**: Todos os 4 módulos |
-| **Portal ERP (Inspetor)** | [http://localhost:8500](http://localhost:8500) | — | `QUA-0001` | `amatech1234` | **Inspetor**: Rastreabilidade e Qualidade |
-| **Portal ERP (Operador)** | [http://localhost:8500](http://localhost:8500) | — | `OPE-0001` | `amatech1234` | **Operador**: Rastreabilidade, Qualidade e Manutenção |
-| **Portal ERP (Técnico)** | [http://localhost:8500](http://localhost:8500) | — | `TEC-2001` | `amatech1234` | **Técnico**: Apenas Manutenção |
-| **Portal ERP (Almoxarife)**| [http://localhost:8500](http://localhost:8500) | — | `ALM-0001` | `amatech1234` | **Almoxarife**: Rastreabilidade e Qualidade |
-| **Rastreabilidade** | [http://localhost:8000](http://localhost:8000) | [http://localhost:8000/docs](http://localhost:8000/docs) | `MAT-0001` | `amatech123` | Administrador |
-| **Qualidade** | [http://localhost:8502](http://localhost:8502) | [http://localhost:5000/docs](http://localhost:5000/docs) | `ADM-0001` | `amatech1234` | Administrador / Inspetor |
-| **Manutenção** | [http://localhost:8503](http://localhost:8503) | [http://localhost:5002/docs](http://localhost:5002/docs) | `GES-0001` | `123456` | Gestor / Técnico |
-| **Dashboard Industrial**| [http://localhost:8501](http://localhost:8501) | [http://localhost:5003/docs](http://localhost:5003/docs) | `supervisor` | `super123` | Supervisor |
-
-> **Para encerrar a execução local:** Feche as janelas minimizadas abertas pelo script `iniciar.ps1`.
-
----
-
-## 🌐 4. Como Rodar Remotamente (Servidor / Produção com Docker)
-
-No servidor, os serviços rodam encapsulados em contêineres Docker integrados diretamente ao Traefik na rede `VandreNet`, unificando todos os acessos sob um único domínio com HTTPS e roteamento nativo por caminhos (`/rastreabilidade`, `/qualidade`, `/manutencao`, `/dashboard`).
-
-### Pré-requisitos do servidor
-* **Docker em modo Swarm** (linha de comando ou Portainer).
-* **Traefik** já rodando na rede overlay `VandreNet`, com entrypoint `websecure` e certresolver `letsencryptresolver`.
-* DNS do domínio (`AMATECH_HOST`) apontando para o servidor.
-
-> As regras do Traefik ficam em `deploy.labels`, que só valem no Swarm: `docker compose up` **não** publica os sistemas. Para rodar sem Swarm, use o `iniciar.ps1` (seção 3).
-
----
-
-### Passo a Passo de Deploy Remoto
-
-1. **Clone o repositório no servidor:**
-   ```bash
-   git clone https://github.com/RadierFalk/amatech-smart-factory.git
-   cd amatech-smart-factory
-   ```
-
-2. **Configure o arquivo `.env`:**
-   ```bash
-   cp .env.exemplo .env && nano .env
-   ```
-   > Os sistemas se falam sem chaves na rede interna. O `.env` define o domínio e as chaves que **programas de fora** usam para chamar as APIs pelo Traefik (troque as de demonstração):
-   ```env
-   AMATECH_HOST=amatech.automakad.com.br
-   QUALIDADE_API_KEY=...
-   MANUTENCAO_API_KEY=...
-   DASHBOARD_API_KEY=...
-   ```
-
-3. **Rede externa `VandreNet`:**
-   Caso ainda não exista, crie-a uma única vez:
-   ```bash
-   docker network create --driver overlay --attachable VandreNet
-   ```
-
-4. **Inicie a stack dos serviços** (a imagem vem do GHCR, publicada pelo GitHub Actions):
-   ```bash
-   set -a; . ./.env; set +a      # o docker stack deploy não lê o .env sozinho
-   docker stack deploy -c docker-compose.yml amatech
-   ```
-   *No Portainer: Stacks → Add stack, com as variáveis do `.env.exemplo` em Environment variables.*
-
-5. **Verifique o status da execução:**
-   ```bash
-   docker stack services amatech
-   ```
-   *Todos os serviços devem chegar a `1/1`.*
-
----
-
-### 🗺️ Mapeamento de Rotas no Traefik
-
-O Traefik encaminha o tráfego a partir do domínio configurado:
-
-| Rota Externa | Destino Interno | Descrição |
-| :--- | :--- | :--- |
-| `https://<DOMINIO>/` | Redirecionamento | Redireciona automaticamente para o Dashboard Central (`/dashboard/`) |
-| `https://<DOMINIO>/rastreabilidade/` | `rastreabilidade:8000` | Interface web e API de rastreabilidade |
-| `https://<DOMINIO>/qualidade/` | `qualidade-tela:8502` | Painel Streamlit do Controle de Qualidade |
-| `https://<DOMINIO>/qualidade/api/` | `qualidade-api:5000` | API REST do Controle de Qualidade |
-| `https://<DOMINIO>/manutencao/` | `manutencao-tela:8503` | Painel Streamlit do Controle da Manutenção |
-| `https://<DOMINIO>/manutencao/api/`| `manutencao-api:5002` | API REST do Controle da Manutenção |
-| `https://<DOMINIO>/dashboard/` | `dashboard-tela:8501` | Painel Streamlit do Dashboard Industrial |
-| `https://<DOMINIO>/dashboard/api/` | `dashboard-api:5003` | API REST de Indicadores do Dashboard |
-
-> Guia completo com pré-requisitos, uso das APIs com chave, operação do dia a dia e cópia de segurança dos bancos: consulte o arquivo **[`SERVIDOR.md`](SERVIDOR.md)**.
-
----
-
-## 🧪 5. Roteiro de Demonstração Funcional da Integração
-
-Para demonstrar a interoperabilidade entre os quatro sistemas (critério avaliativo da OA3):
-
-1. **Abrir a tela da Qualidade** (`http://localhost:8502` ou `/qualidade/`):
-   * Vá em **Registrar ocorrência**.
-   * Selecione o notebook `AMT-000017`.
-   * Defina a situação como **Reprovado** e informe a máquina `TEST-02`.
-   * Marque a opção **Abrir chamado na manutenção**.
-   * Clique em salvar. A tela exibirá a confirmação de envio para a Rastreabilidade e Manutenção.
-2. **Verificar a Rastreabilidade** (`http://localhost:8000` ou `/rastreabilidade/`):
-   * Consulte o notebook `AMT-000017`.
-   * Observe que o status mudou para **Reprovado** e a Não Conformidade foi anexada com o ID externo da Qualidade.
-3. **Verificar a Manutenção** (`http://localhost:8503` ou `/manutencao/`):
-   * O equipamento `TEST-02` passou para status **PARADA**.
-   * Um chamado de prioridade Crítica/Alta foi aberto automaticamente em nome do operador de serviço de integração.
-4. **Verificar o Dashboard Industrial** (`http://localhost:8501` ou `/dashboard/`):
-   * No menu lateral, acesse **Importação** e clique em **Sincronizar agora**.
-   * Acesse a página **Painel**: os dados de produção atualizados, o novo defeito computado no índice de qualidade e a parada operacional da máquina `TEST-02` estarão refletidos em tempo real nos gráficos e semáforos de meta.
-
----
-
-## ✅ 6. Testes Automatizados
-
-O repositório possui uma suíte com **109 testes automatizados** via `pytest`, cobrindo regras de negócio (RNs), persistência SQLite e contratos de API de todas as equipes:
+### Opção 2: Comando Direto Streamlit
 
 ```powershell
-# Execução da suíte completa de testes:
-cd rastreabilidade; ..\.venv\Scripts\python -m pytest -q; cd ..      # 37 testes
-cd manutencao;      ..\.venv\Scripts\python -m pytest -q; cd ..      # 11 testes
-cd qualidade;       ..\.venv\Scripts\python -m pytest tests -q; cd .. # 10 testes
-cd dashboard;       ..\.venv\Scripts\python -m pytest testes -q; cd .. # 51 testes
+.\.venv\Scripts\python.exe -m streamlit run app.py --server.port 8501
 ```
 
----
-
-## 👥 7. Equipe e Repositórios de Origem
-
-Este monorepo foi estruturado através do mecanismo de `git subtree`, preservando todo o histórico de commits, autoria e rastreabilidade dos branches originais:
-
-| Módulo / Setor | Repositório Original no GitHub | Branch Integrado |
-| :--- | :--- | :--- |
-| **Rastreabilidade** | `github.com/waddington-rendryo-text/amatech-rastreabilidade` | `integracao-ecossistema` |
-| **Qualidade** | `github.com/LlyanDarc/SistemaControleQualidadeDefeitos` | `integracao-ecossistema` |
-| **Manutenção** | `github.com/Vandrekad/management-control` | `integracao-ecossistema` |
-| **Dashboard** | `github.com/RadierFalk/amatech-dashboard-industrial` | `mvp` |
+Acesse em **`http://localhost:8501`**.
 
 ---
-<div align="center">
-Desenvolvido como parte das avaliações do curso de Engenharia da Computação · FMM 2026.
-</div>
+
+## Testes Automatizados
+
+```powershell
+# Suíte do ERP Unificado (RBAC, Isolamento de Módulos, Integração In-Process e UI AppTest)
+.\.venv\Scripts\python.exe -m pytest portal/tests -v
+```

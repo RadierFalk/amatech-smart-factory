@@ -1,0 +1,35 @@
+[server]
+port = 8501
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = false
+
+[theme]
+base = "light"
+primaryColor = "#1f5fd6"
+backgroundColor = "#f2f4f7"
+secondaryBackgroundColor = "#f7f9fb"
+textColor = "#142133"
+linkColor = "#1f5fd6"
+borderColor = "#d6dde6"
+showWidgetBorder = true
+dataframeBorderColor = "#d6dde6"
+dataframeHeaderBackgroundColor = "#f7f9fb"
+dataframeHeaderTextColor = "#4d5b6e"
+font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap, Segoe UI, sans-serif"
+headingFont = "IBM Plex Sans Condensed:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap, Segoe UI, sans-serif"
+codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&display=swap, Consolas, monospace"
+baseRadius = "6px"
+buttonRadius = "4px"
+
+[theme.sidebar]
+backgroundColor = "#0d1b2a"
+secondaryBackgroundColor = "#1a2d44"
+textColor = "#ffffff"
+primaryColor = "#1f5fd6"
+linkColor = "#3cc8dc"
+borderColor = "#1a2d44"
+codeTextColor = "#3cc8dc"
+codeBackgroundColor = "#1a2d44"
+grayTextColor = "#a9b8ca"

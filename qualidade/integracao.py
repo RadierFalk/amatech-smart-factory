@@ -44,17 +44,24 @@ ETAPAS_ANTES_DA_APROVACAO = {"em fila", "em montagem", "em teste", "reprovado", 
 
 def _chamar(metodo, url, chave="", corpo=None):
     """Devolve (resposta em JSON, None) ou (None, mensagem de erro). Nunca levanta exceção."""
-    try:
-        cabecalhos = {"X-API-Key": chave} if chave else {}
-        resposta = requests.request(
-            metodo,
-            url,
-            json=corpo,
-            headers=cabecalhos,
-            timeout=TEMPO_LIMITE
-        )
-    except requests.RequestException:
-        return None, "sistema fora do ar"
+    cabecalhos = {"X-API-Key": chave} if chave else {}
+    if os.environ.get("AMATECH_INTEGRACAO_LOCAL") == "1":
+        try:
+            from portal.integracao_local import requisicao_fastapi_local
+            resposta = requisicao_fastapi_local(metodo, url, json_body=corpo, headers=cabecalhos)
+        except Exception:
+            return None, "sistema fora do ar"
+    else:
+        try:
+            resposta = requests.request(
+                metodo,
+                url,
+                json=corpo,
+                headers=cabecalhos,
+                timeout=TEMPO_LIMITE
+            )
+        except requests.RequestException:
+            return None, "sistema fora do ar"
 
     try:
         dados = resposta.json()
