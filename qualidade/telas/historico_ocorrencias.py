@@ -2,13 +2,21 @@ import streamlit as st
 
 import banco
 import ocorrencia
+import permissoes
 
 
-def mostrar_historico_ocorrencias():
+def mostrar_historico_ocorrencias(usuario):
+    pode_editar = permissoes.tem_permissao(usuario, permissoes.EDITAR_OCORRENCIA)
+    pode_ocultar = permissoes.tem_permissao(usuario, permissoes.OCULTAR_OCORRENCIA)
+
     st.title("Histórico de Ocorrências")
     st.caption(
         "Consulte, pesquise, filtre, edite ou oculte ocorrências registradas."
     )
+
+    # Edição só para quem tem permissão (a regra também é conferida em ocorrencia.py)
+    if "ocorrencia_em_edicao" in st.session_state and not pode_editar:
+        del st.session_state["ocorrencia_em_edicao"]
 
     # ========================================================
     # EDIÇÃO
@@ -30,7 +38,6 @@ def mostrar_historico_ocorrencias():
         estacoes = banco.listar_estacoes()
         tipos_defeito = banco.listar_tipos_defeito()
         maquinas = banco.listar_maquinas()
-        usuarios = banco.listar_usuarios()
 
         produto_opcoes = {
             produto["numero_serie_produto"]: produto["id_produto"]
@@ -50,11 +57,6 @@ def mostrar_historico_ocorrencias():
         maquina_opcoes = {
             maquina["nome_maquina"]: maquina["id_maquina"]
             for maquina in maquinas
-        }
-
-        usuario_opcoes = {
-            usuario["nome_usuario"]: usuario["id_usuario"]
-            for usuario in usuarios
         }
 
         produto_atual = next(
@@ -93,13 +95,10 @@ def mostrar_historico_ocorrencias():
             None
         )
 
-        usuario_atual = next(
-            (
-                nome
-                for nome, id_usuario in usuario_opcoes.items()
-                if id_usuario == registro["id_usuario"]
-            ),
-            None
+        responsavel = banco.buscar_usuario_por_id(registro["id_usuario"])
+
+        st.caption(
+            f"Responsável pelo registro: **{responsavel['nome_usuario']}** (mantido nas edições)"
         )
 
         with st.form("form_editar_ocorrencia"):
@@ -147,16 +146,6 @@ def mostrar_historico_ocorrencias():
                 )
 
             with col2:
-                usuario_selecionado = st.selectbox(
-                    "Usuário responsável",
-                    options=list(usuario_opcoes.keys()),
-                    index=(
-                        list(usuario_opcoes.keys()).index(usuario_atual)
-                        if usuario_atual in usuario_opcoes
-                        else 0
-                    )
-                )
-
                 classificacao = st.selectbox(
                     "Classificação do defeito",
                     options=ocorrencia.CLASSIFICACOES_DEFEITO,
@@ -225,6 +214,7 @@ def mostrar_historico_ocorrencias():
 
         if salvar:
             sucesso, resultado = ocorrencia.editar_ocorrencia(
+                usuario=usuario,
                 id_ocorrencia=id_edicao,
                 data_ocorrencia=registro["data_ocorrencia"],
                 hora_ocorrencia=registro["hora_ocorrencia"],
@@ -238,8 +228,7 @@ def mostrar_historico_ocorrencias():
                 id_tipo_defeito=tipo_defeito_opcoes[
                     tipo_defeito_selecionado
                 ],
-                id_maquina=maquina_opcoes[maquina_selecionada],
-                id_usuario=usuario_opcoes[usuario_selecionado]
+                id_maquina=maquina_opcoes[maquina_selecionada]
             )
 
             if sucesso:
@@ -396,18 +385,29 @@ def mostrar_historico_ocorrencias():
                 st.write("**Classificação**")
                 st.write(item["classificacao_defeito"])
 
+            editar = False
+            ocultar = False
+
             with col4:
-                st.write("**Ações**")
+                st.write("**Ações**" if (pode_editar or pode_ocultar) else "**Responsável**")
 
-                editar = st.button(
-                    "Editar",
-                    key=f"editar_{item['id_ocorrencia']}"
-                )
+                if pode_editar:
+                    editar = st.button(
+                        "Editar",
+                        key=f"editar_{item['id_ocorrencia']}"
+                    )
 
-                ocultar = st.button(
-                    "Ocultar",
-                    key=f"ocultar_{item['id_ocorrencia']}"
-                )
+                if pode_ocultar:
+                    ocultar = st.button(
+                        "Ocultar",
+                        key=f"ocultar_{item['id_ocorrencia']}"
+                    )
+
+                if not (pode_editar or pode_ocultar):
+                    st.write(item["nome_usuario"])
+
+            if pode_editar or pode_ocultar:
+                st.caption(f"Responsável pelo registro: {item['nome_usuario']}")
 
             # =================================================
             # EDITAR
@@ -426,6 +426,7 @@ def mostrar_historico_ocorrencias():
 
             if ocultar:
                 sucesso, mensagem = ocorrencia.ocultar_ocorrencia(
+                    usuario,
                     item["id_ocorrencia"]
                 )
 
@@ -435,4 +436,4 @@ def mostrar_historico_ocorrencias():
                     )
                     st.rerun()
                 else:
-                    st.error(mensagem)
+                    st.error(mensagem)

@@ -1,6 +1,7 @@
 import os
 import shutil
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 
@@ -559,3 +560,175 @@ def inserir_maquina_se_nova(tag, descricao):
     conexao.close()
 
     return not existe
+
+
+# ============================================================
+# USUÁRIOS (LOGIN)
+# ============================================================
+# As colunas matricula, senha_hash, ativo, data_criacao e data_alteracao_senha são criadas pela migracao.py.
+# Usuários antigos sem matrícula continuam na tabela (as ocorrências apontam para eles), mas não entram no sistema.
+
+def _agora():
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def buscar_usuario_por_matricula(matricula):
+    """Linha completa do usuário, inclusive senha_hash (uso exclusivo da autenticação)."""
+    conexao = conectar()
+
+    dado = conexao.execute("""
+        SELECT *
+        FROM usuario
+        WHERE matricula = ?
+    """, (matricula,)).fetchone()
+
+    conexao.close()
+    return dado
+
+
+def buscar_usuario_por_id(id_usuario):
+    conexao = conectar()
+
+    dado = conexao.execute("""
+        SELECT *
+        FROM usuario
+        WHERE id_usuario = ?
+    """, (id_usuario,)).fetchone()
+
+    conexao.close()
+    return dado
+
+
+def listar_contas():
+    """Todos os usuários para a tela de gestão, sem o hash. As contas com matrícula vêm primeiro."""
+    conexao = conectar()
+
+    dados = conexao.execute("""
+        SELECT
+            id_usuario,
+            matricula,
+            nome_usuario,
+            perfil_usuario,
+            ativo,
+            data_criacao,
+            data_alteracao_senha
+        FROM usuario
+        ORDER BY (matricula IS NULL), matricula, nome_usuario
+    """).fetchall()
+
+    conexao.close()
+    return dados
+
+
+def contar_administradores_ativos():
+    conexao = conectar()
+
+    total = conexao.execute("""
+        SELECT COUNT(*)
+        FROM usuario
+        WHERE perfil_usuario = 'Administrador'
+          AND ativo = 1
+          AND matricula IS NOT NULL
+    """).fetchone()[0]
+
+    conexao.close()
+    return total
+
+
+def nome_em_uso(nome, exceto_id=None):
+    conexao = conectar()
+
+    dado = conexao.execute("""
+        SELECT 1
+        FROM usuario
+        WHERE LOWER(nome_usuario) = LOWER(?)
+          AND id_usuario != ?
+    """, (nome, exceto_id or 0)).fetchone()
+
+    conexao.close()
+    return dado is not None
+
+
+def criar_conta(nome, perfil, prefixo, senha_hash):
+    """
+    Cria uma conta ativa com a próxima matrícula do prefixo (ex.: OPE-0002) e devolve a matrícula.
+    A numeração é calculada dentro de uma transação, então dois cadastros simultâneos não repetem a matrícula.
+    """
+    conexao = sqlite3.connect(CAMINHO_BANCO, timeout=30)
+    conexao.isolation_level = None
+
+    try:
+        conexao.execute("BEGIN IMMEDIATE")
+
+        ultimo = conexao.execute("""
+            SELECT MAX(CAST(SUBSTR(matricula, ?) AS INTEGER))
+            FROM usuario
+            WHERE matricula LIKE ?
+        """, (len(prefixo) + 2, f"{prefixo}-%")).fetchone()[0] or 0
+
+        matricula = f"{prefixo}-{ultimo + 1:04d}"
+        agora = _agora()
+
+        conexao.execute("""
+            INSERT INTO usuario (
+                matricula,
+                nome_usuario,
+                perfil_usuario,
+                senha_hash,
+                ativo,
+                data_criacao,
+                data_alteracao_senha
+            )
+            VALUES (?, ?, ?, ?, 1, ?, ?)
+        """, (matricula, nome, perfil, senha_hash, agora, agora))
+
+        conexao.execute("COMMIT")
+        return matricula
+
+    except Exception:
+        if conexao.in_transaction:
+            conexao.execute("ROLLBACK")
+        raise
+
+    finally:
+        conexao.close()
+
+
+def atualizar_perfil(id_usuario, perfil):
+    conexao = conectar()
+
+    conexao.execute("""
+        UPDATE usuario
+        SET perfil_usuario = ?
+        WHERE id_usuario = ?
+    """, (perfil, id_usuario))
+
+    conexao.commit()
+    conexao.close()
+
+
+def atualizar_ativo(id_usuario, ativo):
+    conexao = conectar()
+
+    conexao.execute("""
+        UPDATE usuario
+        SET ativo = ?
+        WHERE id_usuario = ?
+    """, (1 if ativo else 0, id_usuario))
+
+    conexao.commit()
+    conexao.close()
+
+
+def atualizar_senha_hash(id_usuario, senha_hash):
+    conexao = conectar()
+
+    conexao.execute("""
+        UPDATE usuario
+        SET senha_hash = ?,
+            data_alteracao_senha = ?
+        WHERE id_usuario = ?
+    """, (senha_hash, _agora(), id_usuario))
+
+    conexao.commit()
+    conexao.close()

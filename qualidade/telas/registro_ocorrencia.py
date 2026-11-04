@@ -2,16 +2,24 @@ import streamlit as st
 from datetime import date, datetime, time
 
 import banco
-import integracao
 import ocorrencia
+import permissoes
 
 
-def mostrar_registro_ocorrencia():
+def mostrar_registro_ocorrencia(usuario):
+
+    if not permissoes.tem_permissao(usuario, permissoes.REGISTRAR_OCORRENCIA):
+        st.error("Seu perfil não tem permissão para registrar ocorrências.")
+        return
 
     st.title("Registro de Ocorrência")
 
     st.caption(
         "Registre uma ocorrência de falha identificada durante a produção."
+    )
+
+    st.caption(
+        f"Responsável pelo registro: **{usuario['nome']}** ({usuario['matricula']})"
     )
 
     # ========================================================
@@ -22,7 +30,6 @@ def mostrar_registro_ocorrencia():
     estacoes = banco.listar_estacoes()
     tipos_defeito = banco.listar_tipos_defeito()
     maquinas = banco.listar_maquinas()
-    usuarios = banco.listar_usuarios()
 
     # ========================================================
     # FORMULÁRIO
@@ -114,18 +121,6 @@ def mostrar_registro_ocorrencia():
                 placeholder="Selecione a máquina"
             )
 
-            usuario_opcoes = {
-                usuario["nome_usuario"]: usuario["id_usuario"]
-                for usuario in usuarios
-            }
-
-            usuario_selecionado = st.selectbox(
-                "Usuário responsável",
-                options=list(usuario_opcoes.keys()),
-                index=None,
-                placeholder="Selecione o usuário"
-            )
-
             hora_ocorrencia = st.time_input(
                 "Hora da ocorrência",
                 value=time(
@@ -150,7 +145,9 @@ def mostrar_registro_ocorrencia():
             placeholder="Descreva a ação realizada após a identificação do defeito."
         )
 
-        abrir_chamado = st.checkbox(
+        pode_abrir_chamado = permissoes.tem_permissao(usuario, permissoes.ABRIR_CHAMADO)
+
+        abrir_chamado = pode_abrir_chamado and st.checkbox(
             "Abrir chamado na manutenção (defeito causado pela máquina)",
             help="Envia um chamado para o sistema de Manutenção, com a máquina selecionada acima."
         )
@@ -194,13 +191,8 @@ def mostrar_registro_ocorrencia():
             else None
         )
 
-        id_usuario = (
-            usuario_opcoes.get(usuario_selecionado)
-            if usuario_selecionado
-            else None
-        )
-
         sucesso, resultado = ocorrencia.registrar_ocorrencia(
+            usuario=usuario,
             data_ocorrencia=data_ocorrencia,
             hora_ocorrencia=hora_ocorrencia,
             classificacao_defeito=classificacao_defeito,
@@ -211,8 +203,7 @@ def mostrar_registro_ocorrencia():
             id_produto=id_produto,
             id_estacao=id_estacao,
             id_tipo_defeito=id_tipo_defeito,
-            id_maquina=id_maquina,
-            id_usuario=id_usuario
+            id_maquina=id_maquina
         )
 
         if sucesso:
@@ -223,7 +214,7 @@ def mostrar_registro_ocorrencia():
             )
 
             # Avisa a Rastreabilidade (etapa do notebook) e, se pedido, a Manutenção (chamado)
-            for tipo, mensagem in integracao.notificar_ocorrencia(resultado, abrir_chamado):
+            for tipo, mensagem in ocorrencia.notificar_setores(usuario, resultado, abrir_chamado):
                 if tipo == "sucesso":
                     st.info(mensagem)
                 else:
@@ -232,4 +223,4 @@ def mostrar_registro_ocorrencia():
         else:
 
             for erro in resultado:
-                st.error(erro)
+                st.error(erro)
