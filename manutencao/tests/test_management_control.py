@@ -272,7 +272,7 @@ def test_tela_login_e_botoes_rapidos():
     assert len(at.text_input) == 2
     assert at.text_input[0].value == "OP-10234"
     assert at.text_input[1].value == "123456"
-    assert at.button[0].label == "ENTRAR"
+    assert at.button[0].label == "Entrar"
     
     at.button[0].click().run()
     assert not at.exception

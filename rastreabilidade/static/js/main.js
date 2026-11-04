@@ -40,7 +40,7 @@ async function mostrarLogin(aviso) {
   const senha = h('input', { id: 'l-senha', type: 'password', autocomplete: 'current-password', placeholder: 'Senha', required: true });
   const turno = h('select', { id: 'l-turno' }, turnos.map((t) => h('option', { value: t }, t)));
   const erro = h('div', { class: 'login-erro', role: 'alert' }, aviso || '');
-  const botao = h('button', { type: 'submit', class: 'btn-entrar' }, 'ENTRAR');
+  const botao = h('button', { type: 'submit', class: 'btn-entrar' }, 'Entrar');
   const form = h('form', { class: 'login-form', onsubmit: async (e) => {
     e.preventDefault();
     erro.textContent = '';
@@ -54,13 +54,13 @@ async function mostrarLogin(aviso) {
     finally { botao.disabled = false; }
   } },
   h('div', { class: 'login-avatar' }, icone('usuario', 34)),
-  h('h2', {}, 'ACESSO DO OPERADOR'), h('p', {}, 'Informe suas credenciais para acessar o sistema'),
+  h('h2', {}, 'Acesso do operador'), h('p', {}, 'Informe suas credenciais para acessar o sistema'),
   h('label', { for: 'l-mat' }, 'Matrícula/Usuário'), matricula,
   h('label', { for: 'l-senha' }, 'Senha'), senha,
   h('label', { for: 'l-turno' }, 'Turno'), turno, erro, botao);
   app.replaceChildren(h('div', { class: 'login-pagina' },
-    h('div', { class: 'login-topo' }, h('img', { src: 'img/logo-amatech.png', alt: 'AMATECH Electronics' })),
-    h('h1', { class: 'login-titulo' }, 'SISTEMA DE RASTREABILIDADE', h('br'), 'DE PRODUTOS'),
+    h('div', { class: 'login-topo' }, h('img', { src: 'img/amatech-simbolo.svg', alt: '' }), h('b', {}, 'AMATECH'),
+      h('span', { class: 'am-setor' }, 'RAS'), h('span', { class: 'nome' }, 'Rastreabilidade de Produtos')),
     h('div', { class: 'login-cartao' }, form),
     h('p', { class: 'login-rodape' }, 'AMATECH Electronics Indústria e Comércio Ltda. · Polo Industrial de Manaus - AM')));
   matricula.focus();
@@ -141,12 +141,12 @@ function iniciarSistema() {
   const u = sessao.usuario;
   app.replaceChildren(
     h('header', { class: 'cabecalho' },
-      h('img', { src: 'img/logo-amatech.png', alt: 'AMATECH Electronics' }), h('span', { class: 'sep' }),
-      h('div', { class: 'cab-titulo' }, 'SISTEMA DE RASTREABILIDADE', h('br'), 'DE PRODUTOS'),
+      h('div', { class: 'am-marca' }, h('img', { src: 'img/amatech-simbolo.svg', alt: '' }), h('b', {}, 'AMATECH')), h('span', { class: 'sep' }),
+      h('div', { class: 'cab-titulo' }, h('span', { class: 'am-setor' }, 'RAS'), h('span', {}, 'Rastreabilidade de Produtos')),
       h('div', { class: 'cab-info' },
         h('div', { class: 'cab-item' }, icone('usuario', 22), h('div', {}, h('small', {}, 'Operador'), h('b', {}, u.matricula), h('small', {}, u.nome + ' · ' + u.cargo))),
         h('div', { class: 'cab-item' }, icone('relogio', 22), h('div', {}, h('small', {}, 'Turno'), h('b', {}, sessao.turno))),
-        h('button', { type: 'button', class: 'btn-sair', onclick: () => sair() }, icone('sair', 18), 'SAIR'))),
+        h('button', { type: 'button', class: 'btn-sair', onclick: () => sair() }, icone('sair', 18), 'Sair'))),
     modulosEl, ribbon, docs, conteudo,
     h('footer', { class: 'rodape-app' }, h('span', {}, 'AMATECH Electronics Indústria e Comércio Ltda. | Polo Industrial de Manaus - AM'), h('span', {}, 'Versão 1.0.0')));
   abrirTela('inicio');

@@ -4,15 +4,16 @@ from matplotlib.ticker import MaxNLocator
 
 import indicadores
 import graficos
+from identidade.amatech import CORES
 
 
 # ============================================================
-# CONFIGURAÇÃO VISUAL
+# CONFIGURAÇÃO VISUAL (cores da identidade AMATECH, identidade/tokens.json)
 # ============================================================
 
-FUNDO_GRAFICO = "#0E1117"
-TEXTO_GRAFICO = "#FAFAFA"
-GRADE_GRAFICO = "#30343B"
+FUNDO_GRAFICO = CORES["superficie"]
+TEXTO_GRAFICO = CORES["tinta-2"]
+GRADE_GRAFICO = CORES["linha"]
 
 
 def configurar_grafico(ax):

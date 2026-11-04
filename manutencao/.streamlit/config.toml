@@ -2,12 +2,60 @@
 showSidebarNavigation = false
 toolbarMode = "minimal"
 
-[theme]
-primaryColor = "#2E75B6"
-backgroundColor = "#F4F6F9"
-secondaryBackgroundColor = "#FFFFFF"
-textColor = "#2C3E50"
-font = "sans serif"
-
 [server]
 port = 8503
+
+# Gerado por identidade/gerar_temas.py a partir de identidade/tokens.json: não edite à mão.
+[theme]
+base = "light"
+primaryColor = "#1f5fd6"
+backgroundColor = "#f2f4f7"
+secondaryBackgroundColor = "#f7f9fb"
+textColor = "#142133"
+linkColor = "#1f5fd6"
+borderColor = "#d6dde6"
+showWidgetBorder = true
+dataframeBorderColor = "#d6dde6"
+dataframeHeaderBackgroundColor = "#f7f9fb"
+dataframeHeaderTextColor = "#4d5b6e"
+font = "IBM Plex Sans:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap, Segoe UI, sans-serif"
+headingFont = "IBM Plex Sans Condensed:https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap, Segoe UI, sans-serif"
+codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&display=swap, Consolas, monospace"
+baseFontSize = 14
+headingFontWeights = 600
+headingFontSizes = ["1.75rem", "1.25rem", "1.0625rem"]
+metricValueFontWeight = 600
+baseRadius = "6px"
+buttonRadius = "4px"
+redColor = "#b3261e"
+redBackgroundColor = "#fce7e5"
+redTextColor = "#b3261e"
+orangeColor = "#c27a1e"
+orangeBackgroundColor = "#fff2d6"
+orangeTextColor = "#9a5b00"
+yellowColor = "#f2b21b"
+yellowBackgroundColor = "#fff2d6"
+yellowTextColor = "#9a5b00"
+greenColor = "#1b7a43"
+greenBackgroundColor = "#e2f3e8"
+greenTextColor = "#1b7a43"
+blueColor = "#1f5fd6"
+blueBackgroundColor = "#e6eefc"
+blueTextColor = "#1747a6"
+violetColor = "#6a4bc4"
+grayColor = "#4d5b6e"
+grayBackgroundColor = "#ebeef2"
+grayTextColor = "#4d5b6e"
+chartCategoricalColors = ["#1f5fd6", "#0e7c90", "#6a4bc4", "#c27a1e", "#a0407f", "#8593a5", "#1b7a43", "#9a5b00", "#b3261e", "#4d5b6e"]
+chartSequentialColors = ["#e6eefc", "#c9daf8", "#a8c3f2", "#86abec", "#6393e5", "#407bdd", "#1f5fd6", "#1a52b9", "#1747a6", "#103379"]
+
+[theme.sidebar]
+backgroundColor = "#0d1b2a"
+secondaryBackgroundColor = "#1a2d44"
+textColor = "#ffffff"
+primaryColor = "#1f5fd6"
+linkColor = "#3cc8dc"
+borderColor = "#1a2d44"
+codeTextColor = "#3cc8dc"
+codeBackgroundColor = "#1a2d44"
+grayTextColor = "#a9b8ca"

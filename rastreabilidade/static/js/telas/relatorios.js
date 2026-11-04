@@ -38,7 +38,7 @@ export async function telaRelatorios(container, ctx) {
       const emitido = new Date().toLocaleString('pt-BR', { timeZone: 'America/Manaus' });
       const periodo = atual.data_ini || atual.data_fim ? ` · Período: ${atual.data_ini || '…'} a ${atual.data_fim || '…'}` : '';
       resultado.replaceChildren(
-        h('div', { class: 'rel-cab-impressao' }, h('img', { src: 'img/logo-amatech.png', alt: 'AMATECH Electronics', height: 40 }),
+        h('div', { class: 'rel-cab-impressao' }, h('img', { src: 'img/amatech-simbolo.svg', alt: 'AMATECH', height: 40 }),
           h('div', {}, h('b', {}, 'AMATECH Electronics — Sistema de Rastreabilidade de Produtos'),
             h('div', {}, `${atual.titulo}${periodo}`), h('div', {}, `Emitido em ${emitido} por ${ctx.usuario.nome} (${ctx.usuario.matricula})`))),
         h('h3', { class: 'sub' }, atual.titulo),

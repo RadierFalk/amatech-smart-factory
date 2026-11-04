@@ -31,6 +31,9 @@ Este projeto consolida a integração horizontal dos quatro sistemas da fábrica
 
 Cada diretório mantém sua própria documentação detalhada em `ESTRUTURA_E_INTEGRACAO.md`. O histórico de alterações da integração está documentado em [`RESUMO_ALTERACOES.md`](RESUMO_ALTERACOES.md).
 
+### 🎨 Identidade visual comum
+Os quatro sistemas usam a mesma marca, cores, fontes (IBM Plex) e estrutura de tela: cabeçalho escuro com o código do setor (`RAS`, `QLD`, `MNT`, `DSH`), menu lateral, login e cores de estado iguais. A fonte única fica em [`identidade/`](identidade/) (`tokens.json`), e `python identidade/gerar_temas.py` gera o tema de cada sistema. O guia de estilo com as regras de uso está em [`identidade/README.md`](identidade/README.md).
+
 ---
 
 ## 🏗️ 2. Arquitetura e Comunicação entre Setores
