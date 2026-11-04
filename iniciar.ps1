@@ -1,5 +1,5 @@
-# Inicia o ERP Unificado AMATECH em uma única porta (8501) e única sessão.
-# Todos os 5 módulos (Rastreabilidade, Qualidade, Manutenção, Dashboard e Gestão de Usuários)
+# Inicia o ERP Unificado AMATECH em uma unica porta (8501) e unica sessao.
+# Todos os 5 modulos (Rastreabilidade, Qualidade, Manutencao, Dashboard e Gestao de Usuarios)
 # rodam de forma integrada no mesmo sistema.
 #
 # Uso:  .\iniciar.ps1
@@ -20,7 +20,7 @@ $env:AMATECH_INTEGRACAO_LOCAL = "1"
 
 Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host "  ERP AMATECH (Aplicacao Unificada Modular) — Porta 8501" -ForegroundColor Green
+Write-Host "  ERP AMATECH (Aplicacao Unificada Modular) - Porta 8501" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host "  URL Unica:  http://localhost:8501"
 Write-Host "  Modulos Integrados:"
