@@ -142,6 +142,8 @@ class TestIntegracao(unittest.TestCase):
         self.assertEqual(self.client.get("/api/v1/saude").json()["status"], "ok")
         # Na rede interna (Abordagem 1), sem chave e permitido:
         self.assertEqual(self.client.get("/api/v1/producoes").status_code, 200)
+        # Vindo pelo proxy (Traefik), sem chave e rejeitado:
+        self.assertEqual(self.client.get("/api/v1/producoes", headers={"X-Forwarded-For": "203.0.113.7"}).status_code, 401)
         # Chave invalida informada e rejeitada:
         self.assertEqual(self.client.get("/api/v1/producoes", headers={"X-API-Key": "errada"}).status_code, 401)
 

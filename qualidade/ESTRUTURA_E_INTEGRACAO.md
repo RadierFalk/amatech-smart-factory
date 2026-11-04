@@ -92,26 +92,28 @@ Dashboard; *Em_reprocesso* também vira retrabalho na Montagem final.
 
 ## Servidor da rede (Docker)
 
-No servidor da fábrica, todos os sistemas ficam no mesmo IP, cada um na sua rota, atrás de um proxy na porta 80
+No servidor, todos os sistemas ficam no mesmo domínio, cada um na sua rota, atrás do Traefik com HTTPS
 (guia completo em [`../SERVIDOR.md`](../SERVIDOR.md)):
 
 | Rota | Serviço |
 | --- | --- |
-| `http://IP/qualidade/` | Tela (Streamlit com `--server.baseUrlPath qualidade`) |
-| `http://IP/qualidade/api/...` e `/qualidade/docs` | API (uvicorn com `--root-path /qualidade`) |
+| `https://<DOMINIO>/qualidade/` | Tela (Streamlit com `--server.baseUrlPath qualidade`) |
+| `https://<DOMINIO>/qualidade/api/...` e `/qualidade/docs` | API (uvicorn com `--root-path /qualidade`) |
 
 Mudanças para o servidor: a API passou de **Flask para FastAPI**, roda **separada da tela** (antes subia numa thread do
-Streamlit, então só existia depois que alguém abria a tela) e exige a chave `X-API-Key` em `/api/ocorrencias`. O banco
+Streamlit, então só existia depois que alguém abria a tela) e exige a chave `X-API-Key` em `/api/ocorrencias` para quem
+chega pelo Traefik (na rede interna, a chave é dispensada). O banco
 pode ficar num volume (`QUALIDADE_DB`), começando com uma cópia de `banco/controle_qualidade.db`.
 
 ## 5. Variáveis de ambiente
 
 | Variável | Padrão |
 | --- | --- |
-| `RASTREABILIDADE_URL` / `RASTREABILIDADE_CHAVE` | `http://localhost:8000` / `amt_demo_qualidade` |
-| `MANUTENCAO_URL` / `MANUTENCAO_CHAVE` | `http://localhost:5002` / `amatech-manutencao-demo` |
+| `RASTREABILIDADE_URL` / `RASTREABILIDADE_CHAVE` | `http://localhost:8000` / vazio (sem chave na rede interna) |
+| `MANUTENCAO_URL` / `MANUTENCAO_CHAVE` | `http://localhost:5002` / vazio |
 | `INTEGRACAO_TEMPO_LIMITE` | `3` segundos |
-| `QUALIDADE_API_KEY` | `amatech-qualidade-demo` (chave da API desta equipe) |
+| `QUALIDADE_API_KEY` | `amatech-qualidade-demo` (chave da API desta equipe, obrigatória pelo Traefik) |
+| `QUALIDADE_EXIGIR_CHAVE` | `0` (`1` exige a chave também na rede interna) |
 | `QUALIDADE_DB` | `banco/controle_qualidade.db` |
 
 ## 6. Como conferir

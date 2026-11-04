@@ -1,13 +1,13 @@
 """API do Dashboard Industrial (FastAPI): os indicadores do painel para outros sistemas da rede da fábrica.
 
 Faz parte da camada 1 (apresentação), como as telas: não calcula nada, só chama as classes de servicos/.
-Todas as rotas de dados exigem o cabeçalho X-API-Key (variável DASHBOARD_API_KEY).
+Rotas de dados: chave X-API-Key (DASHBOARD_API_KEY) obrigatória para quem vem pelo proxy; livre na rede interna.
 
 Executar:  python -m uvicorn api:app --host 0.0.0.0 --port 5003      Documentação: http://localhost:5003/docs
 """
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 
 import config
 from acesso_dados import Repositorio
@@ -30,12 +30,18 @@ app = FastAPI(title="AMATECH Smart Factory - API do Dashboard Industrial",
               version="1.0.0", lifespan=ciclo_de_vida)
 
 
-def exigir_chave(x_api_key: str | None = Header(None, alias="X-API-Key")):
+def veio_pelo_proxy(request: Request) -> bool:
+    """O Traefik acrescenta X-Forwarded-For a toda requisição externa; as chamadas entre contêineres não têm."""
+    return any(c in request.headers for c in ("x-forwarded-for", "x-real-ip", "forwarded"))
+
+
+def exigir_chave(request: Request, x_api_key: str | None = Header(None, alias="X-API-Key")):
     """Autenticação por perímetro de rede (Abordagem 1):
-    - Chamadas internas sem cabeçalho são permitidas.
+    - Chamadas internas (rede do Docker ou localhost) sem cabeçalho são permitidas.
+    - Requisições que chegam pelo proxy (Traefik, com X-Forwarded-For) sempre exigem a chave.
     - Se uma chave for enviada, valida se confere com a configurada."""
     if not x_api_key:
-        if getattr(config, "EXIGIR_CHAVE", False):
+        if getattr(config, "EXIGIR_CHAVE", False) or veio_pelo_proxy(request):
             raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
         return
     if config.DASHBOARD_API_KEY and x_api_key != config.DASHBOARD_API_KEY:

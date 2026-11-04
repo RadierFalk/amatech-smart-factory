@@ -2,10 +2,10 @@
 
 <div align="center">
 
-![Python](https://img.shields.io/badge/Python-3.12-blue?logo=python)
+![Python](https://img.shields.io/badge/Python-3.12%2B-blue?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.162-green?logo=fastapi)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.66-red?logo=streamlit)
-![Docker](https://img.shields.io/badge/Docker-Engine%20%7C%20Swarm-2496ED?logo=docker)
+![Docker](https://img.shields.io/badge/Docker-Swarm%20%2B%20Traefik-2496ED?logo=docker)
 ![Status](https://img.shields.io/badge/Testes-109%20passed-brightgreen)
 ![Instituição](https://img.shields.io/badge/FMM-Engenharia%20da%20Computa%C3%A7%C3%A3o-darkblue)
 
@@ -65,8 +65,9 @@ Graças a esse padrão, reenvios de chamados ou sincronizações repetidas atual
 
 ### Segurança por Perímetro de Rede (*Zero-Key Internal Trust*)
 * **Chamadas Internas (S2S):** As chamadas entre containers na rede Docker privada (ou em `localhost`) operam sob modelo de perímetro confiável, **sem necessidade de configuração manual de chaves no `.env`**.
-* **Chamadas Externas:** Requisições provenientes de clientes desconhecidos que enviem chave incorreta recebem `401 Unauthorized`.
-* **Modo Estrito (Opcional):** É possível ativar a exigência de chave em qualquer serviço definindo `<SISTEMA>_EXIGIR_CHAVE=1`.
+* **Chamadas Externas:** Toda requisição que chega pelo Traefik (identificada pelo cabeçalho `X-Forwarded-For`, que o proxy sempre acrescenta) **precisa** da chave `X-API-Key`; sem ela ou com chave incorreta, a resposta é `401 Unauthorized`.
+* **Modo Estrito (Opcional):** É possível exigir a chave também na rede interna definindo `<SISTEMA>_EXIGIR_CHAVE=1`.
+* **Chaves de demonstração:** os valores padrão (`amatech-qualidade-demo` etc.) estão neste repositório; troque-os no `.env` do servidor.
 
 ---
 
@@ -75,7 +76,7 @@ Graças a esse padrão, reenvios de chamados ou sincronizações repetidas atual
 Recomendado para avaliação do código, execução rápida no Windows e desenvolvimento.
 
 ### Pré-requisitos
-* **Python 3.12+** instalado.
+* **Python 3.12+** instalado (a imagem Docker usa Python 3.14).
 * **PowerShell 5.1+** (padrão no Windows 10/11).
 * Git.
 
@@ -152,9 +153,12 @@ cd dashboard; python -m streamlit run app.py --server.port 8501
 
 No servidor, os serviços rodam encapsulados em contêineres Docker integrados diretamente ao Traefik na rede `VandreNet`, unificando todos os acessos sob um único domínio com HTTPS e roteamento nativo por caminhos (`/rastreabilidade`, `/qualidade`, `/manutencao`, `/dashboard`).
 
-### Cenários Suportados:
-1. **Docker Swarm / Portainer:** Deploy através de Stack com Traefik na rede `VandreNet`.
-2. **Servidor Local / WSL 2 (Ubuntu):** Docker Engine padrão (conforme detalhado no [`SERVIDOR.md`](SERVIDOR.md)).
+### Pré-requisitos do servidor
+* **Docker em modo Swarm** (linha de comando ou Portainer).
+* **Traefik** já rodando na rede overlay `VandreNet`, com entrypoint `websecure` e certresolver `letsencryptresolver`.
+* DNS do domínio (`AMATECH_HOST`) apontando para o servidor.
+
+> As regras do Traefik ficam em `deploy.labels`, que só valem no Swarm: `docker compose up` **não** publica os sistemas. Para rodar sem Swarm, use o `iniciar.ps1` (seção 3).
 
 ---
 
@@ -166,37 +170,36 @@ No servidor, os serviços rodam encapsulados em contêineres Docker integrados d
    cd amatech-smart-factory
    ```
 
-2. **Configure o arquivo `.env` (Opcional):**
-   Copie o modelo de exemplo:
+2. **Configure o arquivo `.env`:**
    ```bash
-   cp .env.exemplo .env
+   cp .env.exemplo .env && nano .env
    ```
-   > Graças à arquitetura de rede confiável, você **não precisa gerar chaves de integração**. O `.env` serve apenas para parâmetros de rede do host:
+   > Os sistemas se falam sem chaves na rede interna. O `.env` define o domínio e as chaves que **programas de fora** usam para chamar as APIs pelo Traefik (troque as de demonstração):
    ```env
    AMATECH_HOST=amatech.automakad.com.br
-   PORTA=80
+   QUALIDADE_API_KEY=...
+   MANUTENCAO_API_KEY=...
+   DASHBOARD_API_KEY=...
    ```
 
-3. **Se for utilizar Docker Swarm com Traefik (Rede externa VandreNet):**
-   Caso a rede externa `VandreNet` ainda não exista, crie-a uma única vez:
+3. **Rede externa `VandreNet`:**
+   Caso ainda não exista, crie-a uma única vez:
    ```bash
    docker network create --driver overlay --attachable VandreNet
    ```
 
-4. **Inicie a stack dos serviços:**
+4. **Inicie a stack dos serviços** (a imagem vem do GHCR, publicada pelo GitHub Actions):
    ```bash
-   # Opção A: Docker Compose padrão
-   docker compose up -d --build
-
-   # Opção B: Docker Swarm / Portainer
+   set -a; . ./.env; set +a      # o docker stack deploy não lê o .env sozinho
    docker stack deploy -c docker-compose.yml amatech
    ```
+   *No Portainer: Stacks → Add stack, com as variáveis do `.env.exemplo` em Environment variables.*
 
 5. **Verifique o status da execução:**
    ```bash
-   docker compose ps
+   docker stack services amatech
    ```
-   *Todos os serviços devem reportar status `running`, e os endpoints de healthcheck das APIs devem estar `healthy`.*
+   *Todos os serviços devem chegar a `1/1`.*
 
 ---
 
@@ -215,7 +218,7 @@ O Traefik encaminha o tráfego a partir do domínio configurado:
 | `https://<DOMINIO>/dashboard/` | `dashboard-tela:8501` | Painel Streamlit do Dashboard Industrial |
 | `https://<DOMINIO>/dashboard/api/` | `dashboard-api:5003` | API REST de Indicadores do Dashboard |
 
-> Guia aprofundado com configuração de IP fixo, firewall do Windows/WSL2 e rotinas de backup de banco de dados: consulte o arquivo **[`SERVIDOR.md`](SERVIDOR.md)**.
+> Guia completo com pré-requisitos, uso das APIs com chave, operação do dia a dia e cópia de segurança dos bancos: consulte o arquivo **[`SERVIDOR.md`](SERVIDOR.md)**.
 
 ---
 

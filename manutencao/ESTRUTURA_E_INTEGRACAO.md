@@ -79,28 +79,29 @@ Dashboard (8501) ──GET  /api/manutencao/chamados─►                     (
 Chamados cancelados não contam, e um chamado sem fim aparece no painel como **parada em andamento**. O setor da máquina
 define a estação no Dashboard ("Testes Funcionais" = "Teste funcional"; ver `docs/CADASTROS_COMUNS.md` do Dashboard).
 
-Todas as rotas de dados (inclusive os `GET`) exigem a chave `X-API-Key`; só `/api/status` é aberta. O sistema **não
+Rotas de dados (inclusive os `GET`): Chave `X-API-Key`: dispensada nas chamadas entre contêineres (ou em `localhost`) e **obrigatória** para quem chega pelo Traefik (o proxy acrescenta `X-Forwarded-For`); só `/api/status` é sempre aberta. O sistema **não
 chama** nenhum outro: só responde.
 
 ## Servidor da rede (Docker)
 
-No servidor da fábrica, todos os sistemas ficam no mesmo IP, cada um na sua rota, atrás de um proxy na porta 80
+No servidor, todos os sistemas ficam no mesmo domínio, cada um na sua rota, atrás do Traefik com HTTPS
 (guia completo em [`../SERVIDOR.md`](../SERVIDOR.md)):
 
 | Rota | Serviço |
 | --- | --- |
-| `http://IP/manutencao/` | Tela (Streamlit com `--server.baseUrlPath manutencao`) |
-| `http://IP/manutencao/api/...` e `/manutencao/docs` | API (uvicorn com `--root-path /manutencao`) |
+| `https://<DOMINIO>/manutencao/` | Tela (Streamlit com `--server.baseUrlPath manutencao`) |
+| `https://<DOMINIO>/manutencao/api/...` e `/manutencao/docs` | API (uvicorn com `--root-path /manutencao`) |
 
 Mudanças para o servidor: a API roda **separada da tela** (antes subia numa thread do Streamlit, então só existia depois
-que alguém abria a tela); os `GET` passaram a exigir a chave; o CORS, que liberava qualquer site (`*`), agora só libera
+que alguém abria a tela); quem chega pelo Traefik precisa da chave, inclusive nos `GET`; o CORS, que liberava qualquer site (`*`), agora só libera
 as origens da variável `MANUTENCAO_CORS` (padrão: nenhuma).
 
 ## 5. Variáveis de ambiente
 
 | Variável | Para quê | Padrão |
 | --- | --- | --- |
-| `MANUTENCAO_API_KEY` | Chave de todas as rotas de dados da API | `amatech-manutencao-demo` |
+| `MANUTENCAO_API_KEY` | Chave das rotas de dados da API (obrigatória pelo Traefik) | `amatech-manutencao-demo` |
+| `MANUTENCAO_EXIGIR_CHAVE` | `1` exige a chave também na rede interna | `0` |
 | `MANUTENCAO_CORS` | Sites liberados a chamar a API pelo navegador, separados por vírgula | vazio |
 | `MANUTENCAO_DB` | Caminho do banco | `manutencao.db` |
 | `MANUTENCAO_API_PORT` | Porta da API | `5002` |

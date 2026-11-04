@@ -8,7 +8,7 @@ Documentação interativa: http://localhost:5000/docs
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
 
 import banco
 
@@ -17,7 +17,7 @@ import banco
 # CONFIGURAÇÃO
 # ============================================================
 
-# Chave opcional de acesso (se omitida na rede interna, o acesso é livre)
+# Chave de acesso: obrigatória para quem vem pelo proxy (Traefik); na rede interna, pode ser omitida
 CHAVE_API = os.environ.get("QUALIDADE_API_KEY", "amatech-qualidade-demo")
 EXIGIR_CHAVE = os.environ.get("QUALIDADE_EXIGIR_CHAVE", "0") == "1"
 
@@ -36,12 +36,18 @@ app = FastAPI(
 )
 
 
-def exigir_chave(x_api_key: str | None = Header(None, alias="X-API-Key")):
+def veio_pelo_proxy(request: Request) -> bool:
+    """O Traefik acrescenta X-Forwarded-For a toda requisição externa; as chamadas entre contêineres não têm."""
+    return any(c in request.headers for c in ("x-forwarded-for", "x-real-ip", "forwarded"))
+
+
+def exigir_chave(request: Request, x_api_key: str | None = Header(None, alias="X-API-Key")):
     """Autenticação por perímetro de rede (Abordagem 1):
-    - Chamadas internas sem cabeçalho são permitidas.
+    - Chamadas internas (rede do Docker ou localhost) sem cabeçalho são permitidas.
+    - Requisições que chegam pelo proxy (Traefik, com X-Forwarded-For) sempre exigem a chave.
     - Se uma chave for enviada, valida se confere com a configurada."""
     if not x_api_key:
-        if EXIGIR_CHAVE:
+        if EXIGIR_CHAVE or veio_pelo_proxy(request):
             raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
         return
     if CHAVE_API and x_api_key != CHAVE_API:

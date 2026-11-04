@@ -81,7 +81,7 @@ Ordem de cada sincronização (período escolhido na T07; padrão, últimos 7 di
 | Passo | De onde | O que vira | Identificador (`id_externo`) |
 | --- | --- | --- | --- |
 | 1. Cadastros | Rastreabilidade `/api/v1/produtos`; Manutenção `/api/equipamentos` | Produtos (modelos) e máquinas (setor → estação pelos sinônimos) | (nome / TAG) |
-| 2. Produção | Rastreabilidade `/api/v1/passagens` (chave `amt_demo_dashboard`) | Um registro por dia, turno e modelo: realizada = Aprovados + Reprovados | `AAAA-MM-DD\|<turno>\|<modelo>` |
+| 2. Produção | Rastreabilidade `/api/v1/passagens` | Um registro por dia, turno e modelo: realizada = Aprovados + Reprovados | `AAAA-MM-DD\|<turno>\|<modelo>` |
 | 3. Defeitos | Qualidade `/api/ocorrencias` | Um defeito por ocorrência (quantidade 1); Em_reprocesso também gera retrabalho na Montagem final | `QLD-<id>` |
 | 4. Paradas | Manutenção `/api/manutencao/chamados` | Uma parada por chamado (abertura → fim do atendimento); sem fim = em andamento | `MNT-<id>` |
 
@@ -99,8 +99,9 @@ Regras:
 ## 5. API do Dashboard (`api.py`)
 
 Para outros sistemas e programas da rede lerem os indicadores consolidados. Faz parte da camada 1, como as telas: não
-calcula nada, só chama a `CalculadoraIndicadores` e o `AvaliadorAlertas`. Chave `X-API-Key` = `DASHBOARD_API_KEY`
-(padrão `amatech-dashboard-demo`); só `/api/status` é aberta.
+calcula nada, só chama a `CalculadoraIndicadores` e o `AvaliadorAlertas`. Chave `X-API-Key`: dispensada nas chamadas entre contêineres (ou em `localhost`) e **obrigatória** para quem chega pelo Traefik (o proxy acrescenta `X-Forwarded-For`). Valor: `DASHBOARD_API_KEY`
+(padrão `amatech-dashboard-demo`); `DASHBOARD_EXIGIR_CHAVE=1` exige a chave também na rede interna. Só `/api/status`
+é sempre aberta.
 
 | Rota | Devolve |
 | --- | --- |
@@ -114,27 +115,28 @@ Exemplo: `/api/indicadores?de=2026-08-15&ate=2026-08-15` devolve, entre outros,
 
 ## 6. Servidor da rede (Docker)
 
-No servidor da fábrica, todos os sistemas ficam no mesmo IP, cada um na sua rota, atrás de um proxy na porta 80
+No servidor, todos os sistemas ficam no mesmo domínio, cada um na sua rota, atrás do Traefik com HTTPS
 (guia completo em [`../SERVIDOR.md`](../SERVIDOR.md)):
 
 | Rota | Serviço |
 | --- | --- |
-| `http://IP/dashboard/` | Tela (Streamlit com `--server.baseUrlPath dashboard`) |
-| `http://IP/dashboard/api/...` e `/dashboard/docs` | API (uvicorn com `--root-path /dashboard`) |
+| `https://<DOMINIO>/dashboard/` | Tela (Streamlit com `--server.baseUrlPath dashboard`) |
+| `https://<DOMINIO>/dashboard/api/...` e `/dashboard/docs` | API (uvicorn com `--root-path /dashboard`) |
 
 No servidor, o conector lê os outros sistemas pela rede interna do Docker (`http://rastreabilidade:8000`,
-`http://qualidade-api:5000`, `http://manutencao-api:5002`), já com as chaves de cada um.
+`http://qualidade-api:5000`, `http://manutencao-api:5002`). Na rede interna as chaves são dispensadas; o
+`docker-compose.yml` repassa as do `.env` mesmo assim, para o modo estrito funcionar.
 
 ## 7. Variáveis de ambiente
 
 | Variável | Padrão |
 | --- | --- |
 | `DASHBOARD_DB` | `database/banco.db` |
-| `RASTREABILIDADE_URL` / `RASTREABILIDADE_CHAVE` | `http://localhost:8000` / `amt_demo_dashboard` |
-| `QUALIDADE_URL` | `http://localhost:5000` |
-| `QUALIDADE_CHAVE` | `amatech-qualidade-demo` |
-| `MANUTENCAO_URL` / `MANUTENCAO_CHAVE` | `http://localhost:5002` / `amatech-manutencao-demo` |
+| `RASTREABILIDADE_URL` / `RASTREABILIDADE_CHAVE` | `http://localhost:8000` / vazio (sem chave na rede interna) |
+| `QUALIDADE_URL` / `QUALIDADE_CHAVE` | `http://localhost:5000` / vazio |
+| `MANUTENCAO_URL` / `MANUTENCAO_CHAVE` | `http://localhost:5002` / vazio |
 | `DASHBOARD_API_KEY` | `amatech-dashboard-demo` (chave da API do próprio Dashboard) |
+| `DASHBOARD_EXIGIR_CHAVE` | `0` (`1` exige a chave também na rede interna) |
 | `DASHBOARD_TEMPO_LIMITE` | `5` segundos |
 
 ## 8. Como conferir

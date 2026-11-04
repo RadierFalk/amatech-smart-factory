@@ -11,7 +11,7 @@ python -m uvicorn api:app --host 0.0.0.0 --port 5000
 ```
 
 Documentação interativa: `http://IP_DO_COMPUTADOR:5000/docs`. No servidor da fábrica (Docker), a API fica em
-`http://IP_DO_SERVIDOR/qualidade/api/...` (veja o `SERVIDOR.md` na raiz do repositório).
+`https://<DOMINIO>/qualidade/api/...`, com a chave `X-API-Key` (veja o `SERVIDOR.md` na raiz do repositório).
 
 ### 1. Requisitos
 

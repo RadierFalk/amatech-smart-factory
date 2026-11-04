@@ -1,18 +1,15 @@
-# Servidor da AMATECH Smart Factory (Windows + WSL 2 + Docker Engine)
+# Servidor da AMATECH Smart Factory (Docker Swarm + Traefik)
 
-Este guia coloca os quatro sistemas num computador Windows da rede, com **um único IP fixo e uma rota para cada
-sistema**. Quem estiver na mesma rede usa as telas pelo navegador, e outros programas leem os dados pelas APIs.
-
-O Docker roda **sem o Docker Desktop**: é o Docker Engine (linha de comando `docker` e `docker compose`) instalado no
-Ubuntu do WSL 2.
+Este guia publica os quatro sistemas num servidor com **Docker Swarm** (pela linha de comando ou pelo Portainer),
+atrás do **Traefik**, com **um domínio, HTTPS e uma rota para cada sistema**. Quem acessa o domínio usa as telas pelo
+navegador, e outros programas leem os dados pelas APIs.
 
 ```
-navegadores e programas da rede
-            │  http://IP/...
+navegadores e programas
+            │  https://<DOMINIO>/...
             ▼
-Servidor Windows (IP fixo) ── WSL 2 (Ubuntu, rede espelhada) ── Docker Engine
-  proxy Caddy (porta 80)
-    /                      → página inicial
+Traefik (entrypoint websecure, certificado Let's Encrypt)  ── rede VandreNet (overlay) ──
+    /                      → redireciona para /dashboard/
     /rastreabilidade/      → rastreabilidade   (telas + API, 8000)
     /qualidade/            → qualidade-tela    (8502)
     /qualidade/api/...     → qualidade-api     (5000)
@@ -22,21 +19,20 @@ Servidor Windows (IP fixo) ── WSL 2 (Ubuntu, rede espelhada) ── Docker E
     /dashboard/api/...     → dashboard-api     (5003)
 ```
 
-Cada sistema guarda o banco SQLite num volume do Docker. Entre si, os sistemas se falam pela rede interna do Docker,
-pelo nome do serviço (ex.: `http://rastreabilidade:8000`).
-
-Só a porta **80** fica aberta na rede. As portas internas (8000, 5000...) não aparecem fora do Docker.
+Cada sistema guarda o banco SQLite num volume do Docker. Entre si, os sistemas se falam pela rede `VandreNet`, pelo
+nome do serviço (ex.: `http://rastreabilidade:8000`). Nenhuma porta dos serviços é publicada no servidor: o único
+caminho de fora para dentro é o Traefik.
 
 ## 1. Rotas
 
 | Endereço | O que é |
 | --- | --- |
-| `http://IP/` | Página inicial com os links |
-| `http://IP/rastreabilidade/` | Rastreabilidade (login `MAT-0001` / `amatech123`) |
-| `http://IP/qualidade/` | Controle da Qualidade |
-| `http://IP/manutencao/` | Controle da Manutenção (login `GES-0001` / `123456`) |
-| `http://IP/dashboard/` | Dashboard Industrial (login `supervisor` / `super123`) |
-| `http://IP/<sistema>/docs` | Documentação interativa da API de cada sistema |
+| `https://<DOMINIO>/` | Redireciona para o Dashboard |
+| `https://<DOMINIO>/rastreabilidade/` | Rastreabilidade (login `MAT-0001` / `amatech123`) |
+| `https://<DOMINIO>/qualidade/` | Controle da Qualidade |
+| `https://<DOMINIO>/manutencao/` | Controle da Manutenção (login `GES-0001` / `123456`) |
+| `https://<DOMINIO>/dashboard/` | Dashboard Industrial (login `supervisor` / `super123`) |
+| `https://<DOMINIO>/<sistema>/docs` | Documentação interativa da API de cada sistema |
 
 | API | Exemplos | Chave (`X-API-Key`) |
 | --- | --- | --- |
@@ -47,143 +43,112 @@ Só a porta **80** fica aberta na rede. As portas internas (8000, 5000...) não 
 
 As rotas `/api/status` (e `/rastreabilidade/api/v1/saude`) não pedem chave: servem para testar se o sistema está no ar.
 
-## 2. Preparar o computador (uma vez)
+### Chaves e perímetro de rede
 
-Os comandos em `powershell` são no PowerShell **como administrador**; os em `bash`, no terminal do Ubuntu (menu
-Iniciar → *Ubuntu*, ou `wsl` no PowerShell).
+- **Entre contêineres** (rede `VandreNet`) ou em `localhost`, as chamadas dispensam a chave. É assim que a Qualidade
+  avisa a Rastreabilidade e a Manutenção, e que o Dashboard sincroniza os setores.
+- **Pelo Traefik**, a chave é obrigatória. O Traefik acrescenta o cabeçalho `X-Forwarded-For` a toda requisição de
+  fora, e as APIs recusam com `401` quem chega assim sem chave (ou com a chave errada).
+- **Modo estrito:** `<SISTEMA>_EXIGIR_CHAVE=1` no `.env` exige a chave também na rede interna.
 
-1. **WSL 2 com Ubuntu.** Se `wsl -l -v` ainda não mostra o Ubuntu na versão 2:
-   ```powershell
-   wsl --install -d Ubuntu
-   ```
-   Reinicie o Windows, abra o *Ubuntu* e crie o usuário e a senha do Linux.
+## 2. Pré-requisitos
 
-2. **Docker Engine no Ubuntu** (instala `docker`, `docker compose` e o serviço do Docker):
-   ```bash
-   sudo apt update && sudo apt install -y git curl
-   curl -fsSL https://get.docker.com | sudo sh
-   sudo usermod -aG docker $USER      # usar o docker sem sudo
-   ```
-   Se o Docker Desktop estiver instalado, desinstale-o antes, para os dois não disputarem o comando `docker`.
+O `docker-compose.yml` é uma *stack* do Swarm e depende de uma infraestrutura que já deve existir no servidor:
 
-3. **systemd no WSL**, para o Docker subir sozinho com o Ubuntu. Confira se o `/etc/wsl.conf` tem:
-   ```bash
-   cat /etc/wsl.conf          # deve mostrar [boot] e systemd=true
-   # se não mostrar:
-   printf '[boot]\nsystemd=true\n' | sudo tee -a /etc/wsl.conf
-   ```
+| Item | Valor esperado |
+| --- | --- |
+| Docker em modo Swarm | `docker info` mostra `Swarm: active` (senão, `docker swarm init`) |
+| Rede overlay externa | `VandreNet` (crie uma vez: `docker network create --driver overlay --attachable VandreNet`) |
+| Traefik na rede `VandreNet` | Provedor Swarm ativo, entrypoint `websecure` (443) e certresolver `letsencryptresolver` |
+| DNS | O domínio de `AMATECH_HOST` apontando para o IP do servidor |
+| Imagem | `ghcr.io/radierfalk/amatech-smart-factory:latest`, publicada pelo GitHub Actions a cada push na `main` |
 
-4. **Rede espelhada**, para a porta 80 do WSL responder no IP do Windows. Crie (ou edite) o arquivo
-   `%UserProfile%\.wslconfig` no Windows:
-   ```ini
-   [wsl2]
-   networkingMode=mirrored
-   ```
-   Depois, `wsl --shutdown` no PowerShell e abra o Ubuntu de novo. Teste: `docker run --rm hello-world`.
-
-5. **IP fixo.** O melhor é reservar o IP no roteador (*reserva de DHCP* pelo endereço MAC do servidor). Sem acesso ao
-   roteador: *Configurações → Rede e Internet → (adaptador) → Atribuição de IP → Manual*, com IP, máscara, gateway e DNS
-   da rede. Com a rede espelhada, o WSL usa esse mesmo IP.
-
-6. **Firewall:** liberar a porta 80 no Windows e no firewall do WSL (Hyper-V). A rede deve estar como *Privada*.
-   ```powershell
-   New-NetFirewallRule -DisplayName "AMATECH Smart Factory (porta 80)" -Direction Inbound -Protocol TCP -LocalPort 80 -Action Allow
-   New-NetFirewallHyperVRule -Name "AMATECH-80" -DisplayName "AMATECH Smart Factory (porta 80, WSL)" -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 80
-   ```
-
-7. **Manter o WSL ligado.** O Windows desliga o Ubuntu quando nenhum programa o está usando, e os sistemas param
-   junto. Esta tarefa agendada liga o Ubuntu quando o usuário entra no Windows e o mantém ligado:
-   ```powershell
-   $acao = New-ScheduledTaskAction -Execute "powershell.exe" -Argument '-WindowStyle Hidden -Command "wsl.exe -d Ubuntu --exec sleep infinity"'
-   $gatilho = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
-   $config = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
-   Register-ScheduledTask -TaskName "AMATECH - manter WSL ligado" -Action $acao -Trigger $gatilho -Settings $config
-   ```
-   Rode esse comando no PowerShell **do usuário que fica conectado no servidor**.
-
-8. **Energia:** em *Energia e suspensão*, nunca suspender. O WSL roda na sessão do usuário: o Windows precisa estar
-   com um usuário conectado (configure o logon automático ou deixe a sessão aberta e bloqueada).
+> As regras do Traefik estão em `deploy.labels`, que só valem no Swarm. Por isso `docker compose up` **não** publica
+> os sistemas. Para rodar sem Swarm, use o `iniciar.ps1` (seção 8).
 
 ## 3. Instalar
 
-No terminal do Ubuntu. Clone o repositório na pasta do Linux (`~`), não em `/mnt/c/...`: fica mais rápido e mantém
-as quebras de linha LF.
+### Pela linha de comando
 
 ```bash
-cd ~
 git clone https://github.com/RadierFalk/amatech-smart-factory.git
 cd amatech-smart-factory
-cp .env.exemplo .env && nano .env   # troque as chaves (o .env não vai para o Git)
-docker compose up -d --build        # a primeira vez demora alguns minutos (baixa e monta a imagem)
-docker compose ps                   # todos devem ficar "running" (as APIs, "healthy")
+cp .env.exemplo .env && nano .env    # domínio e chaves (o .env não vai para o Git)
+set -a; . ./.env; set +a             # o docker stack deploy não lê o .env sozinho
+docker stack deploy -c docker-compose.yml amatech
+docker stack services amatech        # todos devem chegar a 1/1
 ```
 
-Teste no próprio servidor: http://localhost/. De outro computador: `http://IP-DO-SERVIDOR/`.
+### Pelo Portainer
 
-Na primeira subida, cada sistema cria o seu banco no volume com os dados de demonstração. Os contêineres usam
-`restart: unless-stopped`: voltam sozinhos se travarem e quando o Ubuntu ligar com o Windows (passo 2.7).
+*Stacks → Add stack*, cole o `docker-compose.yml` (ou aponte para o repositório) e cadastre as variáveis do
+`.env.exemplo` em *Environment variables*.
 
-> **Chaves da Rastreabilidade:** ela grava as chaves dos outros sistemas no próprio banco na **primeira** subida. Para
-> trocá-las depois, use a tela *Cadastros → Integrações → Gerar nova chave* e atualize o valor correspondente no `.env`
-> (`RASTREABILIDADE_CHAVE_QUALIDADE` ou `RASTREABILIDADE_CHAVE_DASHBOARD`); em seguida, `docker compose up -d`.
+Na primeira subida, cada sistema cria o seu banco no volume com os dados de demonstração. Teste em
+`https://<DOMINIO>/`.
+
+> **Chaves da Rastreabilidade:** ficam no banco dela. As de demonstração (`amt_demo_qualidade`, `amt_demo_dashboard`)
+> são criadas na primeira subida. Para trocar, use a tela *Cadastros → Integrações → Gerar nova chave*. Só é preciso
+> pôr a chave nova no `.env` (`RASTREABILIDADE_CHAVE_QUALIDADE` ou `RASTREABILIDADE_CHAVE_DASHBOARD`) se o modo
+> estrito da Rastreabilidade estiver ligado.
 
 ## 4. Usar as APIs de outro computador
 
 PowerShell:
 ```powershell
 $chave = @{ "X-API-Key" = "amatech-dashboard-demo" }
-Invoke-RestMethod "http://192.168.0.50/dashboard/api/indicadores?de=2026-10-01&ate=2026-10-31" -Headers $chave
+Invoke-RestMethod "https://amatech.automakad.com.br/dashboard/api/indicadores?de=2026-10-01&ate=2026-10-31" -Headers $chave
 ```
 
 Python:
 ```python
 import requests
-r = requests.get("http://192.168.0.50/qualidade/api/ocorrencias", params={"de": "2026-10-01"},
+r = requests.get("https://amatech.automakad.com.br/qualidade/api/ocorrencias", params={"de": "2026-10-01"},
                  headers={"X-API-Key": "amatech-qualidade-demo"}, timeout=5)
 print(r.json())
 ```
 
+Troque as chaves de demonstração pelas do `.env` do servidor.
+
 ## 5. Operação do dia a dia
 
-Os comandos são no terminal do Ubuntu, na pasta `~/amatech-smart-factory`. Do PowerShell, ponha o prefixo
-`wsl -d Ubuntu --cd ~/amatech-smart-factory --` (ex.: `wsl -d Ubuntu --cd ~/amatech-smart-factory -- docker compose ps`).
+Os nomes dos serviços levam o prefixo da stack (`amatech_`).
 
 | Tarefa | Comando |
 | --- | --- |
-| Ver o estado | `docker compose ps` |
-| Ver os registros de um sistema | `docker compose logs -f qualidade-tela` (ou outro serviço) |
-| Reiniciar um sistema | `docker compose restart manutencao-api` |
-| Parar tudo / subir de novo | `docker compose down` / `docker compose up -d` |
-| **Atualizar** para a versão nova do GitHub | `git pull` e depois `docker compose up -d --build` (os dados ficam nos volumes) |
-| **Cópia de segurança** dos bancos | `docker compose cp qualidade-api:/dados ./backup/qualidade` (e o mesmo para `rastreabilidade`, `manutencao-api` e `dashboard-api`). No Windows, a pasta fica em `\\wsl$\Ubuntu\home\<usuário>\amatech-smart-factory\backup` |
-| Apagar os dados e recomeçar com a demonstração | `docker compose down -v` (**apaga os volumes**) e `docker compose up -d` |
+| Ver o estado | `docker stack services amatech` e `docker stack ps amatech` |
+| Ver os registros de um sistema | `docker service logs -f amatech_qualidade-tela` (ou outro serviço) |
+| Reiniciar um sistema | `docker service update --force amatech_manutencao-api` |
+| **Atualizar** para a versão nova | Depois que o GitHub Actions publicar a imagem: `git pull`, carregar o `.env` e repetir o `docker stack deploy` (os dados ficam nos volumes) |
+| **Cópia de segurança** dos bancos | `docker run --rm -v amatech_dados-qualidade:/dados -v "$PWD/backup":/backup alpine tar czf /backup/qualidade.tgz -C /dados .` (e o mesmo para `dados-rastreabilidade`, `dados-manutencao` e `dados-dashboard`) |
+| Parar tudo | `docker stack rm amatech` (os volumes continuam) |
+| Apagar os dados e recomeçar com a demonstração | `docker stack rm amatech`, `docker volume rm amatech_dados-rastreabilidade amatech_dados-qualidade amatech_dados-manutencao amatech_dados-dashboard` e um novo `docker stack deploy` |
 
-Serviços: `proxy`, `rastreabilidade`, `qualidade-api`, `qualidade-tela`, `manutencao-api`, `manutencao-tela`,
-`dashboard-api`, `dashboard-tela`.
+Serviços: `rastreabilidade`, `qualidade-api`, `qualidade-tela`, `manutencao-api`, `manutencao-tela`, `dashboard-api`,
+`dashboard-tela`.
 
 ## 6. Problemas comuns
 
 | Sintoma | O que fazer |
 | --- | --- |
-| `permission denied ... docker.sock` | O usuário ainda não está no grupo `docker`: feche e abra o terminal do Ubuntu (ou `newgrp docker`) depois do passo 2.2 |
-| `Cannot connect to the Docker daemon` | `sudo systemctl status docker`; se o systemd não estiver ativo, confira o passo 2.3 e rode `wsl --shutdown` |
-| `docker compose up` diz que a porta 80 está em uso, ou `http://localhost/` responde 404 com o cabeçalho `Server: Microsoft-HTTPAPI/2.0` | Um programa do Windows usa a 80 (IIS, ou o BranchCache em máquinas da empresa; veja com `netsh http show servicestate`). Com a rede espelhada, as portas do Windows e do WSL são as mesmas. Pare o programa, ou ponha `PORTA=8080` no `.env`, rode `docker compose up -d` e acesse `http://IP:8080/` (libere a 8080 nas duas regras do passo 2.6) |
-| `all predefined address pools have been fully subnetted` | Uma VPN ocupa todas as rotas e o Docker não acha faixa livre para a rede. O `docker-compose.yml` já fixa a faixa (`REDE_DOCKER`, padrão `10.201.0.0/24`); se ela colidir com a rede local ou a VPN (`ip route` no Ubuntu), troque no `.env` |
-| No próprio servidor, `http://localhost/` fica carregando, mas `http://127.0.0.1/` abre | Com a rede espelhada, o `localhost` pelo IPv6 (`::1`) não chega ao WSL. Use `127.0.0.1` ou o IP do servidor |
-| Abre no servidor, mas não em outro computador | Rede espelhada (passo 2.4, confira com `wsl --shutdown` e abrindo de novo), firewall (passo 2.6), rede *Pública* em vez de *Privada*, ou IP errado (`ipconfig` no servidor) |
-| Os sistemas param quando fecho o terminal do Ubuntu | Falta a tarefa agendada do passo 2.7 (confira no *Agendador de Tarefas*) |
-| Tela de um sistema fica carregando | `docker compose logs -f <sistema>-tela`; confira se a API dele está *healthy* em `docker compose ps` |
-| Sincronização do Dashboard mostra "fora do ar" | O contêiner do outro sistema parou: `docker compose ps` e `docker compose restart <serviço>` |
-| Horários com 4 horas de diferença | Os contêineres usam o horário de Manaus (UTC-4); confira o relógio e o fuso do Windows |
+| `network VandreNet not found` | Crie a rede (seção 2) ou confira o nome da rede do Traefik |
+| `this node is not a swarm manager` | O Docker não está em modo Swarm (`docker swarm init`) ou o comando foi rodado num nó *worker* |
+| Serviço em `0/1` | `docker service ps --no-trunc amatech_<serviço>` mostra o erro; `docker service logs amatech_<serviço>` mostra os registros |
+| Domínio responde 404 do Traefik | Confira `AMATECH_HOST` (ele precisa estar carregado no deploy) e se o Traefik enxerga a rede `VandreNet` |
+| Certificado inválido | O DNS ainda não aponta para o servidor, ou o certresolver do Traefik não se chama `letsencryptresolver` |
+| `401` ao chamar uma API de fora | Esperado sem chave: envie `X-API-Key` com o valor do `.env` |
+| Sincronização do Dashboard mostra "fora do ar" | O serviço do outro sistema parou: `docker stack services amatech` |
+| Horários com 4 horas de diferença | Os contêineres usam o horário de Manaus (UTC-4); confira o relógio do servidor |
 
 ## 7. Segurança
 
-- Troque as chaves de demonstração no `.env` antes de liberar o acesso para a turma.
-- O acesso é só pela rede local, por HTTP (sem HTTPS). Não exponha a porta 80 para a internet.
-- A tela da Qualidade não tem login (o sistema original não tinha); as outras três têm.
-- Os bancos ficam nos volumes do Docker, dentro do WSL. Faça cópias de segurança (seção 5).
+- Troque as chaves de demonstração no `.env` antes de liberar o acesso: elas estão escritas neste repositório.
+- As APIs só dispensam a chave para chamadas internas; tudo o que passa pelo Traefik precisa dela.
+- A tela da Qualidade não tem login (o sistema original não tinha); as outras três têm. Com o domínio público,
+  qualquer pessoa que souber o endereço usa essa tela.
+- Os bancos ficam nos volumes do Docker. Faça cópias de segurança (seção 5).
 
 ## 8. Desenvolver sem Docker
 
 No próprio Windows, sem prefixos de rota: `powershell -ExecutionPolicy Bypass -File iniciar.ps1` sobe os 7 processos
-(4 telas e 3 APIs separadas, mais a Rastreabilidade) em janelas minimizadas. Veja o `README.md`.
+(3 telas Streamlit, 3 APIs separadas e a Rastreabilidade) em janelas minimizadas. Veja o `README.md`.
