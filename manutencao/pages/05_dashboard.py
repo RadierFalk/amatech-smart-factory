@@ -1,7 +1,7 @@
 """
 Tela de Dashboard Gerencial (F12, RF10).
 Replica integralmente os 4 KPIs, os 4 gráficos (Downtime por estação, Chamados por status em rosca,
-Evolução diária combo barra+linha em duplo eixo e Causas raiz em roxo #6B3F8A)
+Evolução diária combo barra+linha em duplo eixo e Causas raiz em roxo #6A4BC4)
 e as 2 tabelas inferiores (Ranking de máquinas e Peças mais consumidas) do projeto amatech-manutencao.
 """
 from datetime import datetime, timedelta
@@ -26,7 +26,7 @@ from ui_components import (
 
 def _layout_padrao_grafico(altura: int = 265) -> dict:
     return dict(
-        font=dict(family='"Segoe UI", Roboto, Arial, sans-serif', size=12, color="#495665"),
+        font=dict(family='"Segoe UI", Roboto, Arial, sans-serif', size=12, color="#4d5b6e"),
         plot_bgcolor="#FFFFFF",
         paper_bgcolor="#FFFFFF",
         margin=dict(l=10, r=16, t=12, b=16),
@@ -180,7 +180,7 @@ def render() -> None:
         layout_est.update(
             xaxis=dict(
                 title="minutos",
-                gridcolor="#EEF2F6",
+                gridcolor="#EBEEF2",
                 zeroline=False,
             ),
             yaxis=dict(showgrid=False),
@@ -247,7 +247,7 @@ def render() -> None:
                 name="Downtime (min)",
                 x=datas_fmt,
                 y=[d["downtime_min"] for d in diario],
-                marker=dict(color="rgba(46,117,182,0.55)", cornerradius=3),
+                marker=dict(color="rgba(31, 95, 214,0.55)", cornerradius=3),
                 yaxis="y",
             )
         )
@@ -265,7 +265,7 @@ def render() -> None:
         layout_ser = _layout_padrao_grafico(300)
         layout_ser.update(
             xaxis=dict(showgrid=False),
-            yaxis=dict(title="min", side="left", gridcolor="#EEF2F6", zeroline=False),
+            yaxis=dict(title="min", side="left", gridcolor="#EBEEF2", zeroline=False),
             yaxis2=dict(title="chamados", side="right", overlaying="y", showgrid=False, zeroline=False),
             legend=dict(orientation="h", yanchor="bottom", y=-0.22, xanchor="center", x=0.5),
         )
@@ -298,7 +298,7 @@ def render() -> None:
         )
         layout_cau = _layout_padrao_grafico(300)
         layout_cau.update(
-            xaxis=dict(gridcolor="#EEF2F6", dtick=1, zeroline=False),
+            xaxis=dict(gridcolor="#EBEEF2", dtick=1, zeroline=False),
             yaxis=dict(showgrid=False, tickfont=dict(size=10.5)),
             showlegend=False,
         )

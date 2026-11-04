@@ -2,7 +2,7 @@
  - /api/v1/...        usada pelos outros sistemas, autenticada por chave (cabeçalho X-API-Key)
  - /api/integracoes   usada pela tela de administração (somente Administrador) para criar/revogar chaves
 """
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 
 from app import config
 from app.db import get_conn
@@ -14,8 +14,11 @@ router = APIRouter(prefix="/api/v1", tags=["Integração v1 (outros sistemas)"])
 router_admin = APIRouter(prefix="/api/integracoes", tags=["Administração das integrações"])
 
 
-def cliente_integracao(x_api_key: str | None = Header(None, alias="X-API-Key"), conn=Depends(get_conn)):
-    return svc.autenticar_cliente(conn, x_api_key)
+def cliente_integracao(request: Request, x_api_key: str | None = Header(None, alias="X-API-Key"),
+                       conn=Depends(get_conn)):
+    # O Traefik acrescenta X-Forwarded-For a toda requisição externa; as chamadas entre contêineres não têm.
+    externa = any(c in request.headers for c in ("x-forwarded-for", "x-real-ip", "forwarded"))
+    return svc.autenticar_cliente(conn, x_api_key, externa)
 
 
 @router.get("/saude")

@@ -1,5 +1,5 @@
 ﻿# Sobe os quatro sistemas no próprio Windows, sem Docker (para desenvolver e testar), cada processo numa janela
-# minimizada. No servidor, use o Docker: docker compose up -d --build (veja SERVIDOR.md).
+# minimizada. No servidor, use a stack do Docker Swarm (veja SERVIDOR.md).
 # Uso (na raiz do repositório):  powershell -ExecutionPolicy Bypass -File iniciar.ps1
 # Antes, uma vez:  python -m venv .venv ; .venv\Scripts\python -m pip install -r requirements.txt
 param(

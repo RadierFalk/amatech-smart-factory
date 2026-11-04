@@ -5,7 +5,7 @@ version: "3.7"
 ## ================================================================== ##
 ##
 ##   Roteamento via Traefik (VandreNet):
-##     https://${AMATECH_HOST:-amatech.automakad.com.br}/                  -> Portal
+##     https://${AMATECH_HOST:-amatech.automakad.com.br}/                  -> redireciona para /dashboard/
 ##     https://${AMATECH_HOST:-amatech.automakad.com.br}/rastreabilidade/  -> Rastreabilidade
 ##     https://${AMATECH_HOST:-amatech.automakad.com.br}/qualidade/        -> Qualidade
 ##     https://${AMATECH_HOST:-amatech.automakad.com.br}/manutencao/       -> Manutencao
@@ -13,6 +13,12 @@ version: "3.7"
 ##
 ##   Rede interna: VandreNet (criada externamente no Portainer/Swarm)
 ##   Imagem GHCR:  ghcr.io/radierfalk/amatech-smart-factory:latest
+##
+##   Só funciona em modo Swarm (as regras do Traefik ficam em deploy.labels e nenhuma porta é publicada).
+##   Subir:  set -a; . ./.env; set +a; docker stack deploy -c docker-compose.yml amatech   (guia: SERVIDOR.md)
+##
+##   Chaves (X-API-Key): entre contêineres, não são necessárias; quem chega pelo Traefik precisa delas.
+##   Troque as chaves de demonstração no .env (ou nas variáveis da stack no Portainer).
 ##
 ## ================================================================== ##
 
@@ -40,6 +46,7 @@ services:
     command: python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --root-path /rastreabilidade --proxy-headers --forwarded-allow-ips "*"
     environment:
       AMATECH_DB: /dados/amatech.db
+      RASTREABILIDADE_EXIGIR_CHAVE: ${RASTREABILIDADE_EXIGIR_CHAVE:-0}
     volumes:
       - dados-rastreabilidade:/dados
     healthcheck:
@@ -66,6 +73,8 @@ services:
     command: python -m uvicorn api:app --host 0.0.0.0 --port 5000 --root-path /qualidade
     environment:
       QUALIDADE_DB: /dados/controle_qualidade.db
+      QUALIDADE_API_KEY: ${QUALIDADE_API_KEY:-amatech-qualidade-demo}
+      QUALIDADE_EXIGIR_CHAVE: ${QUALIDADE_EXIGIR_CHAVE:-0}
     volumes:
       - dados-qualidade:/dados
     healthcheck:
@@ -93,7 +102,9 @@ services:
     environment:
       QUALIDADE_DB: /dados/controle_qualidade.db
       RASTREABILIDADE_URL: http://rastreabilidade:8000
+      RASTREABILIDADE_CHAVE: ${RASTREABILIDADE_CHAVE_QUALIDADE:-}
       MANUTENCAO_URL: http://manutencao-api:5002
+      MANUTENCAO_CHAVE: ${MANUTENCAO_API_KEY:-amatech-manutencao-demo}
     volumes:
       - dados-qualidade:/dados
     depends_on:
@@ -117,6 +128,8 @@ services:
     command: python -m uvicorn api:app --host 0.0.0.0 --port 5002 --root-path /manutencao
     environment:
       MANUTENCAO_DB: /dados/manutencao.db
+      MANUTENCAO_API_KEY: ${MANUTENCAO_API_KEY:-amatech-manutencao-demo}
+      MANUTENCAO_EXIGIR_CHAVE: ${MANUTENCAO_EXIGIR_CHAVE:-0}
     volumes:
       - dados-manutencao:/dados
     healthcheck:
@@ -166,6 +179,8 @@ services:
     command: python -m uvicorn api:app --host 0.0.0.0 --port 5003 --root-path /dashboard
     environment:
       DASHBOARD_DB: /dados/banco.db
+      DASHBOARD_API_KEY: ${DASHBOARD_API_KEY:-amatech-dashboard-demo}
+      DASHBOARD_EXIGIR_CHAVE: ${DASHBOARD_EXIGIR_CHAVE:-0}
     volumes:
       - dados-dashboard:/dados
     healthcheck:
@@ -193,8 +208,11 @@ services:
     environment:
       DASHBOARD_DB: /dados/banco.db
       RASTREABILIDADE_URL: http://rastreabilidade:8000
+      RASTREABILIDADE_CHAVE: ${RASTREABILIDADE_CHAVE_DASHBOARD:-}
       QUALIDADE_URL: http://qualidade-api:5000
+      QUALIDADE_CHAVE: ${QUALIDADE_API_KEY:-amatech-qualidade-demo}
       MANUTENCAO_URL: http://manutencao-api:5002
+      MANUTENCAO_CHAVE: ${MANUTENCAO_API_KEY:-amatech-manutencao-demo}
     volumes:
       - dados-dashboard:/dados
     depends_on:

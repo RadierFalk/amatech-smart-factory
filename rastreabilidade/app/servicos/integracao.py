@@ -103,7 +103,7 @@ def garantir_chaves_demo(conn):
                          (nome, _hash(chave)))
 
 
-def autenticar_cliente(conn, chave):
+def autenticar_cliente(conn, chave, externa=False):
     if chave:
         c = um(conn, "SELECT id, nome, ativo FROM integracao_clientes WHERE chave_hash = ?", (_hash(chave),))
         if not c or not c["ativo"]:
@@ -113,8 +113,8 @@ def autenticar_cliente(conn, chave):
         return c
 
     # Autenticação por perímetro de rede (Abordagem 1):
-    # Chamadas internas sem chave são atribuídas ao cliente 'integracao'
-    if getattr(config, "EXIGIR_CHAVE_INTEGRACAO", False):
+    # Chamadas internas sem chave são atribuídas ao cliente 'integracao'; as que vêm pelo proxy precisam da chave
+    if externa or getattr(config, "EXIGIR_CHAVE_INTEGRACAO", False):
         raise ErroNegocio("Informe a chave no cabeçalho X-API-Key.", 401)
 
     c = um(conn, "SELECT id, nome, ativo FROM integracao_clientes WHERE nome = 'integracao'")

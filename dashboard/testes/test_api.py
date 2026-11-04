@@ -19,6 +19,8 @@ def test_status_sem_chave_e_dados_com_chave(cliente):
     assert cliente.get("/api/status").json()["status"] == "online"
     # Na rede interna (Abordagem 1), rota de indicadores acessivel sem chave:
     assert cliente.get("/api/indicadores").status_code == 200
+    # Vindo pelo proxy (Traefik), sem chave e rejeitado:
+    assert cliente.get("/api/indicadores", headers={"X-Forwarded-For": "203.0.113.7"}).status_code == 401
     # Chave invalida informada e rejeitada:
     assert cliente.get("/api/paradas-em-andamento", headers={"X-API-Key": "errada"}).status_code == 401
 

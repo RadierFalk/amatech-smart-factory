@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator
 
 import uvicorn
-from fastapi import Depends, FastAPI, Header, HTTPException, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -45,12 +45,18 @@ if API_CORS_ORIGENS:
     )
 
 
-def exigir_chave(x_api_key: str | None = Header(None, alias="X-API-Key")) -> None:
+def veio_pelo_proxy(request: Request) -> bool:
+    """O Traefik acrescenta X-Forwarded-For a toda requisição externa; as chamadas entre contêineres não têm."""
+    return any(c in request.headers for c in ("x-forwarded-for", "x-real-ip", "forwarded"))
+
+
+def exigir_chave(request: Request, x_api_key: str | None = Header(None, alias="X-API-Key")) -> None:
     """Autenticação por perímetro de rede (Abordagem 1):
-    - Chamadas internas sem cabeçalho são permitidas.
+    - Chamadas internas (rede do Docker ou localhost) sem cabeçalho são permitidas.
+    - Requisições que chegam pelo proxy (Traefik, com X-Forwarded-For) sempre exigem a chave.
     - Se uma chave for enviada, valida se confere com a configurada."""
     if not x_api_key:
-        if EXIGIR_CHAVE:
+        if EXIGIR_CHAVE or veio_pelo_proxy(request):
             raise HTTPException(status_code=401, detail="Chave de API inválida: informe o cabeçalho X-API-Key.")
         return
     if API_KEY_INTEGRACAO and x_api_key != API_KEY_INTEGRACAO:

@@ -2,7 +2,7 @@
 import plotly.graph_objects as go
 import streamlit as st
 
-from pages.comum import cartao, exigir, filtros, hora, minutos, numero, percentual
+from pages.comum import amatech, cartao, exigir, filtros, hora, minutos, numero, percentual
 from servicos.alertas import AvaliadorAlertas
 from servicos.calculadora import CalculadoraIndicadores
 
@@ -56,7 +56,7 @@ def grafico(titulo, rotulos, valores, sufixo="", cores=None):
         st.markdown(f"**{titulo}**")
         st.caption("Sem dados no período.")
         return
-    figura = go.Figure(go.Bar(x=valores, y=rotulos, orientation="h", marker_color=cores or "#757575",
+    figura = go.Figure(go.Bar(x=valores, y=rotulos, orientation="h", marker_color=cores or amatech.CORES["grafico-1"],
                               text=[numero(v) + sufixo for v in valores], textposition="outside", cliponaxis=False))
     figura.update_layout(title=titulo, height=90 + 45 * len(rotulos), margin=dict(l=10, r=60, t=40, b=10),
                          xaxis=dict(visible=False), yaxis=dict(autorange="reversed"), showlegend=False)
@@ -65,7 +65,7 @@ def grafico(titulo, rotulos, valores, sufixo="", cores=None):
 
 esquerda, direita = st.columns(2)
 with esquerda:
-    grafico("Produção realizada × meta", ["Meta", "Realizada"], [r.meta, r.realizada], cores=["#bdbdbd", "#616161"])
+    grafico("Produção realizada × meta", ["Meta", "Realizada"], [r.meta, r.realizada], cores=[amatech.CORES["grafico-meta"], amatech.CORES["grafico-1"]])
     paradas = calculadora.parada_por_turno(filtro)
     grafico("Tempo de parada por turno", [l["turno"] for l in paradas], [l["minutos"] for l in paradas], " min")
 with direita:

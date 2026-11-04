@@ -3,11 +3,17 @@ Design System e Componentes Visuais do Sistema de Controle da Manutenção AMATE
 Replica fielmente o design, fontes, selos, topbar, cards, tabelas e botões do projeto amatech-manutencao.
 """
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 import html
+import sys
 import streamlit as st
 
 from config import COLORS, STATUS_CHAMADO_LABELS, STATUS_EQUIPAMENTO_LABELS
+
+# Identidade visual comum aos quatro sistemas (pasta identidade/ na raiz do repositório)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from identidade import amatech  # noqa: E402
 
 
 def esc(valor: Any) -> str:
@@ -45,35 +51,36 @@ def rotulo_amigavel(valor: str | None) -> str:
 
 
 def aplicar_estilos_amatech() -> None:
-    """Injeta a folha de estilos completa replicada de amatech-manutencao/web/css/styles.css."""
+    """Injeta os estilos comuns da identidade AMATECH e, por cima, os componentes próprios da Manutenção."""
+    amatech.aplicar_estilos()
     st.markdown(
         """
         <style>
         :root {
-          --navy: #1f3a5f;
-          --navy-dark: #16293f;
-          --azul: #2e75b6;
-          --azul-claro: #e8f1fa;
-          --verde: #2e9e4f;
-          --vermelho: #d32f2f;
-          --amarelo: #f2b705;
-          --roxo: #6b3f8a;
-          --cinza-900: #1c2530;
-          --cinza-700: #495665;
-          --cinza-500: #7b8794;
-          --cinza-300: #ccd5de;
-          --cinza-200: #e4eaf0;
-          --cinza-100: #f4f7fa;
+          --navy: #0d1b2a;
+          --navy-dark: #0d1b2a;
+          --azul: #1f5fd6;
+          --azul-claro: #e6eefc;
+          --verde: #1b7a43;
+          --vermelho: #b3261e;
+          --amarelo: #f2b21b;
+          --roxo: #6a4bc4;
+          --cinza-900: #142133;
+          --cinza-700: #4d5b6e;
+          --cinza-500: #4d5b6e;
+          --cinza-300: #d6dde6;
+          --cinza-200: #d6dde6;
+          --cinza-100: #f2f4f7;
           --branco: #ffffff;
-          --sombra: 0 1px 2px rgba(16, 32, 51, 0.06), 0 4px 14px rgba(16, 32, 51, 0.06);
-          --sombra-alta: 0 12px 32px rgba(16, 32, 51, 0.16);
-          --raio: 10px;
-          --raio-sm: 6px;
+          --sombra: 0 1px 2px rgba(13, 27, 42, 0.06), 0 4px 14px rgba(13, 27, 42, 0.06);
+          --sombra-alta: 0 12px 32px rgba(13, 27, 42, 0.16);
+          --raio: 6px;
+          --raio-sm: 4px;
         }
 
         /* Tipografia e Fundo Global */
         html, body, .stApp {
-          font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+          font-family: var(--font-sans) !important;
           background-color: var(--cinza-100) !important;
           color: var(--cinza-900) !important;
           font-size: 14px !important;
@@ -93,7 +100,7 @@ def aplicar_estilos_amatech() -> None:
           height: 1.5rem !important;
         }
 
-        /* ---------------- Sidebar (#16293f --navy-dark) ---------------- */
+        /* ---------------- Sidebar (#0d1b2a --navy-dark) ---------------- */
         section[data-testid="stSidebar"] {
           background-color: var(--navy-dark) !important;
           border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -101,9 +108,6 @@ def aplicar_estilos_amatech() -> None:
         }
         section[data-testid="stSidebar"] > div {
           padding-top: 0.5rem !important;
-        }
-        section[data-testid="stSidebar"] * {
-          font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
         }
 
         .sb-marca {
@@ -120,7 +124,7 @@ def aplicar_estilos_amatech() -> None:
           width: 34px;
           height: 34px;
           border-radius: 8px;
-          background: linear-gradient(135deg, var(--azul), #4a9de0);
+          background: linear-gradient(135deg, var(--azul), #1f5fd6);
           display: grid;
           place-items: center;
           color: #ffffff !important;
@@ -138,27 +142,32 @@ def aplicar_estilos_amatech() -> None:
         }
         .sb-logo-txt span {
           font-size: 10.5px;
-          color: #8fa5bd !important;
+          color: #a9b8ca !important;
           text-transform: uppercase;
           letter-spacing: 0.8px;
         }
         .sb-nav-grupo {
-          font-size: 10.5px;
+          font-size: 11px;
+          line-height: 16px;
           text-transform: uppercase;
-          letter-spacing: 1px;
-          color: #6f88a3 !important;
-          margin: 14px 6px 6px;
-          font-weight: 700;
+          letter-spacing: .06em;
+          color: var(--on-noite-suave) !important;
+          margin: 0 6px;
+          padding: 16px 0 6px;
+          font-weight: 600;
+        }
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(.sb-nav-grupo) {
+          margin-bottom: 0 !important;
         }
         .sb-rodape {
           padding: 12px 8px 8px;
           border-top: 1px solid rgba(255, 255, 255, 0.08);
           font-size: 11.5px;
-          color: #7b91a9 !important;
+          color: #a9b8ca !important;
           margin-top: 12px;
         }
         .sb-rodape strong {
-          color: #c9d6e4 !important;
+          color: #ffffff !important;
           display: block;
           font-size: 12.5px;
           margin-bottom: 2px;
@@ -170,26 +179,45 @@ def aplicar_estilos_amatech() -> None:
           justify-content: flex-start !important;
           text-align: left !important;
           padding: 8px 12px !important;
-          border-radius: 6px !important;
-          font-size: 13.5px !important;
-          font-weight: 500 !important;
+          border-radius: var(--radius-sm) !important;
+          font-size: 14px !important;
+          font-weight: 400 !important;
           border: none !important;
-          border-left: 3px solid transparent !important;
           background: transparent !important;
-          color: #c9d6e4 !important;
+          color: var(--on-noite) !important;
           margin-bottom: 1px !important;
           box-shadow: none !important;
           min-height: 36px !important;
+          position: relative;
+        }
+        section[data-testid="stSidebar"] div.stButton > button > div,
+        section[data-testid="stSidebar"] div.stButton > button p {
+          justify-content: flex-start !important;
+          text-align: left !important;
+          width: 100%;
+        }
+        section[data-testid="stSidebar"] [data-testid="stVerticalBlock"] {
+          gap: 2px !important;
         }
         section[data-testid="stSidebar"] div.stButton > button:hover {
-          background: rgba(255, 255, 255, 0.06) !important;
-          color: #ffffff !important;
+          background: var(--noite-2) !important;
+          color: var(--on-noite) !important;
         }
+        /* Item ativo (guia: MenuLateral): fundo noite-2, peso 600 e o ponto de LED à direita */
         section[data-testid="stSidebar"] div.stButton > button[kind="primary"] {
-          background: rgba(46, 117, 182, 0.28) !important;
-          color: #ffffff !important;
-          border-left: 3px solid var(--azul) !important;
+          background: var(--noite-2) !important;
+          color: var(--on-noite) !important;
           font-weight: 600 !important;
+        }
+        section[data-testid="stSidebar"] div.stButton > button[kind="primary"]::after {
+          content: "";
+          position: absolute;
+          right: 12px;
+          top: calc(50% - 4px);
+          width: 8px;
+          height: 8px;
+          border-radius: var(--radius-pill);
+          background: var(--led);
         }
 
         /* ---------------- Topbar (.topbar) ---------------- */
@@ -369,36 +397,36 @@ def aplicar_estilos_amatech() -> None:
           background: currentColor;
         }
         .selo-funcionando, .selo-operacional, .selo-concluido {
-          background: #eaf7ee;
-          color: #1c6b33;
+          background: #e2f3e8;
+          color: #1b7a43;
         }
         .selo-em_manutencao, .selo-em_andamento, .selo-alta {
-          background: #fff8e1;
-          color: #8a6a00;
+          background: #fff2d6;
+          color: #9a5b00;
         }
         .selo-indisponivel, .selo-parada, .selo-aberto, .selo-critica {
-          background: #fdecec;
-          color: #a01f1f;
+          background: #fce7e5;
+          color: #b3261e;
         }
         .selo-media {
           background: var(--azul-claro);
-          color: #1d4b73;
+          color: #1747a6;
         }
         .selo-baixa, .selo-cancelado {
-          background: #eef1f4;
-          color: #495665;
+          background: #ebeef2;
+          color: #4d5b6e;
         }
         .selo-preventiva {
-          background: #eef4ff;
-          color: #2b4c7e;
+          background: #e6eefc;
+          color: #1747a6;
         }
         .selo-corretiva {
-          background: #f6eefb;
-          color: #6b3f8a;
+          background: #eeeafa;
+          color: #6a4bc4;
         }
 
         .tag {
-          font-family: ui-monospace, "Cascadia Mono", monospace;
+          font-family: var(--font-mono);
           font-size: 11.5px;
           font-weight: 700;
           color: var(--azul);
@@ -413,17 +441,17 @@ def aplicar_estilos_amatech() -> None:
           gap: 10px;
           align-items: flex-start;
           background: var(--azul-claro);
-          border: 1px solid #c9dff2;
+          border: 1px solid #c9daf8;
           border-radius: var(--raio-sm);
           padding: 10px 12px;
           font-size: 12.5px;
-          color: #1d4b73;
+          color: #1747a6;
           line-height: 1.5;
           margin-bottom: 14px;
         }
-        .aviso-alerta { background: #fff8e1; border-color: #ffe08a; color: #7a5c00; }
-        .aviso-erro { background: #fdecec; border-color: #f5bcbc; color: #96201f; }
-        .aviso-ok { background: #eaf7ee; border-color: #b7e0c4; color: #1c6b33; }
+        .aviso-alerta { background: #fff2d6; border-color: #f2d48a; color: #9a5b00; }
+        .aviso-erro { background: #fce7e5; border-color: #f0c2bd; color: #b3261e; }
+        .aviso-ok { background: #e2f3e8; border-color: #b9dfc7; color: #1b7a43; }
 
         /* ---------------- Painel de Máquinas e Grupos de Estação ---------------- */
         .legenda {
@@ -481,7 +509,7 @@ def aplicar_estilos_amatech() -> None:
           font-size: 11.5px;
           font-weight: 700;
           color: var(--vermelho);
-          background: #fdecec;
+          background: #fce7e5;
           padding: 3px 9px;
           border-radius: 20px;
         }
@@ -545,14 +573,14 @@ def aplicar_estilos_amatech() -> None:
           vertical-align: middle;
           color: var(--cinza-900);
         }
-        table.tabela tbody tr:hover { background: #fafcfe; }
+        table.tabela tbody tr:hover { background: #f7f9fb; }
         table.tabela tbody tr:last-child td { border-bottom: 0; }
         table.tabela td.num, table.tabela th.num {
           text-align: right;
           font-variant-numeric: tabular-nums;
         }
         table.tabela .mono {
-          font-family: ui-monospace, "Cascadia Mono", monospace;
+          font-family: var(--font-mono);
           font-size: 12px;
         }
         table.tabela tbody tr.prioridade-critica td:first-child { box-shadow: inset 3px 0 0 var(--vermelho); }
@@ -596,7 +624,7 @@ def aplicar_estilos_amatech() -> None:
           color: var(--cinza-500);
           font-weight: 600;
         }
-        .contador.destaque { background: #fdecec; border-color: #f5bcbc; }
+        .contador.destaque { background: #fce7e5; border-color: #f0c2bd; }
         .contador.destaque .n { color: var(--vermelho); }
 
         /* ---------------- Ordem de Serviço (.os-cronometro, .dados-lista) ---------------- */
@@ -613,7 +641,7 @@ def aplicar_estilos_amatech() -> None:
           min-height: 150px;
         }
         .os-cronometro .relogio-os {
-          font-family: ui-monospace, "Cascadia Mono", monospace;
+          font-family: var(--font-mono);
           font-size: 34px;
           font-weight: 700;
           letter-spacing: 1px;
@@ -624,12 +652,12 @@ def aplicar_estilos_amatech() -> None:
           font-size: 11px;
           text-transform: uppercase;
           letter-spacing: 1px;
-          color: #9db4cd;
+          color: #a9b8ca;
           margin-bottom: 2px;
         }
         .os-cronometro .sub {
           font-size: 12px;
-          color: #b9cadb;
+          color: #a9b8ca;
           margin-top: 4px;
         }
         .os-cronometro .divisor {
@@ -639,7 +667,7 @@ def aplicar_estilos_amatech() -> None:
         }
         .os-cronometro .mini {
           font-size: 11.5px;
-          color: #9db4cd;
+          color: #a9b8ca;
           text-transform: uppercase;
           letter-spacing: 0.6px;
         }
@@ -675,7 +703,7 @@ def aplicar_estilos_amatech() -> None:
           margin-bottom: 6px;
         }
         .peca-item .cod {
-          font-family: ui-monospace, monospace;
+          font-family: var(--font-mono);
           font-size: 11.5px;
           color: var(--azul);
           font-weight: 700;
@@ -695,9 +723,9 @@ def aplicar_estilos_amatech() -> None:
           flex-direction: column;
           justify-content: center;
           background:
-            radial-gradient(circle at 85% 15%, rgba(46, 117, 182, 0.55), transparent 55%),
-            radial-gradient(circle at 10% 90%, rgba(46, 158, 79, 0.28), transparent 50%),
-            #1f3a5f;
+            radial-gradient(circle at 85% 15%, rgba(31, 95, 214, 0.55), transparent 55%),
+            radial-gradient(circle at 10% 90%, rgba(27, 122, 67, 0.28), transparent 50%),
+            #0d1b2a;
           box-shadow: var(--sombra-alta);
         }
         .login-marca-panel::after {
@@ -720,7 +748,7 @@ def aplicar_estilos_amatech() -> None:
           font-weight: 700 !important;
         }
         .login-marca-panel p {
-          color: #c8d6e5 !important;
+          color: #a9b8ca !important;
           max-width: 440px;
           line-height: 1.6;
           font-size: 14.5px;
@@ -736,7 +764,7 @@ def aplicar_estilos_amatech() -> None:
           display: flex;
           gap: 12px;
           align-items: flex-start;
-          color: #dbe6f1;
+          color: #ffffff;
           font-size: 13.8px;
           line-height: 1.45;
         }
@@ -745,7 +773,7 @@ def aplicar_estilos_amatech() -> None:
           width: 22px;
           height: 22px;
           border-radius: 50%;
-          background: rgba(46, 158, 79, 0.9);
+          background: rgba(27, 122, 67, 0.9);
           display: grid;
           place-items: center;
           font-size: 12px;
@@ -805,41 +833,22 @@ def aplicar_estilos_amatech() -> None:
 
 
 def renderizar_topbar(titulo: str, subtitulo: str = "") -> None:
-    """Renderiza a barra superior (.topbar) idêntica à do projeto amatech-manutencao."""
+    """Cabeçalho comum da AMATECH (setor MNT, data, turno e usuário) seguido do título da tela."""
     usuario = st.session_state.get("usuario_logado") or {
         "nome": "Visitante",
         "perfil": "OPERADOR",
         "matricula": "",
     }
-    partes_nome = [p for p in str(usuario.get("nome", "U")).split(" ") if p]
-    iniciais = "".join(p[0] for p in partes_nome[:2]).upper() or "AM"
     perfil_fmt = rotulo_amigavel(usuario.get("perfil"))
 
     dias_semana = ["seg.", "ter.", "qua.", "qui.", "sex.", "sáb.", "dom."]
     agora = datetime.now()
     relogio_str = f"{dias_semana[agora.weekday()]}, {agora.strftime('%d/%m, %H:%M')}"
+    matricula = usuario.get("matricula")
+    quem = esc(usuario.get("nome")) + (f' · <span class="am-codigo">{esc(matricula)}</span>' if matricula else "")
 
-    st.markdown(
-        f"""
-        <header class="topbar">
-          <div>
-            <h1>{esc(titulo)}</h1>
-            <div class="sub">{esc(subtitulo)}</div>
-          </div>
-          <div class="topbar-direita">
-            <span class="relogio">{esc(relogio_str)}</span>
-            <div class="usuario-chip">
-              <div class="avatar">{esc(iniciais)}</div>
-              <div>
-                <div class="nome">{esc(usuario.get('nome'))}</div>
-                <div class="perfil">{esc(perfil_fmt)}</div>
-              </div>
-            </div>
-          </div>
-        </header>
-        """,
-        unsafe_allow_html=True,
-    )
+    amatech.cabecalho("MNT", [(relogio_str, esc(amatech.turno_atual(agora))), (perfil_fmt, quem)])
+    amatech.titulo(titulo, subtitulo)
 
 
 def renderizar_cabecalho(titulo: str, subtitulo: str = "", badge_extra: str = "") -> None:

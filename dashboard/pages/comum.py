@@ -2,12 +2,18 @@
 
 Regra da camada 1: as telas não calculam indicadores nem acessam o banco; chamam as classes de servicos/.
 """
+import sys
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 import config
+
+# Identidade visual comum aos quatro sistemas (pasta identidade/ na raiz do repositório)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from identidade import amatech  # noqa: E402
 from servicos.autenticacao import ServicoAutenticacao
 from servicos.cadastros import ServicoCadastros
 from servicos.erros import ErroValidacao
@@ -15,12 +21,7 @@ from servicos.filtro import Filtro
 from servicos.formatos import ler_data, ler_data_hora
 from servicos.historico import ServicoHistorico
 
-CORES = {   # semáforo: (borda, fundo, texto)
-    "verde": ("#2e7d32", "#e8f5e9", "#1b5e20"),
-    "amarelo": ("#f9a825", "#fff8e1", "#6d5200"),
-    "vermelho": ("#c62828", "#ffebee", "#8e0000"),
-    None: ("#bdbdbd", "#fafafa", "#616161"),
-}
+SEMAFORO = {"verde": "ok", "amarelo": "atencao", "vermelho": "critico"}   # cor do AvaliadorAlertas -> tom da etiqueta
 
 
 # ---------------------------------------------------------------- sessão e permissões
@@ -82,17 +83,8 @@ def minutos(valor):
 
 # ---------------------------------------------------------------- componentes
 def cartao(titulo, valor, detalhe="", cor=None):
-    """Cartão de indicador. Só os indicadores com limites recebem cor; os outros ficam em cinza."""
-    borda, fundo, texto = CORES.get(cor, CORES[None])
-    largura = "6px" if cor else "1px"
-    st.markdown(
-        f"""<div style="border:1px solid {borda};border-left:{largura} solid {borda};background:{fundo};
-                        border-radius:8px;padding:12px 14px;height:118px;margin-bottom:8px">
-              <div style="font-size:0.85rem;color:#424242">{titulo}</div>
-              <div style="font-size:1.7rem;font-weight:700;color:#212121;line-height:1.5">{valor}</div>
-              <div style="font-size:0.8rem;color:{texto}">{detalhe}</div>
-            </div>""",
-        unsafe_allow_html=True)
+    """Cartão de indicador. Só os indicadores com limites recebem a etiqueta do semáforo; os outros ficam sem."""
+    amatech.cartao(titulo, valor, detalhe, SEMAFORO.get(cor))
 
 
 def tabela(linhas, colunas, vazio="Nenhum registro."):

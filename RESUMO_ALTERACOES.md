@@ -170,7 +170,7 @@ está em `docs/CADASTROS_COMUNS.md`.
 
 ## Como testar os quatro juntos
 
-No servidor: `docker compose up -d --build` (veja o `SERVIDOR.md`). No próprio computador, sem Docker:
+No servidor: `docker stack deploy -c docker-compose.yml amatech` (veja o `SERVIDOR.md`). No próprio computador, sem Docker:
 `powershell -ExecutionPolicy Bypass -File iniciar.ps1`, na raiz do repositório, sobe as telas e as APIs (veja o
 `README.md`). Ou, à mão, cada comando num terminal, a partir da pasta de cada projeto:
 
@@ -205,6 +205,9 @@ Dashboard recusar todos os defeitos daquele período. A tela mostra qual linha c
 
 ## Etapa 2: servidor da rede (Docker)
 
+> **Substituída pela Etapa 3** (Traefik no lugar do Caddy e chaves só para quem vem de fora). Esta seção fica como
+> registro do que foi feito; as rotas, a separação das APIs e as mudanças em cada sistema continuam valendo.
+
 Para todos na mesma rede usarem os sistemas, como numa empresa: **um servidor Windows com Docker, um IP fixo e uma rota
 para cada sistema**, atrás de um proxy (Caddy) na porta 80. Guia completo em `SERVIDOR.md`.
 
@@ -235,3 +238,19 @@ Rastreabilidade e a tela e a API de cada um dos outros três), `servidor/Caddyfi
 | → API da Qualidade | `QUALIDADE_API_KEY` | `amatech-qualidade-demo` |
 | → API da Manutenção | `MANUTENCAO_API_KEY` | `amatech-manutencao-demo` |
 | → API do Dashboard | `DASHBOARD_API_KEY` | `amatech-dashboard-demo` |
+
+---
+
+## Etapa 3: Traefik, HTTPS e perímetro de rede
+
+O servidor passou a ser uma **stack do Docker Swarm** atrás do **Traefik** (rede `VandreNet`), com domínio e HTTPS.
+Guia completo em `SERVIDOR.md`.
+
+| Mudança | Detalhe |
+| --- | --- |
+| Proxy | O Caddy e a página inicial (`servidor/`) saíram. O Traefik roteia direto para cada serviço pelas regras em `deploy.labels` do `docker-compose.yml`; a raiz `/` redireciona para `/dashboard/` |
+| Imagem | Publicada no GHCR pelo GitHub Actions (`.github/workflows/docker-publish.yml`); a stack usa `ghcr.io/radierfalk/amatech-smart-factory:latest` |
+| Chaves | **Entre contêineres** (ou em `localhost`), as APIs dispensam a chave. **Pelo Traefik**, a chave é obrigatória: o proxy acrescenta `X-Forwarded-For`, e a requisição sem chave recebe `401`. `<SISTEMA>_EXIGIR_CHAVE=1` exige a chave também na rede interna |
+| `.env` | Domínio (`AMATECH_HOST`), imagem e as chaves `QUALIDADE_API_KEY`, `MANUTENCAO_API_KEY` e `DASHBOARD_API_KEY` (os sistemas que consomem essas APIs usam o mesmo valor). As da Rastreabilidade continuam no banco dela |
+
+Os testes de API de cada sistema ganharam um caso a mais: sem chave e com `X-Forwarded-For`, a resposta é `401`.

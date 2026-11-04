@@ -83,6 +83,7 @@ def test_erros_da_abertura_externa(cliente):
     corpo = {"equipamento_tag": "TEST-01", "descricao_falha": "Falha no testador", "origem_sistema": "qualidade"}
     # Na rede interna (Abordagem 1), sem chave e aceito (retorna 409 porque TEST-01 ja esta PARADA):
     assert cliente.post("/api/manutencao/chamados", json=corpo).status_code == 409
+    assert cliente.post("/api/manutencao/chamados", json=corpo, headers={"X-Forwarded-For": "203.0.113.7"}).status_code == 401
     assert cliente.post("/api/manutencao/chamados", json=corpo, headers={"X-API-Key": "errada"}).status_code == 401
     assert cliente.post("/api/manutencao/chamados", json=corpo, headers=CHAVE).status_code == 409   # já PARADA (RN02)
     corpo["equipamento_tag"] = "XYZ-99"
@@ -96,6 +97,8 @@ def test_leituras_exigem_chave_e_status_nao(cliente):
     for rota in ("/api/equipamentos", "/api/manutencao/chamados", "/api/manutencao/indicadores"):
         # Na rede interna, leitura liberada sem chave:
         assert cliente.get(rota).status_code == 200
+        # Vindo pelo proxy (Traefik), sem chave e rejeitado:
+        assert cliente.get(rota, headers={"X-Forwarded-For": "203.0.113.7"}).status_code == 401
         # Chave invalida rejeitada com 401:
         assert cliente.get(rota, headers={"X-API-Key": "errada"}).status_code == 401
         assert cliente.get(rota, headers=CHAVE).status_code == 200

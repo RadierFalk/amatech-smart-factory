@@ -72,18 +72,22 @@ horário de Manaus (UTC-4).
 
 ## Servidor da rede (Docker)
 
-No servidor da fábrica, todos os sistemas ficam no mesmo IP, cada um na sua rota, atrás de um proxy na porta 80
+No servidor, todos os sistemas ficam no mesmo domínio, cada um na sua rota, atrás do Traefik com HTTPS
 (guia completo em [`../SERVIDOR.md`](../SERVIDOR.md)):
 
 | Rota | Serviço |
 | --- | --- |
-| `http://IP/rastreabilidade/` | Telas e API no mesmo processo (uvicorn com `--root-path /rastreabilidade`) |
-| `http://IP/rastreabilidade/api/v1/...` e `/rastreabilidade/docs` | API e documentação |
+| `https://<DOMINIO>/rastreabilidade/` | Telas e API no mesmo processo (uvicorn com `--root-path /rastreabilidade`) |
+| `https://<DOMINIO>/rastreabilidade/api/v1/...` e `/rastreabilidade/docs` | API e documentação |
 
 Mudança para o servidor: as telas montavam os endereços da API como `/api/...` (a partir da raiz do site), o que
 quebraria sob a rota `/rastreabilidade/`. Agora o `static/js/api.js` resolve esses endereços a partir da pasta em que o
 sistema está publicado (função `endereco`), e o sistema funciona tanto sozinho (`http://localhost:8000/`) quanto atrás
 do proxy. A tela de Integrações também mostra o endereço da API com a rota.
+
+Chaves da `/api/v1`: dispensadas nas chamadas entre contêineres (ficam registradas no cliente `integracao`) e
+**obrigatórias** para quem chega pelo Traefik (o proxy acrescenta `X-Forwarded-For`). `RASTREABILIDADE_EXIGIR_CHAVE=1`
+exige a chave também na rede interna.
 
 ## 5. Variáveis de ambiente
 
@@ -93,6 +97,7 @@ do proxy. A tela de Integrações também mostra o endereço da API com a rota.
 | `AMATECH_API_KEY` | Chave da rota de máquinas/IoT | `amatech-iot-demo` |
 | `AMATECH_CHAVES_DEMO` | `0` desliga a criação das chaves de demonstração | `1` |
 | `AMATECH_CHAVE_QUALIDADE`, `AMATECH_CHAVE_DASHBOARD`, `AMATECH_CHAVE_MANUTENCAO` | Chaves de demonstração | `amt_demo_qualidade`, `amt_demo_dashboard`, `amt_demo_manutencao` |
+| `RASTREABILIDADE_EXIGIR_CHAVE` | `1` exige a chave também na rede interna | `0` |
 
 ## 6. Como conferir
 

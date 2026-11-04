@@ -33,6 +33,8 @@ def test_status_nao_precisa_de_chave(cliente):
 def test_ocorrencias_exigem_chave(cliente):
     # Na rede interna (Abordagem 1), rota de ocorrencias e acessivel sem chave:
     assert cliente.get("/api/ocorrencias").status_code == 200
+    # Vindo pelo proxy (Traefik), sem chave e rejeitado:
+    assert cliente.get("/api/ocorrencias", headers={"X-Forwarded-For": "203.0.113.7"}).status_code == 401
     # Chave invalida informada continua sendo rejeitada:
     assert cliente.get("/api/ocorrencias", headers={"X-API-Key": "errada"}).status_code == 401
     ocorrencias = cliente.get("/api/ocorrencias", headers=CHAVE).json()

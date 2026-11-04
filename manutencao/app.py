@@ -6,43 +6,39 @@ Replica fielmente o design, login split, sidebar agrupada e todas as rotas do pr
 import importlib
 import streamlit as st
 
-st.set_page_config(
-    page_title="AMATECH · Controle da Manutenção",
-    page_icon="🏭",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+from ui_components import amatech, aplicar_estilos_amatech, esc, rotulo_amigavel
 
-from database import ensure_database_initialized
-from services.auth_service import PERMISSOES_POR_PERFIL, autenticar_usuario
-from services.chamado_service import listar_fila_chamados
-from ui_components import aplicar_estilos_amatech, esc, rotulo_amigavel
+amatech.configurar_pagina("MNT", layout="wide", initial_sidebar_state="expanded")
+
+from database import ensure_database_initialized  # noqa: E402
+from services.auth_service import PERMISSOES_POR_PERFIL, autenticar_usuario  # noqa: E402
+from services.chamado_service import listar_fila_chamados  # noqa: E402
 
 # Estrutura de grupos e rotas idêntica a A.MENU do projeto amatech-manutencao
 MENU_GRUPOS = [
     (
         "Operação",
         [
-            ("painel_maquinas", "▦", "Painel de máquinas"),
-            ("abrir_chamado", "＋", "Abrir chamado"),
-            ("meus_chamados", "☑", "Meus chamados"),
+            ("painel_maquinas", "dashboard", "Painel de máquinas"),
+            ("abrir_chamado", "add_circle", "Abrir chamado"),
+            ("meus_chamados", "assignment_ind", "Meus chamados"),
         ],
     ),
     (
         "Manutenção",
         [
-            ("fila_chamados", "≡", "Fila de chamados"),
-            ("preventiva", "⟳", "Preventiva"),
-            ("ordem_servico", "🗎", "Ordem de serviço"),
+            ("fila_chamados", "list", "Fila de chamados"),
+            ("preventiva", "event_repeat", "Preventiva"),
+            ("ordem_servico", "build", "Ordem de serviço"),
         ],
     ),
     (
         "Gestão",
         [
-            ("dashboard", "◫", "Dashboard"),
-            ("historico", "⌸", "Histórico"),
-            ("cadastros", "⚙", "Cadastros"),
-            ("auditoria", "⧉", "Auditoria"),
+            ("dashboard", "monitoring", "Indicadores"),
+            ("historico", "history", "Histórico"),
+            ("cadastros", "settings", "Cadastros"),
+            ("auditoria", "fact_check", "Auditoria"),
         ],
     ),
 ]
@@ -74,13 +70,13 @@ def _realizar_login(matricula: str, senha: str) -> None:
 
 
 def _renderizar_tela_login() -> None:
-    """Renderiza a Tela de Login idêntica ao design oficial AMATECH: fundo #1F3A5F e card centralizado."""
+    """Renderiza a Tela de Login idêntica ao design oficial AMATECH: fundo #0D1B2A e card centralizado."""
     st.markdown(
         """
         <style>
         /* Fundo global e remoção da sidebar/header na tela de login */
         .stApp {
-          background-color: #1f3a5f !important;
+          background-color: #0d1b2a !important;
         }
         section[data-testid="stSidebar"] {
           display: none !important;
@@ -93,15 +89,15 @@ def _renderizar_tela_login() -> None:
         }
         .block-container {
           max-width: 100% !important;
-          padding-top: 6vh !important;
+          padding-top: 2vh !important;
           padding-bottom: 4vh !important;
         }
 
         /* Card Central Branco */
         div[data-testid="stForm"] {
           background: #ffffff !important;
-          border-radius: 14px !important;
-          padding: 38px 40px 28px 40px !important;
+          border-radius: var(--radius-md) !important;
+          padding: 28px 32px 20px 32px !important;
           box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3) !important;
           border: 1px solid rgba(255, 255, 255, 0.15) !important;
           max-width: 440px !important;
@@ -110,77 +106,75 @@ def _renderizar_tela_login() -> None:
 
         /* Tipografia do Card */
         .login-title {
-          color: #1f3a5f;
+          color: #0d1b2a;
           font-size: 26px;
           font-weight: 800;
           text-align: center;
           margin: 0 0 6px 0;
           letter-spacing: 0.5px;
-          font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          font-family: var(--font-sans);
         }
         .login-sub {
-          color: #5a6e85;
+          color: #4d5b6e;
           font-size: 13.5px;
           text-align: center;
           margin: 0 0 22px 0;
           font-weight: 400;
-          font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          font-family: var(--font-sans);
         }
 
         /* Inputs e Rótulos */
         div[data-testid="stForm"] label {
-          color: #334155 !important;
+          color: #4d5b6e !important;
           font-size: 13px !important;
           font-weight: 500 !important;
           margin-bottom: 3px !important;
         }
         div[data-testid="stForm"] input {
           height: 42px !important;
-          border: 1px solid #cbd5e1 !important;
+          border: 1px solid #d6dde6 !important;
           border-radius: 6px !important;
           font-size: 14px !important;
-          color: #1e293b !important;
+          color: #142133 !important;
           background-color: #ffffff !important;
         }
         div[data-testid="stForm"] input:focus {
-          border-color: #2e75b6 !important;
-          box-shadow: 0 0 0 2px rgba(46, 117, 182, 0.2) !important;
+          border-color: #1f5fd6 !important;
+          box-shadow: 0 0 0 2px rgba(31, 95, 214, 0.2) !important;
         }
 
         /* Botão ENTRAR */
         div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button {
-          background-color: #2e75b6 !important;
+          background-color: #1f5fd6 !important;
           color: #ffffff !important;
           font-weight: 700 !important;
           font-size: 14px !important;
-          letter-spacing: 0.6px !important;
-          text-transform: uppercase !important;
           border-radius: 6px !important;
           height: 42px !important;
           margin-top: 8px !important;
           border: none !important;
-          box-shadow: 0 2px 4px rgba(46, 117, 182, 0.3) !important;
+          box-shadow: 0 2px 4px rgba(31, 95, 214, 0.3) !important;
           transition: all 0.2s ease !important;
         }
         div[data-testid="stForm"] div[data-testid="stFormSubmitButton"] > button:hover {
-          background-color: #246299 !important;
-          box-shadow: 0 4px 10px rgba(46, 117, 182, 0.45) !important;
+          background-color: #1747a6 !important;
+          box-shadow: 0 4px 10px rgba(31, 95, 214, 0.45) !important;
         }
 
         /* Rodapé interno do Card */
         .login-card-footer {
           text-align: center;
-          color: #64748b;
+          color: #4d5b6e;
           font-size: 11.5px;
           margin-top: 18px;
           font-weight: 400;
-          font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          font-family: var(--font-sans);
         }
 
         /* Botões de Demonstração / Acesso Rápido */
         .login-demo-header {
           text-align: center;
-          color: #8fa5bd;
+          color: #a9b8ca;
           font-size: 11px;
           text-transform: uppercase;
           letter-spacing: 0.8px;
@@ -209,15 +203,11 @@ def _renderizar_tela_login() -> None:
         unsafe_allow_html=True,
     )
 
+    amatech.tela_login("MNT")
     col_esq, col_card, col_dir = st.columns([1, 1.15, 1])
 
     with col_card:
         with st.form("form_login_amatech"):
-            st.markdown('<div class="login-title">AMATECH</div>', unsafe_allow_html=True)
-            st.markdown(
-                '<div class="login-sub">Sistema de Controle da Manutenção</div>',
-                unsafe_allow_html=True,
-            )
 
             matricula_in = st.text_input(
                 "Matrícula",
@@ -231,7 +221,7 @@ def _renderizar_tela_login() -> None:
                 placeholder="••••••••",
             )
             btn_entrar = st.form_submit_button(
-                "ENTRAR",
+                "Entrar",
                 type="primary",
                 use_container_width=True,
             )
@@ -279,7 +269,7 @@ def _renderizar_tela_login() -> None:
 
 
 def _renderizar_sidebar_e_navegacao(usuario: dict) -> str:
-    """Renderiza a sidebar escura (--navy-dark #16293f) com grupos de menu e badge da fila."""
+    """Renderiza a sidebar escura (--navy-dark #0d1b2a) com grupos de menu e badge da fila."""
     perfil = usuario["perfil"]
     telas_permitidas = PERMISSOES_POR_PERFIL.get(perfil, ["painel_maquinas"])
 
@@ -290,34 +280,20 @@ def _renderizar_sidebar_e_navegacao(usuario: dict) -> str:
     qtd_fila = len(listar_fila_chamados())
 
     with st.sidebar:
-        st.markdown(
-            """
-            <div class="sb-marca">
-              <div class="sb-logo-linha">
-                <div class="sb-logo-simbolo">A</div>
-                <div class="sb-logo-txt">
-                  <strong>AMATECH</strong>
-                  <span>Controle da Manutenção</span>
-                </div>
-              </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
         for nome_grupo, itens in MENU_GRUPOS:
             itens_visiveis = [it for it in itens if it[0] in telas_permitidas]
             if not itens_visiveis:
                 continue
             st.markdown(f'<div class="sb-nav-grupo">{esc(nome_grupo)}</div>', unsafe_allow_html=True)
             for cod_rota, icone, texto in itens_visiveis:
-                label = f"{icone}  {texto}"
+                label = texto
                 if cod_rota == "fila_chamados" and qtd_fila > 0:
-                    label = f"{icone}  {texto}   ({qtd_fila})"
+                    label = f"{texto} ({qtd_fila})"
                 tipo_btn = "primary" if pagina_ativa == cod_rota else "secondary"
                 if st.button(
                     label,
                     key=f"nav_btn_{cod_rota}",
+                    icon=f":material/{icone}:",
                     type=tipo_btn,
                     use_container_width=True,
                 ):

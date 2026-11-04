@@ -4,10 +4,11 @@ Executar com:  streamlit run app.py
 """
 import streamlit as st
 
-from pages.comum import pode, usuario_logado
+from pages.comum import amatech, pode, usuario_logado
 from servicos.autenticacao import ServicoAutenticacao
 
-st.set_page_config(page_title="Dashboard Industrial · AMATECH", page_icon="🏭", layout="wide")
+amatech.configurar_pagina("DSH", layout="wide")
+amatech.aplicar_estilos()
 
 # Tela, título no menu e permissões que dão acesso a ela (basta uma)
 TELAS = [
@@ -25,9 +26,9 @@ TELAS = [
 
 def tela_login():
     """T01: login e senha. O menu só aparece depois do login."""
+    amatech.tela_login("DSH")
     _, centro, _ = st.columns([1, 1.2, 1])
     with centro:
-        st.markdown("## AMATECH\n#### Dashboard Industrial")
         with st.form("login"):
             login = st.text_input("Login")
             senha = st.text_input("Senha", type="password")
@@ -39,13 +40,15 @@ def tela_login():
             else:
                 st.session_state["usuario"] = usuario
                 st.rerun()
-        st.caption("Usuários de teste: admin/admin123, supervisor/super123, gestor/gestor123, "
-                   "operador/oper123, inspetor/insp123, manutencao/manut123.")
+        amatech.nota_login("Usuários de teste: admin/admin123, supervisor/super123, gestor/gestor123, "
+                           "operador/oper123, inspetor/insp123, manutencao/manut123.")
 
 
 def barra_lateral(usuario):
     with st.sidebar:
-        st.markdown(f"**{usuario.nome}**  \n{usuario.perfil.nome}")
+        amatech.usuario_no_menu(usuario.nome, usuario.perfil.nome, usuario.login)
+        if st.button("Sair", icon=":material/logout:", width="stretch"):
+            sair()
 
 
 def sair():
@@ -63,10 +66,7 @@ else:
             if arquivo.endswith("Cadastros.py") and not pode("cadastros"):
                 titulo = "Limites do semáforo"   # o Supervisor só ajusta os limites (T09, RN08)
             paginas.append(st.Page(arquivo, title=titulo))
-    barra_lateral(usuario)
     pagina = st.navigation(paginas)
-    with st.sidebar:
-        st.divider()
-        if st.button("Sair", width="stretch"):
-            sair()
+    barra_lateral(usuario)
+    amatech.cabecalho("DSH", [("Turno", amatech.turno_atual()), (usuario.perfil.nome, amatech.esc(usuario.nome))])
     pagina.run()
