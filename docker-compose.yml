@@ -201,6 +201,36 @@ services:
         - traefik.http.services.dashboard-api.loadbalancer.server.port=5003
         - traefik.http.services.dashboard-api.loadbalancer.passHostHeader=true
 
+  # ------------------------------------------------------------------ Portal ERP Hub (Ponto Central)
+  portal:
+    <<: *sistema
+    working_dir: /app/portal
+    command: python -m streamlit run app.py --server.port 8500 --server.address 0.0.0.0 --server.baseUrlPath portal --server.headless true
+    environment:
+      ERP_DB: /dados/erp_usuarios.db
+      ERP_PORTAL_URL: https://${AMATECH_HOST:-amatech.automakad.com.br}/portal/
+      RASTREABILIDADE_URL: https://${AMATECH_HOST:-amatech.automakad.com.br}/rastreabilidade/
+      QUALIDADE_URL: https://${AMATECH_HOST:-amatech.automakad.com.br}/qualidade/
+      MANUTENCAO_URL: https://${AMATECH_HOST:-amatech.automakad.com.br}/manutencao/
+      DASHBOARD_URL: https://${AMATECH_HOST:-amatech.automakad.com.br}/dashboard/
+      RASTREABILIDADE_API_URL: http://rastreabilidade:8000/api/v1/saude
+      QUALIDADE_API_URL: http://qualidade-api:5000/api/status
+      MANUTENCAO_API_URL: http://manutencao-api:5002/api/status
+      DASHBOARD_API_URL: http://dashboard-api:5003/api/status
+    volumes:
+      - dados-portal:/dados
+    deploy:
+      <<: *default-deploy
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=VandreNet
+        - traefik.http.routers.portal.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && (PathPrefix(`/portal`) || Path(`/`))
+        - traefik.http.routers.portal.entrypoints=websecure
+        - traefik.http.routers.portal.priority=30
+        - traefik.http.routers.portal.tls.certresolver=letsencryptresolver
+        - traefik.http.services.portal.loadbalancer.server.port=8500
+        - traefik.http.services.portal.loadbalancer.passHostHeader=true
+
   dashboard-tela:
     <<: *sistema
     working_dir: /app/dashboard
@@ -228,15 +258,7 @@ services:
         - traefik.http.routers.dashboard-tela.tls.certresolver=letsencryptresolver
         - traefik.http.services.dashboard-tela.loadbalancer.server.port=8501
         - traefik.http.services.dashboard-tela.loadbalancer.passHostHeader=true
-        # Redirecionamento da raiz / para /dashboard/
-        - traefik.http.routers.amatech-root.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && Path(`/`)
-        - traefik.http.routers.amatech-root.entrypoints=websecure
-        - traefik.http.routers.amatech-root.priority=1
-        - traefik.http.routers.amatech-root.tls.certresolver=letsencryptresolver
-        - traefik.http.routers.amatech-root.middlewares=root-redirect
-        - traefik.http.routers.amatech-root.service=dashboard-tela
-        - traefik.http.middlewares.root-redirect.redirectregex.regex=^https?://[^/]+/?$$
-        - traefik.http.middlewares.root-redirect.redirectregex.replacement=/dashboard/
+        # A raiz / agora e atendida diretamente pelo Portal ERP Hub (servico portal)
 
 volumes:
   dados-rastreabilidade:

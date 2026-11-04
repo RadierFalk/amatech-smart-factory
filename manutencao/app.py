@@ -1,3 +1,4 @@
+import os
 """
 Ponto de Entrada Principal da Aplicação Streamlit (management-control).
 AMATECH Smart Factory — Projeto 5: Sistema de Controle da Manutenção.
@@ -310,6 +311,12 @@ def _renderizar_sidebar_e_navegacao(usuario: dict) -> str:
             unsafe_allow_html=True,
         )
 
+        st.sidebar.link_button(
+            "Hub do ERP",
+            url=os.environ.get("ERP_PORTAL_URL", "http://localhost:8500"),
+            icon=":material/apps:",
+            use_container_width=True,
+        )
         if st.button("Sair do sistema", key="btn_logout_sb", use_container_width=True):
             st.session_state.clear()
             st.rerun()

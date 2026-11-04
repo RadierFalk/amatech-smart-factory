@@ -24,6 +24,7 @@ Este projeto consolida a integração horizontal dos quatro sistemas da fábrica
 
 | Pasta | Setor / Domínio | Projeto Origem | Stack Tecnológica | Rota no Servidor | Portas Locais |
 | :--- | :--- | :--- | :--- | :--- | :--- |
+| [`portal/`](portal/) | **Portal ERP & Hub Modular** | **Núcleo do ERP** | Streamlit · SQLite · RBAC | `/` e `/portal/` | `8500` (Entrada Central) |
 | [`rastreabilidade/`](rastreabilidade/) | **Rastreabilidade e Materiais** | Projeto 2 → Problema 5 | FastAPI · HTML5/Vanilla JS · SQLite | `/rastreabilidade/` | `8000` (Web e API) |
 | [`qualidade/`](qualidade/) | **Controle da Qualidade** | Projeto 4 → Problema 3 | Streamlit · FastAPI · SQLite | `/qualidade/` | `8502` (Tela) · `5000` (API) |
 | [`manutencao/`](manutencao/) | **Gestão da Manutenção** | Projeto 5 → Problema 4 | Streamlit · FastAPI · SQLite | `/manutencao/` | `8503` (Tela) · `5002` (API) |
@@ -141,11 +142,16 @@ cd dashboard; python -m streamlit run app.py --server.port 8501
 
 ### 🌐 Endereços e Credenciais de Teste
 
-| Aplicação | Interface Web (Frontend) | Documentação da API (Swagger) | Usuário de Teste | Senha de Teste | Perfil |
+| Aplicação | Interface Web (Frontend) | Documentação da API (Swagger) | Usuário de Teste | Senha de Teste | Perfil / Módulos Visíveis |
 | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Portal ERP Hub** | [http://localhost:8500](http://localhost:8500) | — | `ADM-0001` | `amatech1234` | **Administrador**: Todos os 4 módulos |
+| **Portal ERP (Inspetor)** | [http://localhost:8500](http://localhost:8500) | — | `QUA-0001` | `amatech1234` | **Inspetor**: Rastreabilidade e Qualidade |
+| **Portal ERP (Operador)** | [http://localhost:8500](http://localhost:8500) | — | `OPE-0001` | `amatech1234` | **Operador**: Rastreabilidade, Qualidade e Manutenção |
+| **Portal ERP (Técnico)** | [http://localhost:8500](http://localhost:8500) | — | `TEC-2001` | `amatech1234` | **Técnico**: Apenas Manutenção |
+| **Portal ERP (Almoxarife)**| [http://localhost:8500](http://localhost:8500) | — | `ALM-0001` | `amatech1234` | **Almoxarife**: Rastreabilidade e Qualidade |
 | **Rastreabilidade** | [http://localhost:8000](http://localhost:8000) | [http://localhost:8000/docs](http://localhost:8000/docs) | `MAT-0001` | `amatech123` | Administrador |
-| **Qualidade** | [http://localhost:8502](http://localhost:8502) | [http://localhost:5000/docs](http://localhost:5000/docs) | *(Acesso livre)* | *(Sem senha)* | Inspetor |
-| **Manutenção** | [http://localhost:8503](http://localhost:8503) | [http://localhost:5002/docs](http://localhost:5002/docs) | `GES-0001` | `123456` | Gestor |
+| **Qualidade** | [http://localhost:8502](http://localhost:8502) | [http://localhost:5000/docs](http://localhost:5000/docs) | `ADM-0001` | `amatech1234` | Administrador / Inspetor |
+| **Manutenção** | [http://localhost:8503](http://localhost:8503) | [http://localhost:5002/docs](http://localhost:5002/docs) | `GES-0001` | `123456` | Gestor / Técnico |
 | **Dashboard Industrial**| [http://localhost:8501](http://localhost:8501) | [http://localhost:5003/docs](http://localhost:5003/docs) | `supervisor` | `super123` | Supervisor |
 
 > **Para encerrar a execução local:** Feche as janelas minimizadas abertas pelo script `iniciar.ps1`.

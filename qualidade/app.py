@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -65,6 +66,14 @@ st.sidebar.markdown(
     f"**{usuario['nome']}**  \n"
     f"Matrícula: {usuario['matricula']}  \n"
     f"Perfil: {usuario['perfil']}"
+)
+
+# Atalho para voltar ao Hub do ERP
+st.sidebar.link_button(
+    "Hub do ERP",
+    url=os.environ.get("ERP_PORTAL_URL", "http://localhost:8500"),
+    icon=":material/apps:",
+    width="stretch",
 )
 
 if st.sidebar.button("Sair"):

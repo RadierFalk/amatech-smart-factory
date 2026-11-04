@@ -21,6 +21,7 @@ CORES = {nome: (_brutos[v[1:-1]] if v.startswith("{") else v) for nome, v in _br
 FONTES = _tokens["type"]["families"]
 
 SETORES = {
+    "ERP": "ERP Suite Industrial",
     "RAS": "Rastreabilidade de Produtos",
     "QLD": "Controle da Qualidade",
     "MNT": "Controle da Manutenção",

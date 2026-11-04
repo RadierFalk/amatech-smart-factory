@@ -1,3 +1,4 @@
+import os
 """Dashboard Industrial: entrada do sistema. Tela de login (T01) e menu de telas conforme o perfil (RF18, RF19).
 
 Executar com:  streamlit run app.py
@@ -47,6 +48,7 @@ def tela_login():
 def barra_lateral(usuario):
     with st.sidebar:
         amatech.usuario_no_menu(usuario.nome, usuario.perfil.nome, usuario.login)
+        st.link_button("Hub do ERP", os.environ.get("ERP_PORTAL_URL", "http://localhost:8500"), icon=":material/apps:", width="stretch")
         if st.button("Sair", icon=":material/logout:", width="stretch"):
             sair()
 

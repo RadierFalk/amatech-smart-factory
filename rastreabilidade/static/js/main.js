@@ -146,7 +146,7 @@ function iniciarSistema() {
       h('div', { class: 'cab-info' },
         h('div', { class: 'cab-item' }, icone('usuario', 22), h('div', {}, h('small', {}, 'Operador'), h('b', {}, u.matricula), h('small', {}, u.nome + ' · ' + u.cargo))),
         h('div', { class: 'cab-item' }, icone('relogio', 22), h('div', {}, h('small', {}, 'Turno'), h('b', {}, sessao.turno))),
-        h('button', { type: 'button', class: 'btn-sair', onclick: () => sair() }, icone('sair', 18), 'Sair'))),
+        h('a', { href: (window.location.protocol + '//' + window.location.hostname + ':8500'), class: 'btn-sair', style: 'text-decoration:none;margin-right:6px;', title: 'Retornar ao Hub do ERP' }, 'Hub ERP'), h('button', { type: 'button', class: 'btn-sair', onclick: () => sair() }, icone('sair', 18), 'Sair'))),
     modulosEl, ribbon, docs, conteudo,
     h('footer', { class: 'rodape-app' }, h('span', {}, 'AMATECH Electronics Indústria e Comércio Ltda. | Polo Industrial de Manaus - AM'), h('span', {}, 'Versão 1.0.0')));
   abrirTela('inicio');
