@@ -76,12 +76,15 @@ def _variaveis() -> str:
     return ":root {" + " ".join(linhas) + "}"
 
 
-CSS = _variaveis() + """
+CSS = """@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+""" + _variaveis() + """
 /* Moldura do Streamlit: sem a barra branca do topo e com a margem do guia */
 header[data-testid="stHeader"] { background: transparent; }
 .block-container { padding-top: 1.25rem; }
 [data-testid="stMetricValue"] { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
 code, .am-codigo { font-family: var(--font-mono); font-weight: 500; }
+
+h1, h2, h3 { font-family: var(--font-display) !important; font-weight: 600 !important; color: var(--tinta) !important; }
 
 /* Cabeçalho */
 .am-cab { background: var(--noite); color: var(--on-noite); display: flex; align-items: center; flex-wrap: wrap;
@@ -102,16 +105,18 @@ code, .am-codigo { font-family: var(--font-mono); font-weight: 500; }
 
 /* Título da tela */
 .am-titulo { margin: 0 0 var(--space-4); }
+.am-breadcrumb { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--sinal); font-weight: 600; margin-bottom: 3px; }
 .am-titulo h1 { font-family: var(--font-display); font-weight: 600; font-size: 24px; line-height: 30px; color: var(--tinta); margin: 0; padding: 0; }
-.am-titulo p { margin: 2px 0 0; color: var(--tinta-2); font-size: 14px; }
+.am-titulo p { margin: 3px 0 0; color: var(--tinta-2); font-size: 14px; }
 
 /* Cartão de indicador */
 .am-kpi { background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--radius-md); box-shadow: var(--sombra-cartao);
-          padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-1); min-height: 152px;
-          box-sizing: border-box; margin-bottom: var(--space-2); }
+          padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-1); min-height: 140px;
+          box-sizing: border-box; margin-bottom: var(--space-2); transition: transform 0.15s ease, box-shadow 0.15s ease; }
+.am-kpi:hover { box-shadow: 0 4px 12px rgba(13, 27, 42, 0.08); }
 .am-kpi-topo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: var(--space-1) var(--space-2); }
 .am-kpi-rotulo { font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--tinta-2); }
-.am-kpi-valor { font-family: var(--font-display); font-weight: 600; font-size: 32px; line-height: 36px; font-variant-numeric: tabular-nums; color: var(--tinta); }
+.am-kpi-valor { font-family: var(--font-display); font-weight: 600; font-size: 30px; line-height: 34px; font-variant-numeric: tabular-nums; color: var(--tinta); }
 .am-kpi-valor small { font-family: var(--font-sans); font-size: 14px; font-weight: 400; color: var(--tinta-2); }
 .am-kpi-detalhe { font-size: 12px; line-height: 16px; color: var(--tinta-2); }
 
@@ -126,7 +131,86 @@ code, .am-codigo { font-family: var(--font-mono); font-weight: 500; }
 .am-etq.info { background: var(--sinal-suave); color: var(--sinal-forte); }
 .am-etq.neutro { background: var(--neutro-suave); color: var(--tinta-2); }
 
-/* Menu lateral (st.navigation): item ativo com o ponto de LED */
+/* Badges de Setor em Fundo Claro (Contraste Aprovado WCAG AA) */
+.am-badge-setor {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.am-badge-setor.ras { background: #e0f4f7; color: #0e7c90; }
+.am-badge-setor.qld { background: #eeeafa; color: #6a4bc4; }
+.am-badge-setor.mnt { background: #f7e8f1; color: #a0407f; }
+.am-badge-setor.dsh { background: #e6eefc; color: #1f5fd6; }
+.am-badge-setor.usr { background: #e2f3e8; color: #1b7a43; }
+.am-badge-setor.erp { background: var(--noite-2); color: var(--on-noite); }
+
+/* Sidebar Global AMATECH */
+section[data-testid="stSidebar"] {
+  background-color: var(--noite) !important;
+  border-right: 1px solid var(--noite-2) !important;
+}
+.sb-nav-grupo {
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--on-noite-suave) !important;
+  margin: 8px 4px 2px;
+  padding: 6px 0 2px;
+  font-weight: 600;
+}
+section[data-testid="stSidebar"] div.stButton > button {
+  width: 100%;
+  justify-content: flex-start !important;
+  text-align: left !important;
+  padding: 8px 12px !important;
+  border-radius: var(--radius-sm) !important;
+  font-size: 13.5px !important;
+  font-weight: 400 !important;
+  border: none !important;
+  background: transparent !important;
+  color: var(--on-noite) !important;
+  margin-bottom: 2px !important;
+  box-shadow: none !important;
+  min-height: 36px !important;
+  position: relative;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+section[data-testid="stSidebar"] div.stButton > button > div,
+section[data-testid="stSidebar"] div.stButton > button p {
+  justify-content: flex-start !important;
+  text-align: left !important;
+  width: 100%;
+}
+section[data-testid="stSidebar"] div.stButton > button:hover {
+  background: var(--noite-2) !important;
+  color: var(--on-noite) !important;
+}
+section[data-testid="stSidebar"] button[kind="primary"],
+section[data-testid="stSidebar"] button[data-testid*="primary"],
+section[data-testid="stSidebar"] div.stButton > button[kind="primary"],
+section[data-testid="stSidebar"] div.stButton > button[data-testid*="primary"] {
+  background: var(--azul) !important;
+  background-color: var(--azul) !important;
+  color: #ffffff !important;
+  border: 1px solid var(--azul) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+}
+section[data-testid="stSidebar"] div.stButton > button[kind="primary"] *,
+section[data-testid="stSidebar"] button[kind="primary"] * {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
+
+/* Menu lateral legada / st.navigation */
 [data-testid="stSidebarNav"] a[aria-current="page"]::after { content: ""; position: absolute; right: 12px; width: 8px; height: 8px;
           border-radius: var(--radius-pill); background: var(--led); }
 [data-testid="stSidebarNav"] a { position: relative; }
@@ -138,13 +222,42 @@ code, .am-codigo { font-family: var(--font-mono); font-weight: 500; }
 
 CSS_LOGIN = """
 .stApp, [data-testid="stAppViewContainer"] { background: var(--noite); }
-.am-login-marca { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); margin: var(--space-8) 0 var(--space-6); }
-.am-login-marca img { width: 48px; height: 48px; }
-.am-login-marca b { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .08em; color: var(--on-noite); }
+.am-login-marca { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); margin: var(--space-6) 0 var(--space-4); }
+.am-login-marca img { width: 52px; height: 52px; }
+.am-login-marca b { font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: .08em; color: var(--on-noite); }
 .am-login-marca span.am-setor { font-size: 12px; }
 .am-login-marca span.nome { color: var(--on-noite); font-size: 16px; font-weight: 600; }
-[data-testid="stForm"] { background: var(--superficie); border: 0; border-radius: var(--radius-md); padding: var(--space-6); }
-.am-login-nota { color: var(--on-noite-suave); font-size: 12px; text-align: center; margin-top: var(--space-4); }
+[data-testid="stForm"] { background: var(--superficie); border: 1px solid var(--linha); border-radius: var(--radius-md); padding: var(--space-6); box-shadow: 0 10px 25px rgba(0,0,0,0.25); }
+.am-login-persona-box { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); border-radius: var(--radius-md); padding: var(--space-4); margin-top: var(--space-4); }
+.am-login-nota { color: var(--on-noite-suave); font-size: 12px; text-align: center; margin-top: var(--space-4); line-height: 1.5; }
+
+/* Ocultação completa da sidebar e de seus controles na tela de login */
+section[data-testid="stSidebar"],
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapseButton"],
+div[data-testid="stSidebarCollapseButton"],
+button[data-testid="baseButton-headerNoPadding"],
+.stSidebar {
+    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    visibility: hidden !important;
+}
+
+[data-testid="stAppViewContainer"] {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+
+[data-testid="stAppViewBlockContainer"],
+.block-container {
+    max-width: 100% !important;
+    padding-top: 2vh !important;
+    padding-bottom: 4vh !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    margin: 0 auto !important;
+}
 """
 
 
@@ -175,10 +288,18 @@ def cabecalho(setor: str, itens: list[tuple[str, str]] | None = None) -> None:
             </header>""")
 
 
-def titulo(texto: str, subtitulo: str = "") -> None:
-    """Título da tela (estilo titulo-tela) com uma linha de explicação."""
+def titulo(texto: str, subtitulo: str = "", breadcrumb: str = "") -> None:
+    """Título da tela (estilo titulo-tela) com uma linha de explicação e breadcrumb opcional."""
+    crumbs = f'<div class="am-breadcrumb">{esc(breadcrumb)}</div>' if breadcrumb else ""
     sub = f"<p>{esc(subtitulo)}</p>" if subtitulo else ""
-    _st().html(f'<div class="am-titulo"><h1>{esc(texto)}</h1>{sub}</div>')
+    _st().html(f'<div class="am-titulo">{crumbs}<h1>{esc(texto)}</h1>{sub}</div>')
+
+
+def badge_setor(sigla: str) -> str:
+    """Badge de setor com alto contraste e fundo suave para superfícies claras (WCAG AA)."""
+    s = str(sigla or "").strip().lower()
+    return f'<span class="am-badge-setor {esc(s)}">{esc(sigla)}</span>'
+
 
 
 def tela_login(setor: str) -> None:
@@ -190,7 +311,8 @@ def tela_login(setor: str) -> None:
 
 
 def nota_login(texto: str) -> None:
-    _st().html(f'<div class="am-login-nota">{esc(texto)}</div>')
+    conteudo = texto if ("<" in texto and ">" in texto) else esc(texto)
+    _st().html(f'<div class="am-login-nota">{conteudo}</div>')
 
 
 def usuario_no_menu(nome: str, perfil: str, matricula: str = "") -> None:
