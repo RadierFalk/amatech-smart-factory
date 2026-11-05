@@ -50,7 +50,7 @@ services:
     volumes:
       - dados-rastreabilidade:/dados
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/saude')"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/saude')" ]
       interval: 15s
       start_period: 20s
     deploy:
@@ -78,7 +78,7 @@ services:
     volumes:
       - dados-qualidade:/dados
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/status')"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/status')" ]
       interval: 15s
       start_period: 15s
     deploy:
@@ -133,7 +133,7 @@ services:
     volumes:
       - dados-manutencao:/dados
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/api/status')"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5002/api/status')" ]
       interval: 15s
       start_period: 15s
     deploy:
@@ -184,7 +184,7 @@ services:
     volumes:
       - dados-dashboard:/dados
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5003/api/status')"]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5003/api/status')" ]
       interval: 15s
       start_period: 15s
     deploy:
@@ -265,6 +265,7 @@ volumes:
   dados-qualidade:
   dados-manutencao:
   dados-dashboard:
+  dados-portal:
 
 networks:
   VandreNet:
