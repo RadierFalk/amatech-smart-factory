@@ -102,9 +102,8 @@ def aplicar_estilos_amatech() -> None:
 
         /* ---------------- Sidebar (#0d1b2a --navy-dark) ---------------- */
         section[data-testid="stSidebar"] {
-          background-color: var(--navy-dark) !important;
-          border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
-          width: 252px !important;
+          background-color: var(--noite) !important;
+          border-right: 1px solid var(--noite-2) !important;
         }
         section[data-testid="stSidebar"] > div {
           padding-top: 0.5rem !important;
@@ -152,8 +151,8 @@ def aplicar_estilos_amatech() -> None:
           text-transform: uppercase;
           letter-spacing: .06em;
           color: var(--on-noite-suave) !important;
-          margin: 0 6px;
-          padding: 16px 0 6px;
+          margin: 8px 4px 2px;
+          padding: 6px 0 2px;
           font-weight: 600;
         }
         section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"]:has(.sb-nav-grupo) {
@@ -173,22 +172,23 @@ def aplicar_estilos_amatech() -> None:
           margin-bottom: 2px;
         }
 
-        /* Botões de navegação na Sidebar */
+        /* Botões de navegação na Sidebar unificados com o Design AMATECH */
         section[data-testid="stSidebar"] div.stButton > button {
           width: 100%;
           justify-content: flex-start !important;
           text-align: left !important;
           padding: 8px 12px !important;
           border-radius: var(--radius-sm) !important;
-          font-size: 14px !important;
+          font-size: 13.5px !important;
           font-weight: 400 !important;
           border: none !important;
           background: transparent !important;
           color: var(--on-noite) !important;
-          margin-bottom: 1px !important;
+          margin-bottom: 2px !important;
           box-shadow: none !important;
           min-height: 36px !important;
           position: relative;
+          transition: background 0.15s ease, color 0.15s ease;
         }
         section[data-testid="stSidebar"] div.stButton > button > div,
         section[data-testid="stSidebar"] div.stButton > button p {
@@ -203,21 +203,20 @@ def aplicar_estilos_amatech() -> None:
           background: var(--noite-2) !important;
           color: var(--on-noite) !important;
         }
-        /* Item ativo (guia: MenuLateral): fundo noite-2, peso 600 e o ponto de LED à direita */
-        section[data-testid="stSidebar"] div.stButton > button[kind="primary"] {
-          background: var(--noite-2) !important;
-          color: var(--on-noite) !important;
+        /* Item ativo (padrão unificado dos módulos: botão azul com texto branco) */
+        section[data-testid="stSidebar"] div.stButton > button[kind="primary"],
+        section[data-testid="stSidebar"] div.stButton > button[data-testid*="primary"] {
+          background-color: var(--azul) !important;
+          background: var(--azul) !important;
+          color: #ffffff !important;
+          border: 1px solid var(--azul) !important;
           font-weight: 600 !important;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
         }
-        section[data-testid="stSidebar"] div.stButton > button[kind="primary"]::after {
-          content: "";
-          position: absolute;
-          right: 12px;
-          top: calc(50% - 4px);
-          width: 8px;
-          height: 8px;
-          border-radius: var(--radius-pill);
-          background: var(--led);
+        section[data-testid="stSidebar"] div.stButton > button[kind="primary"] *,
+        section[data-testid="stSidebar"] div.stButton > button[data-testid*="primary"] * {
+          color: #ffffff !important;
+          font-weight: 600 !important;
         }
 
         /* ---------------- Topbar (.topbar) ---------------- */
@@ -515,18 +514,25 @@ def aplicar_estilos_amatech() -> None:
         }
 
         .maquina-card {
-          background: var(--branco);
-          border: 1px solid var(--cinza-200);
-          border-left: 4px solid var(--verde);
-          border-radius: var(--raio);
-          padding: 13px 14px;
-          box-shadow: var(--sombra);
+          background: var(--superficie);
+          border: 1px solid var(--linha);
+          border-left: 4px solid var(--ok);
+          border-radius: var(--radius-md);
+          padding: 14px 16px;
+          box-shadow: var(--sombra-cartao);
           display: flex;
           flex-direction: column;
           gap: 8px;
-          margin-bottom: 6px;
+          margin-bottom: 8px;
           min-height: 126px;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
         }
+        .maquina-card:hover {
+          box-shadow: 0 4px 12px rgba(13, 27, 42, 0.08);
+        }
+        .maquina-card[data-estado="EM_MANUTENCAO"] { border-left-color: var(--atencao); }
+        .maquina-card[data-estado="PARADA"],
+        .maquina-card[data-estado="INDISPONIVEL"] { border-left-color: var(--critico); }
         .maquina-card[data-estado="EM_MANUTENCAO"] { border-left-color: var(--amarelo); }
         .maquina-card[data-estado="PARADA"],
         .maquina-card[data-estado="INDISPONIVEL"] { border-left-color: var(--vermelho); }
@@ -798,21 +804,7 @@ def aplicar_estilos_amatech() -> None:
         }
 
         /* ---------------- Botões e Inputs Padrão no Conteúdo Principal ---------------- */
-        div[data-testid="stMainBlockContainer"] div.stButton > button[kind="primary"],
-        div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
-          background-color: var(--azul) !important;
-          color: #ffffff !important;
-          border: 1px solid transparent !important;
-          border-radius: var(--raio-sm) !important;
-          font-size: 13px !important;
-          font-weight: 600 !important;
-          padding: 7px 14px !important;
-          transition: filter 0.15s !important;
-        }
-        div[data-testid="stMainBlockContainer"] div.stButton > button[kind="primary"]:hover,
-        div[data-testid="stFormSubmitButton"] > button[kind="primary"]:hover {
-          filter: brightness(1.07) !important;
-        }
+        /* Botoes alinhados ao padrao AMATECH */
         div[data-testid="stMainBlockContainer"] div.stButton > button[kind="secondary"],
         div[data-testid="stFormSubmitButton"] > button[kind="secondary"] {
           background-color: var(--branco) !important;
@@ -833,22 +825,21 @@ def aplicar_estilos_amatech() -> None:
 
 
 def renderizar_topbar(titulo: str, subtitulo: str = "") -> None:
-    """Cabeçalho comum da AMATECH (setor MNT, data, turno e usuário) seguido do título da tela."""
+    """Cabeçalho unificado AMATECH (setor MNT, turno e usuário) seguido do título da tela com breadcrumb."""
     usuario = st.session_state.get("usuario_logado") or {
         "nome": "Visitante",
         "perfil": "OPERADOR",
         "matricula": "",
     }
     perfil_fmt = rotulo_amigavel(usuario.get("perfil"))
-
-    dias_semana = ["seg.", "ter.", "qua.", "qui.", "sex.", "sáb.", "dom."]
-    agora = datetime.now()
-    relogio_str = f"{dias_semana[agora.weekday()]}, {agora.strftime('%d/%m, %H:%M')}"
     matricula = usuario.get("matricula")
     quem = esc(usuario.get("nome")) + (f' · <span class="am-codigo">{esc(matricula)}</span>' if matricula else "")
 
-    amatech.cabecalho("MNT", [(relogio_str, esc(amatech.turno_atual(agora))), (perfil_fmt, quem)])
-    amatech.titulo(titulo, subtitulo)
+    amatech.cabecalho("MNT", [
+        ("Turno", amatech.turno_atual()),
+        (perfil_fmt, quem),
+    ])
+    amatech.titulo(titulo, subtitulo, breadcrumb="MNT · GESTÃO DA MANUTENÇÃO")
 
 
 def renderizar_cabecalho(titulo: str, subtitulo: str = "", badge_extra: str = "") -> None:
@@ -864,15 +855,15 @@ def kpi_html(
     detalhe: str = "",
     variante: str = "azul",
 ) -> str:
-    """Gera o bloco HTML de um card .kpi (variantes: verde, amarelo, vermelho, azul)."""
-    small_html = f"<small>{esc(unidade)}</small>" if unidade else ""
-    return f"""
-    <div class="kpi {esc(variante)}">
-      <div class="rotulo">{esc(rotulo)}</div>
-      <div class="valor">{esc(valor)}{small_html}</div>
-      <div class="detalhe">{esc(detalhe)}</div>
-    </div>
-    """
+    """Gera o bloco HTML de um card de indicador no padrão AMATECH Design System."""
+    mapa_estado = {
+        "verde": "ok",
+        "amarelo": "atencao",
+        "vermelho": "critico",
+        "azul": None,
+    }
+    estado = mapa_estado.get(variante)
+    return amatech.cartao_html(rotulo, valor, detalhe=detalhe, estado=estado, unidade=unidade)
 
 
 def renderizar_kpi_card(
@@ -896,32 +887,11 @@ def renderizar_kpi_card(
 
 
 def selo_html(valor: str | None) -> str:
-    """Retorna um badge .selo com ponto colorido conforme o estado/status/prioridade/tipo."""
+    """Retorna um badge oficial com ponto colorido conforme o padrão AMATECH Design System."""
     if not valor:
-        return '<span class="selo selo-baixa">—</span>'
-    chave = str(valor).upper()
-    mapa_classe = {
-        "OPERACIONAL": "selo-funcionando",
-        "FUNCIONANDO": "selo-funcionando",
-        "EM_MANUTENCAO": "selo-em_manutencao",
-        "PARADA": "selo-indisponivel",
-        "INDISPONIVEL": "selo-indisponivel",
-        "ABERTO": "selo-aberto",
-        "EM_ANDAMENTO": "selo-em_andamento",
-        "CONCLUIDO": "selo-concluido",
-        "CANCELADO": "selo-cancelado",
-        "BAIXA": "selo-baixa",
-        "MEDIA": "selo-media",
-        "ALTA": "selo-alta",
-        "CRITICA": "selo-critica",
-        "PREVENTIVA": "selo-preventiva",
-        "CORRETIVA": "selo-corretiva",
-        "GESTOR": "selo-media",
-        "TECNICO": "selo-alta",
-        "OPERADOR": "selo-baixa",
-    }
-    classe = mapa_classe.get(chave, "selo-baixa")
-    return f'<span class="selo {classe}">{esc(rotulo_amigavel(chave))}</span>'
+        return amatech.etiqueta("—", "neutro")
+    texto = rotulo_amigavel(valor)
+    return amatech.etiqueta(texto)
 
 
 def badge_status_equipamento_html(status: str) -> str:

@@ -56,7 +56,7 @@ def render() -> None:
             "Período",
             options=[x[0] for x in opcoes_dias],
             index=1,
-            format_func=lambda d: dict(opcoes_dias)[d],
+            format_func=lambda d: dict(opcoes_dias).get(d, str(d)),
             label_visibility="collapsed",
             key="dash_dias_sel",
         )

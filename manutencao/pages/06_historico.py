@@ -192,8 +192,8 @@ def render() -> None:
         setor="Todos" if est_sel == "Todas" else est_sel,
         status_chamado=status_sel,
         tipo_manutencao=tipo_sel,
-        data_inicio=dt_ini.strftime("%Y-%m-%d") if aplicar_periodo else None,
-        data_fim=dt_fim.strftime("%Y-%m-%d") if aplicar_periodo else None,
+        data_inicio=dt_ini.strftime("%Y-%m-%d") if (aplicar_periodo and hasattr(dt_ini, "strftime")) else None,
+        data_fim=dt_fim.strftime("%Y-%m-%d") if (aplicar_periodo and hasattr(dt_fim, "strftime")) else None,
         busca_texto=busca_q,
     )
 

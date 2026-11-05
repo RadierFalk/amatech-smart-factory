@@ -9,7 +9,8 @@ import streamlit as st
 
 from ui_components import amatech, aplicar_estilos_amatech, esc, rotulo_amigavel
 
-amatech.configurar_pagina("MNT", layout="wide", initial_sidebar_state="expanded")
+sidebar_inicial_mnt = "collapsed" if st.session_state.get("usuario_logado") is None else "expanded"
+amatech.configurar_pagina("MNT", layout="wide", initial_sidebar_state=sidebar_inicial_mnt)
 
 from database import ensure_database_initialized  # noqa: E402
 from services.auth_service import PERMISSOES_POR_PERFIL, autenticar_usuario  # noqa: E402
@@ -79,8 +80,15 @@ def _renderizar_tela_login() -> None:
         .stApp {
           background-color: #0d1b2a !important;
         }
-        section[data-testid="stSidebar"] {
+        section[data-testid="stSidebar"],
+        [data-testid="collapsedControl"],
+        [data-testid="stSidebarCollapseButton"],
+        div[data-testid="stSidebarCollapseButton"],
+        button[data-testid="baseButton-headerNoPadding"],
+        .stSidebar {
           display: none !important;
+          width: 0 !important;
+          visibility: hidden !important;
         }
         header[data-testid="stHeader"] {
           display: none !important;

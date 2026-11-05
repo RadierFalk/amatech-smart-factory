@@ -131,7 +131,7 @@ def render() -> None:
 
     renderizar_topbar("Ordem de serviço", f"OS #{ch['id']}")
 
-    pode_operar = usuario["perfil"] in ("TECNICO", "GESTOR")
+    pode_operar = usuario["perfil"] in ("TECNICO", "GESTOR", "ADMINISTRADOR")
     eh_responsavel = ch.get("tecnico_responsavel_id") == usuario["id"]
     eh_gestor = usuario["perfil"] == "GESTOR"
     editavel = ch["status_chamado"] == "EM_ANDAMENTO"
