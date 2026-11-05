@@ -14,14 +14,26 @@ import time
 from typing import Any
 from urllib.parse import urlparse
 
-from permissoes import (
-    ADMINISTRADOR,
-    ALMOXARIFE,
-    INSPETOR,
-    OPERADOR,
-    SUPERVISOR,
-    TECNICO,
-)
+try:
+    from portal.permissoes import (
+        resolver_perfil_canonico,
+        ADMINISTRADOR,
+        ALMOXARIFE,
+        INSPETOR,
+        OPERADOR,
+        SUPERVISOR,
+        TECNICO,
+    )
+except ImportError:
+    from permissoes import (
+        resolver_perfil_canonico,
+        ADMINISTRADOR,
+        ALMOXARIFE,
+        INSPETOR,
+        OPERADOR,
+        SUPERVISOR,
+        TECNICO,
+    )
 
 RAIZ = Path(__file__).resolve().parent.parent
 PASTA_PORTAL = Path(__file__).resolve().parent
@@ -127,13 +139,29 @@ def _identificar_setor_por_url(url: str) -> tuple[str | None, str]:
         caminho = f"{caminho}?{parsed.query}"
     host_porta = parsed.netloc.lower()
 
-    if ":8000" in host_porta or caminho.startswith("/api/v1/"):
+    # 1. Rotas canônicas de cada subsistema têm precedência estrita sobre a porta
+    if caminho.startswith("/api/v1/"):
         return "rastreabilidade", caminho
-    if ":5002" in host_porta or caminho.startswith("/api/ocorrencias"):
-        return "qualidade", caminho
-    if ":5000" in host_porta or caminho.startswith("/api/manutencao") or caminho.startswith("/api/equipamentos"):
+    if (
+        caminho.startswith("/api/equipamentos")
+        or caminho.startswith("/api/manutencao")
+        or caminho.startswith("/api/chamados")
+        or caminho.startswith("/api/ordens")
+    ):
         return "manutencao", caminho
-    if ":5003" in host_porta or caminho.startswith("/api/indicadores"):
+    if caminho.startswith("/api/ocorrencias"):
+        return "qualidade", caminho
+    if caminho.startswith("/api/indicadores"):
+        return "dashboard", caminho
+
+    # 2. Resolução por porta padrão do subsistema
+    if ":8000" in host_porta:
+        return "rastreabilidade", caminho
+    if ":5000" in host_porta:
+        return "manutencao", caminho
+    if ":5002" in host_porta:
+        return "qualidade", caminho
+    if ":5003" in host_porta:
         return "dashboard", caminho
     return None, caminho
 
@@ -292,9 +320,10 @@ def sincronizar_usuario_nos_modulos(usuario_erp: dict[str, Any], session_state: 
     matricula = usuario_erp["matricula"].strip().upper()
     nome = usuario_erp["nome"].strip()
     perfil_erp = usuario_erp["perfil"]
+    perfil_canonico = resolver_perfil_canonico(perfil_erp)
 
     # 1. Rastreabilidade (rastreabilidade/database/amatech.db)
-    cargo_ras = MAPA_CARGO_RASTREABILIDADE.get(perfil_erp, "Operador")
+    cargo_ras = MAPA_CARGO_RASTREABILIDADE.get(perfil_canonico, "Operador")
     with ambiente_modulo("rastreabilidade"):
         from contextlib import closing
         from app import db, seed
@@ -332,11 +361,12 @@ def sincronizar_usuario_nos_modulos(usuario_erp: dict[str, Any], session_state: 
             }
 
     # 2. Qualidade (qualidade/banco/controle_qualidade.db)
-    perfil_qld = MAPA_PERFIL_QUALIDADE.get(perfil_erp, "Operador")
+    perfil_qld = MAPA_PERFIL_QUALIDADE.get(perfil_canonico, "Operador")
     with ambiente_modulo("qualidade"):
         from contextlib import closing
         import banco
         import migracao
+        import autenticacao
         banco.preparar_banco()
         migracao.migrar()
         with closing(banco.conectar()) as conn:
@@ -345,12 +375,13 @@ def sincronizar_usuario_nos_modulos(usuario_erp: dict[str, Any], session_state: 
                 (matricula,),
             ).fetchone()
             if row is None:
+                hash_padrao = autenticacao.gerar_hash("amatech1234")
                 cur = conn.execute(
                     """
-                    INSERT INTO usuario (matricula, nome_usuario, senha_usuario, perfil_usuario, ativo)
-                    VALUES (?, ?, 'amatech1234', ?, 1)
+                    INSERT INTO usuario (matricula, nome_usuario, senha_hash, perfil_usuario, ativo, data_criacao, data_alteracao_senha)
+                    VALUES (?, ?, ?, ?, 1, datetime('now'), datetime('now'))
                     """,
-                    (matricula, nome, perfil_qld),
+                    (matricula, nome, hash_padrao, perfil_qld),
                 )
                 id_qld = cur.lastrowid
                 conn.commit()
@@ -370,7 +401,7 @@ def sincronizar_usuario_nos_modulos(usuario_erp: dict[str, Any], session_state: 
         session_state["ultimo_acesso"] = time.time()
 
     # 3. Manutenção (manutencao/manutencao.db)
-    perfil_mnt = MAPA_PERFIL_MANUTENCAO.get(perfil_erp, "OPERADOR")
+    perfil_mnt = MAPA_PERFIL_MANUTENCAO.get(perfil_canonico, "OPERADOR")
     with ambiente_modulo("manutencao"):
         from database import ensure_database_initialized, get_connection
         ensure_database_initialized()
@@ -408,7 +439,7 @@ def sincronizar_usuario_nos_modulos(usuario_erp: dict[str, Any], session_state: 
         }
 
     # 4. Dashboard Industrial (dashboard/database/banco.db)
-    perfil_dsh_nome = MAPA_PERFIL_DASHBOARD.get(perfil_erp, "Operador de estação")
+    perfil_dsh_nome = MAPA_PERFIL_DASHBOARD.get(perfil_canonico, "Operador de estação")
     with ambiente_modulo("dashboard"):
         from acesso_dados import Repositorio
         from modelos import Perfil, Usuario

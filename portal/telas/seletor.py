@@ -39,10 +39,17 @@ def mostrar_seletor(usuario: dict[str, Any]) -> None:
     amatech.titulo(
         "Selecione o Módulo Operacional",
         f"Bem-vindo(a), {usuario['nome']}. Sua persona ({usuario['perfil']}) possui acesso habilitado a {len(modulos)} de {total_catalogo} módulos do ERP AMATECH.",
+        breadcrumb="ERP AMATECH · HUB DE MÓDULOS",
     )
 
     if desc_persona:
-        st.caption(f"**Escopo Corporativo da Persona:** {desc_persona}")
+        st.html(
+            f"""
+            <div style="background: var(--superficie); border: 1px solid var(--linha); border-left: 3px solid var(--sinal); border-radius: var(--radius-sm); padding: 8px 14px; margin-bottom: 16px; font-size: 13px; color: var(--tinta-2);">
+                <strong style="color: var(--tinta);">Escopo da Persona ({amatech.esc(usuario['perfil'])}):</strong> {amatech.esc(desc_persona)}
+            </div>
+            """
+        )
 
     if not modulos:
         st.warning(
@@ -60,37 +67,39 @@ def mostrar_seletor(usuario: dict[str, Any]) -> None:
 
         with coluna:
             with st.container(border=True):
-                topo_l, topo_r = st.columns([3.5, 1])
+                topo_l, topo_r = st.columns([3.5, 1.2])
                 with topo_l:
-                    st.markdown(
+                    st.html(
                         f"""
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <div>
-                                <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--tinta);">
-                                    {amatech.esc(modulo.nome)}
-                                </h3>
-                                <small style="color: var(--tinta-2); font-weight: 500;">{amatech.esc(modulo.categoria)}</small>
-                            </div>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--tinta);">
+                                {amatech.esc(modulo.nome)}
+                            </h3>
+                            <small style="color: var(--tinta-2); font-weight: 500;">{amatech.esc(modulo.categoria)}</small>
                         </div>
-                        """,
-                        unsafe_allow_html=True,
+                        """
                     )
                 with topo_r:
-                    st.markdown(
+                    st.html(
                         f"""
                         <div style="text-align: right;">
-                            <span class="am-setor" style="font-size: 11px;">{amatech.esc(modulo.sigla)}</span>
+                            {amatech.badge_setor(modulo.sigla)}
                         </div>
-                        """,
-                        unsafe_allow_html=True,
+                        """
                     )
 
-                st.markdown(
-                    f"<p style='color: var(--tinta); font-size: 0.9rem; min-height: 44px; margin: 0.7rem 0;'>{amatech.esc(modulo.descricao)}</p>",
-                    unsafe_allow_html=True,
+                st.html(
+                    f"<p style='color: var(--tinta); font-size: 0.88rem; line-height: 1.45; min-height: 42px; margin: 0.6rem 0;'>{amatech.esc(modulo.descricao)}</p>"
                 )
 
-                st.info(f"**Poder de Acesso no Módulo:** {papel}", icon=":material/verified_user:")
+                st.html(
+                    f"""
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; background: var(--superficie-2); border-radius: var(--radius-sm); margin-bottom: 12px; border: 1px solid var(--linha);">
+                        <span style="font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--tinta-2); font-weight: 600;">Poder de Acesso</span>
+                        <span style="font-size: 12px; font-weight: 600; color: var(--tinta);">{amatech.esc(papel)}</span>
+                    </div>
+                    """
+                )
 
                 if st.button(
                     f"Entrar em {modulo.nome} ({modulo.sigla})",

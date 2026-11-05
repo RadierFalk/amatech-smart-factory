@@ -150,15 +150,35 @@ CATALOGO_MODULOS: dict[str, ModuloERP] = {
 }
 
 
+
+def resolver_perfil_canonico(perfil_raw: str | None) -> str:
+    """Normaliza qualquer variação de rótulo, código, sigla ou matrícula para uma das 6 personas canônicas."""
+    s = str(perfil_raw or "").strip().lower()
+    if not s:
+        return OPERADOR
+    if "admin" in s or s == "adm" or s.startswith("adm"):
+        return ADMINISTRADOR
+    if "superv" in s or "gest" in s or s == "ges" or s.startswith("ges"):
+        return SUPERVISOR
+    if "insp" in s or "qual" in s or s == "qua" or s.startswith("qua"):
+        return INSPETOR
+    if "tecn" in s or "técn" in s or "mnt" in s or s == "tec" or s.startswith("tec"):
+        return TECNICO
+    if "almox" in s or s == "alm" or s.startswith("alm"):
+        return ALMOXARIFE
+    if "oper" in s or s == "ope" or s.startswith("ope"):
+        return OPERADOR
+    return OPERADOR
+
 # ============================================================
 # FUNÇÕES DE CONSULTA RBAC
 # ============================================================
 
 def obter_perfil_usuario(usuario: dict | None) -> str | None:
-    """Extrai o perfil/persona do dicionário de usuário da sessão."""
+    """Extrai o perfil/persona canônico do dicionário de usuário da sessão."""
     if not usuario:
         return None
-    return usuario.get("perfil")
+    return resolver_perfil_canonico(usuario.get("perfil"))
 
 
 def tem_acesso_modulo(usuario: dict | None, id_modulo: str) -> bool:

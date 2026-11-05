@@ -80,5 +80,8 @@ def renderizar_modulo_dashboard(usuario_erp: dict[str, Any]) -> None:
             ],
         )
 
+        sub_rotulo = next((r for a, r, _ in telas_permitidas if a == st.session_state["dsh_subpagina"]), "Dashboard")
+        st.markdown(f'<div class="am-breadcrumb" style="margin-top: 4px;">DSH · DASHBOARD INDUSTRIAL · {amatech.esc(sub_rotulo.upper())}</div>', unsafe_allow_html=True)
+
         caminho_script = pasta_dsh / st.session_state["dsh_subpagina"]
         runpy.run_path(str(caminho_script), run_name="__main__")

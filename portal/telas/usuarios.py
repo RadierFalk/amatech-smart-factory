@@ -43,6 +43,7 @@ def mostrar_gestao_usuarios(usuario_logado: dict[str, Any]) -> None:
         amatech.titulo(
             "Gestão de Usuários e Controle de Acessos (RBAC)",
             "Administração centralizada de credenciais corporativas, personas e permissões de acesso aos 5 módulos do ERP",
+            breadcrumb="ERP AMATECH · ADMINISTRAÇÃO",
         )
     with col_b:
         if st.button("⬅️ Seletor de Módulos", icon=":material/apps:", width="stretch", key="usr_btn_voltar_hub"):
@@ -92,15 +93,9 @@ def mostrar_gestao_usuarios(usuario_logado: dict[str, Any]) -> None:
 
                 with c_status:
                     if u["ativo"]:
-                        st.markdown(
-                            "<span style='color: var(--ok); font-weight: 600;'>● Ativo</span>",
-                            unsafe_allow_html=True,
-                        )
+                        st.markdown(amatech.etiqueta("Ativo", "ok"), unsafe_allow_html=True)
                     else:
-                        st.markdown(
-                            "<span style='color: var(--critico); font-weight: 600;'>○ Inativo</span>",
-                            unsafe_allow_html=True,
-                        )
+                        st.markdown(amatech.etiqueta("Inativo", "critico"), unsafe_allow_html=True)
 
                 with c_acoes:
                     with st.popover("Gerenciar Conta", icon=":material/settings:"):

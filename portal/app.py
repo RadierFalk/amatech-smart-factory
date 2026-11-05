@@ -51,7 +51,9 @@ from telas.usuarios import mostrar_gestao_usuarios
 inicializar_banco()
 
 # Configuração e Design System Oficial AMATECH
-amatech.configurar_pagina("ERP", layout="wide")
+# No login a sidebar fica recolhida/oculta; após login, expandida para navegação
+sidebar_inicial = "collapsed" if st.session_state.get("erp_usuario") is None else "expanded"
+amatech.configurar_pagina("ERP", layout="wide", initial_sidebar_state=sidebar_inicial)
 amatech.aplicar_estilos()
 
 # ============================================================
@@ -75,8 +77,11 @@ if usuario is None:
 
     _, centro, _ = st.columns([1, 1.45, 1])
     with centro:
+        if "login_preenchido_mat" not in st.session_state:
+            st.session_state["login_preenchido_mat"] = ""
+
         with st.form("form_login_erp"):
-            st.markdown(
+            st.html(
                 """
                 <div style="text-align: center; margin-bottom: 1.1rem;">
                     <h3 style="margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--tinta);">
@@ -86,11 +91,11 @@ if usuario is None:
                         Informe sua matrícula funcional e senha para acessar os módulos habilitados para sua persona
                     </p>
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
-            matricula = st.text_input("Matrícula Funcional", placeholder="Ex: ADM-0001, GES-0001, OPE-0001...")
+            val_padrao = st.session_state.get("login_preenchido_mat", "")
+            matricula = st.text_input("Matrícula Funcional", value=val_padrao, placeholder="Ex: ADM-0001, GES-0001, OPE-0001...")
             senha = st.text_input("Senha", type="password", placeholder="Digite sua senha")
             btn_entrar = st.form_submit_button("Entrar no ERP", type="primary", width="stretch")
 
@@ -104,14 +109,69 @@ if usuario is None:
                 else:
                     st.error(mensagem)
 
+        # Seletor rápido de demonstração (Quick Persona Selector)
+        st.html(
+            """
+            <div class="am-login-persona-box">
+                <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--on-noite-suave); font-weight: 600; margin-bottom: 8px; text-align: center;">
+                    ⚡ Demonstração Rápida por Persona (Clique para Entrar Direto):
+                </div>
+            </div>
+            """
+        )
+
+        p_c1, p_c2, p_c3 = st.columns(3)
+        with p_c1:
+            if st.button("👑 Administrador\n`ADM-0001`", key="demo_adm", width="stretch"):
+                sucesso, _, dados = autenticar("ADM-0001", "amatech1234")
+                if sucesso and dados:
+                    st.session_state["erp_usuario"] = dados
+                    st.session_state["modulo_ativo"] = None
+                    sincronizar_usuario_nos_modulos(dados, st.session_state)
+                    st.rerun()
+            if st.button("🔍 Inspetor QLD\n`QUA-0001`", key="demo_qua", width="stretch"):
+                sucesso, _, dados = autenticar("QUA-0001", "amatech1234")
+                if sucesso and dados:
+                    st.session_state["erp_usuario"] = dados
+                    st.session_state["modulo_ativo"] = None
+                    sincronizar_usuario_nos_modulos(dados, st.session_state)
+                    st.rerun()
+
+        with p_c2:
+            if st.button("📋 Supervisor\n`GES-0001`", key="demo_ges", width="stretch"):
+                sucesso, _, dados = autenticar("GES-0001", "amatech1234")
+                if sucesso and dados:
+                    st.session_state["erp_usuario"] = dados
+                    st.session_state["modulo_ativo"] = None
+                    sincronizar_usuario_nos_modulos(dados, st.session_state)
+                    st.rerun()
+            if st.button("🔧 Técnico MNT\n`TEC-2001`", key="demo_tec", width="stretch"):
+                sucesso, _, dados = autenticar("TEC-2001", "amatech1234")
+                if sucesso and dados:
+                    st.session_state["erp_usuario"] = dados
+                    st.session_state["modulo_ativo"] = None
+                    sincronizar_usuario_nos_modulos(dados, st.session_state)
+                    st.rerun()
+
+        with p_c3:
+            if st.button("⚙️ Operador\n`OPE-0001`", key="demo_ope", width="stretch"):
+                sucesso, _, dados = autenticar("OPE-0001", "amatech1234")
+                if sucesso and dados:
+                    st.session_state["erp_usuario"] = dados
+                    st.session_state["modulo_ativo"] = None
+                    sincronizar_usuario_nos_modulos(dados, st.session_state)
+                    st.rerun()
+            if st.button("📦 Almoxarife\n`ALM-0001`", key="demo_alm", width="stretch"):
+                sucesso, _, dados = autenticar("ALM-0001", "amatech1234")
+                if sucesso and dados:
+                    st.session_state["erp_usuario"] = dados
+                    st.session_state["modulo_ativo"] = None
+                    sincronizar_usuario_nos_modulos(dados, st.session_state)
+                    st.rerun()
+
         amatech.nota_login(
-            "<b>Contas de Demonstração por Persona (Senha única: <code>amatech1234</code>):</b><br>"
-            "• <code>ADM-0001</code> — Ana Souza (<b>Administrador</b>): RAS, QLD, MNT, DSH e USR (5 módulos)<br>"
-            "• <code>GES-0001</code> — Orlando Vandres (<b>Supervisor / Gestor</b>): RAS, QLD, MNT e DSH (4 módulos)<br>"
-            "• <code>OPE-0001</code> — João Silva (<b>Operador de Produção</b>): RAS, QLD, MNT e DSH (4 módulos)<br>"
-            "• <code>QUA-0001</code> — Maria Santos (<b>Inspetor de Qualidade</b>): RAS, QLD e DSH (3 módulos)<br>"
-            "• <code>TEC-2001</code> — João Lima Silva (<b>Técnico de Manutenção</b>): MNT e DSH (2 módulos)<br>"
-            "• <code>ALM-0001</code> — Carlos Oliveira (<b>Almoxarife</b>): RAS e QLD (2 módulos)"
+            "<b>Credenciais Corporativas de Demonstração (Senha única: <code>amatech1234</code>)</b><br>"
+            "Todos os perfis operam de forma integrada na mesma porta <code>8501</code> e sessão sincronizada."
         )
     st.stop()
 
@@ -129,39 +189,44 @@ if modulo_ativo and not tem_acesso_modulo(usuario, modulo_ativo):
 
 
 # ============================================================
-# BARRA LATERAL GLOBAL DO ERP + SELETOR DE MÓDULOS
+# BARRA LATERAL GLOBAL DO ERP: HIERARQUIA INTUITIVA
 # ============================================================
 
 with st.sidebar:
     amatech.usuario_no_menu(usuario["nome"], usuario["perfil"], usuario["matricula"])
 
-    if st.button(
-        "Seletor de Módulos (Hub)",
-        icon=":material/apps:",
-        key="erp_nav_seletor",
-        type="primary" if modulo_ativo is None else "secondary",
-        width="stretch",
-    ):
-        st.session_state["modulo_ativo"] = None
-        st.rerun()
-
-    st.markdown('<div class="sb-nav-grupo">Módulos Habilitados</div>', unsafe_allow_html=True)
-    for mod in modulos_permitidos(usuario):
-        eh_mod_ativo = modulo_ativo == mod.id
+    if modulo_ativo is not None:
         if st.button(
-            f"{mod.sigla} · {mod.nome}",
-            icon=mod.icone,
-            key=f"erp_sidebar_mod_{mod.id}",
-            type="primary" if eh_mod_ativo else "secondary",
+            "⬅️ Hub de Módulos (Seletor)",
+            icon=":material/apps:",
+            key="erp_nav_voltar_hub",
             width="stretch",
         ):
-            st.session_state["modulo_ativo"] = mod.id
+            st.session_state["modulo_ativo"] = None
+            st.rerun()
+    else:
+        if st.button(
+            "Hub de Módulos (Seletor)",
+            icon=":material/apps:",
+            key="erp_nav_seletor",
+            type="primary",
+            width="stretch",
+        ):
+            st.session_state["modulo_ativo"] = None
             st.rerun()
 
-    st.markdown("---")
-    if st.button("Encerrar Sessão", icon=":material/logout:", key="erp_btn_logout", width="stretch"):
-        st.session_state.clear()
-        st.rerun()
+        st.markdown('<div class="sb-nav-grupo">Módulos Habilitados</div>', unsafe_allow_html=True)
+        for mod in modulos_permitidos(usuario):
+            eh_mod_ativo = modulo_ativo == mod.id
+            if st.button(
+                f"{mod.sigla} · {mod.nome}",
+                icon=mod.icone,
+                key=f"erp_sidebar_mod_{mod.id}",
+                type="primary" if eh_mod_ativo else "secondary",
+                width="stretch",
+            ):
+                st.session_state["modulo_ativo"] = mod.id
+                st.rerun()
 
 
 # ============================================================
@@ -182,3 +247,28 @@ elif modulo_ativo == MODULO_USUARIOS:
     mostrar_gestao_usuarios(usuario)
 else:
     mostrar_seletor(usuario)
+
+
+# ============================================================
+# RODAPÉ DA BARRA LATERAL (ALTERNAR MÓDULOS + LOGOUT)
+# ============================================================
+
+with st.sidebar:
+    if modulo_ativo is not None:
+        with st.expander("Trocar de Módulo", expanded=False):
+            for mod in modulos_permitidos(usuario):
+                eh_mod_ativo = modulo_ativo == mod.id
+                if st.button(
+                    f"{mod.sigla} · {mod.nome}",
+                    icon=mod.icone,
+                    key=f"erp_sidebar_mod_{mod.id}",
+                    type="primary" if eh_mod_ativo else "secondary",
+                    width="stretch",
+                ):
+                    st.session_state["modulo_ativo"] = mod.id
+                    st.rerun()
+
+    st.markdown("---")
+    if st.button("Encerrar Sessão", icon=":material/logout:", key="erp_btn_logout", width="stretch"):
+        st.session_state.clear()
+        st.rerun()

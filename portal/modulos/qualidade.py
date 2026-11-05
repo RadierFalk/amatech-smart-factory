@@ -69,11 +69,12 @@ def renderizar_modulo_qualidade(usuario_erp: dict[str, Any]) -> None:
                     key="qld_btn_sinc_setores",
                     width="stretch",
                 ):
-                    for tipo, mensagem in integracao.sincronizar_cadastros():
-                        if tipo == "sucesso":
-                            st.toast(mensagem)
-                        else:
-                            st.warning(mensagem)
+                    with st.spinner("Sincronizando cadastros com RAS e MNT..."):
+                        for tipo, mensagem in integracao.sincronizar_cadastros():
+                            if tipo == "sucesso":
+                                st.toast(f"✅ {mensagem}")
+                            else:
+                                st.toast(f"⚠️ {mensagem}")
 
         amatech.cabecalho(
             "QLD",

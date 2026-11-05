@@ -56,6 +56,7 @@ def _render_terminal(conn, usuario_ras: dict[str, Any], servicos: dict[str, Any]
     amatech.titulo(
         "Terminal de Rastreabilidade e Chão de Fábrica",
         "Visão em tempo real do fluxo de montagem seriada, etapas da linha e alertas de estoque (BOM)",
+        breadcrumb="RAS · RASTREABILIDADE",
     )
 
     dados = servicos["relatorios"].dashboard(conn)
@@ -204,6 +205,7 @@ def _render_producao(conn, usuario_ras: dict[str, Any], servicos: dict[str, Any]
     amatech.titulo(
         "Produção e Rastreabilidade por Número de Série",
         "Inicie ordens seriadas, consulte o histórico de passagem pelas estações, avance etapas e registre não conformidades",
+        breadcrumb="RAS · RASTREABILIDADE",
     )
 
     lista_status = servicos["cadastros"].listar_status(conn)
@@ -502,6 +504,7 @@ def _render_solicitacoes(conn, usuario_ras: dict[str, Any], servicos: dict[str, 
     amatech.titulo(
         "Solicitações de Material para a Linha",
         "Requisição de componentes (BOM) por ordem de produção e acompanhamento de atendimento pelo almoxarifado",
+        breadcrumb="RAS · RASTREABILIDADE",
     )
 
     producoes = servicos["producao"].listar_producoes(conn)
@@ -579,6 +582,7 @@ def _render_baixas(conn, usuario_ras: dict[str, Any], servicos: dict[str, Any]) 
     amatech.titulo(
         "Baixas de Material e Controle de Saída do Almoxarifado",
         "Atendimento de solicitações abertas com dedução automática no saldo de estoque de componentes",
+        breadcrumb="RAS · RASTREABILIDADE",
     )
 
     solicitacoes_abertas = [
@@ -656,6 +660,7 @@ def _render_cadastros(conn, usuario_ras: dict[str, Any], servicos: dict[str, Any
     amatech.titulo(
         "Cadastros de Engenharia e Estoque de Componentes",
         "Gestão de componentes, saldos de inventário, modelos de produtos, estrutura BOM e etapas da linha",
+        breadcrumb="RAS · RASTREABILIDADE",
     )
 
     abas_nomes = ["Componentes e Estoque", "Produtos e Lista Técnica (BOM)"]
@@ -766,6 +771,7 @@ def _render_relatorios(conn, usuario_ras: dict[str, Any], servicos: dict[str, An
     amatech.titulo(
         "Relatórios Operacionais e Exportação CSV",
         "Emissão de relatórios auditáveis de produção, materiais, estoque e não conformidades",
+        breadcrumb="RAS · RASTREABILIDADE",
     )
 
     tipos = {
