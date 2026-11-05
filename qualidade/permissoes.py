@@ -104,3 +104,23 @@ def exigir(usuario, permissao):
 
 def paginas_permitidas(usuario):
     return [nome for nome, permissao in PAGINAS if tem_permissao(usuario, permissao)]
+
+
+def resolver_perfil_canonico(perfil_raw: str | None) -> str:
+    """Compatibilidade para resolução de perfis do ERP AMATECH."""
+    s = str(perfil_raw or "").strip().lower()
+    if not s:
+        return OPERADOR
+    if "admin" in s or s == "adm" or s.startswith("adm"):
+        return ADMINISTRADOR
+    if "superv" in s or "gest" in s or s == "ges" or s.startswith("ges"):
+        return "Supervisor / Gestor"
+    if "insp" in s or "qual" in s or s == "qua" or s.startswith("qua"):
+        return INSPETOR
+    if "tecn" in s or "técn" in s or "mnt" in s or s == "tec" or s.startswith("tec"):
+        return "Técnico de Manutenção"
+    if "almox" in s or s == "alm" or s.startswith("alm"):
+        return ALMOXARIFE
+    if "oper" in s or s == "ope" or s.startswith("ope"):
+        return OPERADOR
+    return OPERADOR

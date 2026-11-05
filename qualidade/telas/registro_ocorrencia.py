@@ -1,3 +1,4 @@
+from identidade import amatech
 import streamlit as st
 from datetime import date, datetime, time
 
@@ -12,11 +13,7 @@ def mostrar_registro_ocorrencia(usuario):
         st.error("Seu perfil não tem permissão para registrar ocorrências.")
         return
 
-    st.title("Registro de Ocorrência")
-
-    st.caption(
-        "Registre uma ocorrência de falha identificada durante a produção."
-    )
+    amatech.titulo("Registro de Ocorrência", "Registre uma não conformidade ou falha identificada durante a produção", breadcrumb="QLD · CONTROLE DA QUALIDADE")
 
     st.caption(
         f"Responsável pelo registro: **{usuario['nome']}** ({usuario['matricula']})"
@@ -223,4 +220,4 @@ def mostrar_registro_ocorrencia(usuario):
         else:
 
             for erro in resultado:
-                st.error(erro)
+                st.error(erro)

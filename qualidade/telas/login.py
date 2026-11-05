@@ -23,19 +23,17 @@ def mostrar_login():
             senha = st.text_input("Senha", type="password")
             entrar = st.form_submit_button("Entrar", type="primary")
 
-        st.markdown("""
-        ---
-        **Acessos para demonstração**
-
-        | Perfil | Matrícula |
-        |---|---|
-        | Administrador | `ADM-0001` |
-        | Operador | `OPE-0001` |
-        | Almoxarife | `ALM-0001` |
-        | Inspetor de Qualidade | `QUA-0001` |
-
-        **Senha para todas as contas:** `amatech1234`
-        """)
+        st.markdown(
+            "---\n"
+            "**Acessos para demonstração**\n\n"
+            "| Perfil | Matrícula |\n"
+            "|---|---|\n"
+            "| Administrador | `ADM-0001` |\n"
+            "| Operador | `OPE-0001` |\n"
+            "| Almoxarife | `ALM-0001` |\n"
+            "| Inspetor de Qualidade | `QUA-0001` |\n\n"
+            "**Senha para todas as contas:** `amatech1234`"
+        )
 
         if entrar:
             usuario = autenticacao.autenticar(matricula, senha)

@@ -4,6 +4,7 @@ from matplotlib.ticker import MaxNLocator
 
 import indicadores
 import graficos
+from identidade import amatech
 from identidade.amatech import CORES
 
 
@@ -53,10 +54,10 @@ def configurar_grafico(ax):
 
 def mostrar_dashboard():
 
-    st.title("Controle da Qualidade")
-
-    st.caption(
-        "Visão geral das ocorrências registradas na produção"
+    amatech.titulo(
+        "Controle da Qualidade",
+        "Visão geral e indicadores das ocorrências de não conformidade registradas na linha",
+        breadcrumb="QLD · CONTROLE DA QUALIDADE"
     )
 
     # ========================================================
@@ -68,54 +69,21 @@ def mostrar_dashboard():
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-
-        st.metric(
-            "Total de ocorrências",
-            dados["total_ocorrencias"]
-        )
+        amatech.cartao("Total de Ocorrências", str(dados["total_ocorrencias"]), "Apontadas na produção")
 
     with col2:
-
-        st.metric(
-            "Ocorrências abertas",
-            dados["ocorrencias_abertas"]
-        )
+        abertas = dados["ocorrencias_abertas"]
+        estado_ab = "critico" if abertas > 0 else "ok"
+        amatech.cartao("Ocorrências Abertas", str(abertas), "Pendentes de tratamento", estado_ab)
 
     with col3:
-
-        st.metric(
-            "Produtos reprovados",
-            dados["produtos_reprovados"]
-        )
+        reprov = dados["produtos_reprovados"]
+        estado_rep = "critico" if reprov > 0 else "ok"
+        amatech.cartao("Produtos Reprovados", str(reprov), "Retidos por defeito", estado_rep)
 
     with col4:
-
-        estacao = dados[
-            "estacao_com_mais_ocorrencias"
-        ]
-
-        st.markdown(
-            """
-            <style>
-            div[data-testid="stMetric"] {
-                min-height: 110px;
-            }
-
-            div[data-testid="stMetricValue"] {
-                white-space: normal !important;
-                overflow-wrap: break-word !important;
-                word-break: normal !important;
-                font-size: 1.45rem !important;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-        st.metric(
-            "Estação com mais ocorrências",
-            estacao if estacao else "-"
-        )
+        estacao = dados["estacao_com_mais_ocorrencias"] or "Nenhuma"
+        amatech.cartao("Estação Crítica", str(estacao), "Mais incidências registradas")
 
     st.divider()
 

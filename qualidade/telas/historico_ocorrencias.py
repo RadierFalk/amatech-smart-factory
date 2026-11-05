@@ -1,3 +1,4 @@
+from identidade import amatech
 import streamlit as st
 
 import banco
@@ -9,10 +10,7 @@ def mostrar_historico_ocorrencias(usuario):
     pode_editar = permissoes.tem_permissao(usuario, permissoes.EDITAR_OCORRENCIA)
     pode_ocultar = permissoes.tem_permissao(usuario, permissoes.OCULTAR_OCORRENCIA)
 
-    st.title("Histórico de Ocorrências")
-    st.caption(
-        "Consulte, pesquise, filtre, edite ou oculte ocorrências registradas."
-    )
+    amatech.titulo("Histórico de Ocorrências", "Consulte, pesquise, filtre, edite ou oculte ocorrências registradas", breadcrumb="QLD · CONTROLE DA QUALIDADE")
 
     # Edição só para quem tem permissão (a regra também é conferida em ocorrencia.py)
     if "ocorrencia_em_edicao" in st.session_state and not pode_editar:
@@ -351,89 +349,50 @@ def mostrar_historico_ocorrencias(usuario):
 
     for item in ocorrencias:
         with st.container(border=True):
-            col1, col2, col3, col4 = st.columns(
-                [0.7, 1.2, 1.6, 1.3]
-            )
+            col_esq, col_dir = st.columns([3.4, 1.2], vertical_alignment="center")
 
-            with col1:
-                st.write("**ID**")
-                st.write(item["id_ocorrencia"])
-
-            with col2:
-                st.write("**Data**")
-                st.write(item["data_ocorrencia"])
-
-            with col3:
-                st.write("**Produto**")
-                st.write(item["numero_serie_produto"])
-
-            with col4:
-                st.write("**Status**")
-                st.write(item["status_ocorrencia"])
-
-            col1, col2, col3, col4 = st.columns(4)
-
-            with col1:
-                st.write("**Tipo de defeito**")
-                st.write(item["nome_tipo_defeito"])
-
-            with col2:
-                st.write("**Estação**")
-                st.write(item["nome_estacao"])
-
-            with col3:
-                st.write("**Classificação**")
-                st.write(item["classificacao_defeito"])
-
-            editar = False
-            ocultar = False
-
-            with col4:
-                st.write("**Ações**" if (pode_editar or pode_ocultar) else "**Responsável**")
-
-                if pode_editar:
-                    editar = st.button(
-                        "Editar",
-                        key=f"editar_{item['id_ocorrencia']}"
-                    )
-
-                if pode_ocultar:
-                    ocultar = st.button(
-                        "Ocultar",
-                        key=f"ocultar_{item['id_ocorrencia']}"
-                    )
-
-                if not (pode_editar or pode_ocultar):
-                    st.write(item["nome_usuario"])
-
-            if pode_editar or pode_ocultar:
-                st.caption(f"Responsável pelo registro: {item['nome_usuario']}")
-
-            # =================================================
-            # EDITAR
-            # =================================================
-
-            if editar:
-                st.session_state[
-                    "ocorrencia_em_edicao"
-                ] = item["id_ocorrencia"]
-
-                st.rerun()
-
-            # =================================================
-            # OCULTAR
-            # =================================================
-
-            if ocultar:
-                sucesso, mensagem = ocorrencia.ocultar_ocorrencia(
-                    usuario,
-                    item["id_ocorrencia"]
+            with col_esq:
+                etq_status = amatech.etiqueta(item["status_ocorrencia"])
+                etq_class = amatech.etiqueta(item["classificacao_defeito"])
+                st.markdown(
+                    f"""
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;">
+                        <span style="font-weight: 700; font-size: 14px; color: var(--tinta);">#{item['id_ocorrencia']}</span>
+                        <span class="am-codigo" style="font-size: 12.5px; font-weight: 600; color: var(--sinal); background: var(--sinal-suave); padding: 1px 6px; border-radius: 4px;">{amatech.esc(item['numero_serie_produto'])}</span>
+                        {etq_status}
+                        {etq_class}
+                    </div>
+                    <div style="font-size: 12.5px; color: var(--tinta-2);">
+                        📅 <strong>{item['data_ocorrencia']}</strong> · Estação: <strong>{amatech.esc(item['nome_estacao'])}</strong> · Defeito: <strong>{amatech.esc(item['nome_tipo_defeito'])}</strong> · Resp.: {amatech.esc(item['nome_usuario'])}
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
                 )
 
+            with col_dir:
+                editar = False
+                ocultar = False
+                if pode_editar and pode_ocultar:
+                    b1, b2 = st.columns(2)
+                    with b1:
+                        editar = st.button("Editar", key=f"editar_{item['id_ocorrencia']}", use_container_width=True)
+                    with b2:
+                        ocultar = st.button("Ocultar", key=f"ocultar_{item['id_ocorrencia']}", use_container_width=True)
+                elif pode_editar:
+                    editar = st.button("Editar", key=f"editar_{item['id_ocorrencia']}", use_container_width=True)
+                elif pode_ocultar:
+                    ocultar = st.button("Ocultar", key=f"ocultar_{item['id_ocorrencia']}", use_container_width=True)
+                else:
+                    st.caption(f"Resp: {item['nome_usuario']}")
+
+            if editar:
+                st.session_state["ocorrencia_em_edicao"] = item["id_ocorrencia"]
+                st.rerun()
+
+            if ocultar:
+                sucesso, mensagem = ocorrencia.ocultar_ocorrencia(usuario, item["id_ocorrencia"])
                 if sucesso:
-                    st.success(
-                        "Ocorrência ocultada com sucesso."
-                    )
+                    st.success("Ocorrência ocultada com sucesso.")
                     st.rerun()
                 else:
-                    st.error(mensagem)
+                    st.error(mensagem)

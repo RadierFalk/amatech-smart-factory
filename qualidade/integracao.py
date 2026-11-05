@@ -22,7 +22,7 @@ import banco
 RASTREABILIDADE_URL = os.environ.get("RASTREABILIDADE_URL", "http://localhost:8000").rstrip("/")
 RASTREABILIDADE_CHAVE = os.environ.get("RASTREABILIDADE_CHAVE", "")
 
-MANUTENCAO_URL = os.environ.get("MANUTENCAO_URL", "http://localhost:5002").rstrip("/")
+MANUTENCAO_URL = os.environ.get("MANUTENCAO_URL", "http://localhost:5000").rstrip("/")
 MANUTENCAO_CHAVE = os.environ.get("MANUTENCAO_CHAVE", "")
 
 TEMPO_LIMITE = float(os.environ.get("INTEGRACAO_TEMPO_LIMITE", "3"))
@@ -47,10 +47,17 @@ def _chamar(metodo, url, chave="", corpo=None):
     cabecalhos = {"X-API-Key": chave} if chave else {}
     if os.environ.get("AMATECH_INTEGRACAO_LOCAL") == "1":
         try:
+            import sys
+            from pathlib import Path
+            raiz = Path(__file__).resolve().parent.parent
+            if str(raiz) not in sys.path:
+                sys.path.insert(0, str(raiz))
+            if str(raiz / "portal") not in sys.path:
+                sys.path.insert(0, str(raiz / "portal"))
             from portal.integracao_local import requisicao_fastapi_local
             resposta = requisicao_fastapi_local(metodo, url, json_body=corpo, headers=cabecalhos)
-        except Exception:
-            return None, "sistema fora do ar"
+        except Exception as exc:
+            return None, f"sistema fora do ar ({exc})"
     else:
         try:
             resposta = requests.request(
