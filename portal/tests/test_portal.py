@@ -311,3 +311,47 @@ def test_navegacao_integrada_nos_5_modulos_mesma_sessao():
         assert not at.exception, f"Erro na subpágina DSH '{sub_dsh}': {at.exception}"
 
 
+
+
+def test_permissoes_modulo_manutencao_por_perfil():
+    """Valida que no módulo de manutenção:
+    - Técnico: acesso SOMENTE a Manutenção Técnica (fila_chamados, preventiva, ordem_servico)
+    - Supervisor: APENAS à seção de Gestão (indicadores, historico, cadastros, auditoria)
+    - Operador: TODA a seção de Operação (painel_maquinas, abrir_chamado, meus_chamados)
+    - Administrador: todas as seções
+    """
+    from portal.modulos.manutencao import CATALOGO_ROTAS
+    from portal.permissoes import ADMINISTRADOR, OPERADOR, SUPERVISOR, TECNICO
+
+    def obter_rotas_usuario(perfil_nome: str) -> set[str]:
+        rotas = set()
+        for cod, info in CATALOGO_ROTAS.items():
+            if cod == "dashboard":
+                continue
+            permitidos = info[4]
+            if perfil_nome in permitidos:
+                rotas.add(cod)
+        return rotas
+
+    rotas_tec = obter_rotas_usuario(TECNICO)
+    assert rotas_tec == {"fila_chamados", "preventiva", "ordem_servico"}
+
+    rotas_sup = obter_rotas_usuario(SUPERVISOR)
+    assert rotas_sup == {"indicadores", "historico", "cadastros", "auditoria"}
+
+    rotas_op = obter_rotas_usuario(OPERADOR)
+    assert rotas_op == {"painel_maquinas", "abrir_chamado", "meus_chamados"}
+
+    rotas_adm = obter_rotas_usuario(ADMINISTRADOR)
+    assert rotas_adm == {
+        "painel_maquinas",
+        "abrir_chamado",
+        "meus_chamados",
+        "fila_chamados",
+        "preventiva",
+        "ordem_servico",
+        "indicadores",
+        "historico",
+        "cadastros",
+        "auditoria",
+    }

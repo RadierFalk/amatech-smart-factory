@@ -28,82 +28,85 @@ except ImportError:
 
 # Catálogo completo e corrigido de rotas internas da Manutenção
 CATALOGO_ROTAS: dict[str, tuple[str, str, str, str, list[str]]] = {
+    # Seção Operação: apenas OPERADOR e ADMINISTRADOR
     "painel_maquinas": (
         "Painel de máquinas",
         "pages.01_painel_maquinas",
         "render",
         ":material/precision_manufacturing:",
-        ["OPERADOR", "TECNICO", "GESTOR", ADMINISTRADOR, SUPERVISOR, TECNICO, OPERADOR],
+        [OPERADOR, "OPERADOR", ADMINISTRADOR],
     ),
     "abrir_chamado": (
         "Abrir chamado",
         "pages.02_abrir_chamado",
         "render",
         ":material/add_alert:",
-        ["OPERADOR", "GESTOR", ADMINISTRADOR, SUPERVISOR, OPERADOR],
+        [OPERADOR, "OPERADOR", ADMINISTRADOR],
     ),
     "meus_chamados": (
         "Meus chamados",
         "pages.02_abrir_chamado",
         "render_meus_chamados",
         ":material/assignment_ind:",
-        ["OPERADOR", "GESTOR", ADMINISTRADOR, SUPERVISOR, OPERADOR],
+        [OPERADOR, "OPERADOR", ADMINISTRADOR],
     ),
+    # Seção Manutenção Técnica: apenas TECNICO e ADMINISTRADOR
     "fila_chamados": (
         "Fila de chamados",
         "pages.03_fila_chamados",
         "render",
         ":material/format_list_bulleted:",
-        ["TECNICO", "GESTOR", ADMINISTRADOR, SUPERVISOR, TECNICO],
+        [TECNICO, "TECNICO", ADMINISTRADOR],
     ),
     "preventiva": (
         "Manutenção preventiva",
         "pages.03_fila_chamados",
         "render_preventiva",
         ":material/event_repeat:",
-        ["TECNICO", "GESTOR", ADMINISTRADOR, SUPERVISOR, TECNICO],
+        [TECNICO, "TECNICO", ADMINISTRADOR],
     ),
     "ordem_servico": (
         "Ordem de serviço",
         "pages.04_ordem_servico",
         "render",
         ":material/build_circle:",
-        ["TECNICO", "GESTOR", ADMINISTRADOR, SUPERVISOR, TECNICO],
+        [TECNICO, "TECNICO", ADMINISTRADOR],
     ),
+    # Seção Gestão: apenas SUPERVISOR, GESTOR e ADMINISTRADOR
     "indicadores": (
         "Indicadores",
         "pages.05_dashboard",
         "render",
         ":material/monitoring:",
-        ["TECNICO", "GESTOR", ADMINISTRADOR, SUPERVISOR, TECNICO],
+        [SUPERVISOR, "SUPERVISOR", "GESTOR", ADMINISTRADOR],
     ),
     "dashboard": (
         "Indicadores",
         "pages.05_dashboard",
         "render",
         ":material/monitoring:",
-        ["TECNICO", "GESTOR", ADMINISTRADOR, SUPERVISOR, TECNICO],
+        [SUPERVISOR, "SUPERVISOR", "GESTOR", ADMINISTRADOR],
     ),
     "historico": (
         "Histórico e relatórios",
         "pages.06_historico",
         "render",
         ":material/history:",
-        ["TECNICO", "GESTOR", ADMINISTRADOR, SUPERVISOR, TECNICO],
+        [SUPERVISOR, "SUPERVISOR", "GESTOR", ADMINISTRADOR],
     ),
     "cadastros": (
         "Cadastros",
         "pages.07_cadastros",
         "render",
         ":material/settings:",
-        ["GESTOR", ADMINISTRADOR, SUPERVISOR],
+        [SUPERVISOR, "SUPERVISOR", "GESTOR", ADMINISTRADOR],
     ),
     "auditoria": (
         "Auditoria de status",
         "pages.06_historico",
         "render_auditoria",
         ":material/fact_check:",
-        ["GESTOR", ADMINISTRADOR, SUPERVISOR],
+        [SUPERVISOR, "SUPERVISOR", "GESTOR", ADMINISTRADOR],
     ),
 }
 
@@ -133,7 +136,7 @@ def renderizar_modulo_manutencao(usuario_erp: dict[str, Any]) -> None:
     # Mapeia rotas permitidas para o perfil do usuário
     rotas_permitidas = [
         cod for cod, info in CATALOGO_ROTAS.items()
-        if (perfil_mnt in info[4] or perfil_canonico in info[4]) and cod not in ("dashboard",)
+        if (perfil_canonico in info[4] or perfil_mnt in info[4]) and cod not in ("dashboard",)
     ]
     if not rotas_permitidas:
         rotas_permitidas = ["painel_maquinas"]

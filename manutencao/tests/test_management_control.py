@@ -49,23 +49,67 @@ def test_rn01_autenticacao_e_rbac(temp_db):
     """Testa login dos 3 perfis padrão, bloqueio de inativos e permissões RBAC (RN01)."""
     op = autenticar_usuario("OP-10234", "123456", db_path=temp_db)
     assert op.perfil == "OPERADOR"
+    # Operador: acesso a toda a seção de Operação
     assert verificar_permissao(op.perfil, "painel_maquinas") is True
+    assert verificar_permissao(op.perfil, "abrir_chamado") is True
+    assert verificar_permissao(op.perfil, "meus_chamados") is True
+    # Operador: sem acesso a Manutenção Técnica nem Gestão
+    assert verificar_permissao(op.perfil, "fila_chamados") is False
+    assert verificar_permissao(op.perfil, "preventiva") is False
+    assert verificar_permissao(op.perfil, "ordem_servico") is False
+    assert verificar_permissao(op.perfil, "dashboard") is False
+    assert verificar_permissao(op.perfil, "historico") is False
     assert verificar_permissao(op.perfil, "cadastros") is False
+    assert verificar_permissao(op.perfil, "auditoria") is False
 
     tec = autenticar_usuario("TEC-2001", "123456", db_path=temp_db)
     assert tec.perfil == "TECNICO"
+    # Técnico: acesso SOMENTE à seção de Manutenção Técnica
     assert verificar_permissao(tec.perfil, "fila_chamados") is True
+    assert verificar_permissao(tec.perfil, "preventiva") is True
     assert verificar_permissao(tec.perfil, "ordem_servico") is True
+    # Técnico: sem acesso a Operação nem Gestão
+    assert verificar_permissao(tec.perfil, "painel_maquinas") is False
+    assert verificar_permissao(tec.perfil, "abrir_chamado") is False
+    assert verificar_permissao(tec.perfil, "meus_chamados") is False
+    assert verificar_permissao(tec.perfil, "dashboard") is False
+    assert verificar_permissao(tec.perfil, "historico") is False
+    assert verificar_permissao(tec.perfil, "cadastros") is False
+    assert verificar_permissao(tec.perfil, "auditoria") is False
 
     ges = autenticar_usuario("GES-0001", "123456", db_path=temp_db)
     assert ges.perfil == "GESTOR"
+    # Supervisor/Gestor: APENAS à seção de Gestão
     assert verificar_permissao(ges.perfil, "dashboard") is True
+    assert verificar_permissao(ges.perfil, "historico") is True
     assert verificar_permissao(ges.perfil, "cadastros") is True
+    assert verificar_permissao(ges.perfil, "auditoria") is True
+    # Supervisor/Gestor: sem acesso a Operação nem Manutenção Técnica
+    assert verificar_permissao(ges.perfil, "painel_maquinas") is False
+    assert verificar_permissao(ges.perfil, "abrir_chamado") is False
+    assert verificar_permissao(ges.perfil, "meus_chamados") is False
+    assert verificar_permissao(ges.perfil, "fila_chamados") is False
+    assert verificar_permissao(ges.perfil, "preventiva") is False
+    assert verificar_permissao(ges.perfil, "ordem_servico") is False
 
     # Inativação bloqueia login (RN01 + RN07)
     alternar_status_usuario(op.id, False, db_path=temp_db)
     with pytest.raises(PermissionError, match="RN01"):
         autenticar_usuario("OP-10234", "123456", db_path=temp_db)
+
+
+def test_tecnico_nao_pode_abrir_chamados(temp_db):
+    """Garante que colaborador com perfil TECNICO é bloqueado ao tentar abrir chamado corretivo."""
+    tec = autenticar_usuario("TEC-2001", "123456", db_path=temp_db)
+    with pytest.raises(PermissionError, match="técnicos de manutenção não têm permissão"):
+        abrir_chamado(
+            equipamento_id=1,
+            operador_abertura_id=tec.id,
+            prioridade="ALTA",
+            descricao_falha="Tentativa indevida de abertura por técnico.",
+            tipo_manutencao="CORRETIVA",
+            db_path=temp_db,
+        )
 
 
 def test_fluxo_completo_maquina_estados_e_auditoria_rn02_a_rn09(temp_db):

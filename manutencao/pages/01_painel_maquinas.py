@@ -24,6 +24,9 @@ from ui_components import (
 
 def _abrir_modal_chamado_rapido(maquina: dict, usuario: dict) -> None:
     """Abre um modal (st.dialog) idêntico ao A.abrirModalChamado do projeto de referência."""
+    if usuario.get("perfil") in ("TECNICO", "TÉCNICO"):
+        st.error("Técnicos de manutenção não têm permissão para abrir chamados.")
+        return
     if hasattr(st, "dialog"):
         @st.dialog(f"Abrir chamado de manutenção — {maquina['codigo_tag']}", width="large")
         def _modal() -> None:
@@ -266,13 +269,14 @@ def _renderizar_conteudo_painel(
                         ):
                             navegar_para("ordem_servico", os_selecionada_id=os_id)
                     else:
-                        if st.button(
-                            "Abrir chamado",
-                            key=f"btn_abrir_maq_{m['id']}",
-                            type="primary",
-                            use_container_width=True,
-                        ):
-                            _abrir_modal_chamado_rapido(m, usuario)
+                        if usuario.get("perfil") not in ("TECNICO", "TÉCNICO"):
+                            if st.button(
+                                "Abrir chamado",
+                                key=f"btn_abrir_maq_{m['id']}",
+                                type="primary",
+                                use_container_width=True,
+                            ):
+                                _abrir_modal_chamado_rapido(m, usuario)
 
 
 def render() -> None:

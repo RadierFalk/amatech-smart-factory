@@ -18,14 +18,23 @@ PERMISSOES_POR_PERFIL: dict[str, list[str]] = {
         "meus_chamados",
     ],
     "TECNICO": [
-        "painel_maquinas",
         "fila_chamados",
         "preventiva",
         "ordem_servico",
-        "dashboard",
-        "historico",
     ],
     "GESTOR": [
+        "dashboard",
+        "historico",
+        "cadastros",
+        "auditoria",
+    ],
+    "SUPERVISOR": [
+        "dashboard",
+        "historico",
+        "cadastros",
+        "auditoria",
+    ],
+    "ADMINISTRADOR": [
         "painel_maquinas",
         "abrir_chamado",
         "meus_chamados",

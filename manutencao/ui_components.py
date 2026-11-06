@@ -46,6 +46,8 @@ def rotulo_amigavel(valor: str | None) -> str:
         "OPERADOR": "Operador",
         "TECNICO": "Técnico",
         "GESTOR": "Gestor",
+        "SUPERVISOR": "Supervisor",
+        "ADMINISTRADOR": "Administrador",
     }
     return mapa.get(str(valor).upper(), str(valor).replace("_", " ").capitalize())
 

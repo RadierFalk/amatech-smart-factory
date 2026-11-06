@@ -113,10 +113,10 @@ CATALOGO_MODULOS: dict[str, ModuloERP] = {
         categoria="Engenharia de Manutenção",
         perfis_permitidos=frozenset({ADMINISTRADOR, SUPERVISOR, TECNICO, OPERADOR}),
         poder_do_perfil={
-            ADMINISTRADOR: "Gestão completa: painel de máquinas, fila de O.S., preventivas, indicadores MTTR/MTBF, histórico e cadastros de máquinas/peças.",
-            SUPERVISOR: "Gestão de ativos: painel de disponibilidade, fila e controle de O.S., preventivas, indicadores de confiabilidade e cadastros.",
-            TECNICO: "Execução técnica: painel de máquinas, fila de chamados, execução de O.S. corretivas/preventivas, apontamento de peças e indicadores.",
-            OPERADOR: "Chão de fábrica: painel de disponibilidade de máquinas, abertura rápida de chamado por parada e acompanhamento de 'Meus chamados'.",
+            ADMINISTRADOR: "Acesso total: controle completo de todas as seções (Operação, Manutenção Técnica e Gestão).",
+            SUPERVISOR: "Gestão da manutenção: acesso exclusivo à seção de Gestão (indicadores, histórico e relatórios, cadastros e auditoria de status).",
+            TECNICO: "Manutenção técnica: acesso exclusivo à seção de Manutenção Técnica (fila de chamados, preventiva e ordens de serviço, sem abertura de chamados).",
+            OPERADOR: "Operação: acesso completo a toda a seção de Operação (painel de máquinas, abertura de chamados e acompanhamento de 'Meus chamados').",
         },
     ),
     MODULO_DASHBOARD: ModuloERP(

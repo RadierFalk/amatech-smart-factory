@@ -31,8 +31,8 @@ def render() -> None:
         st.warning("Realize login para acessar esta tela.")
         return
 
-    if usuario.get("perfil") not in ("GESTOR", "ADMINISTRADOR"):
-        st.error("Acesso restrito (RN01): Apenas usuários com perfil Gestor podem gerenciar cadastros.")
+    if usuario.get("perfil") not in ("GESTOR", "ADMINISTRADOR", "SUPERVISOR"):
+        st.error("Acesso restrito (RN01): Apenas usuários com perfil Gestor ou Supervisor podem gerenciar cadastros.")
         return
 
     renderizar_topbar("Cadastros", "Estações, máquinas, peças e usuários do sistema")

@@ -79,6 +79,15 @@ def abrir_chamado(
         raise ValueError("Descreva detalhadamente o sintoma ou falha observada (mínimo de 5 caracteres).")
 
     with get_db(db_path) as conn:
+        # Bloqueio de perfil: técnicos não têm permissão para abrir chamados corretivos
+        usuario_abertura = conn.execute(
+            "SELECT id, perfil FROM usuarios WHERE id = ?",
+            (operador_abertura_id,),
+        ).fetchone()
+        if usuario_abertura and str(usuario_abertura["perfil"]).upper() in ("TECNICO", "TÉCNICO"):
+            if tipo_limpo != "PREVENTIVA":
+                raise PermissionError("Perfil sem permissão: técnicos de manutenção não têm permissão para abrir chamados.")
+
         equip = conn.execute(
             """
             SELECT id, codigo_tag, nome, status_operacional, ativo

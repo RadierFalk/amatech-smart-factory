@@ -5,7 +5,8 @@ version: "3.7"
 ## ================================================================== ##
 ##
 ##   Roteamento via Traefik (VandreNet):
-##     https://${AMATECH_HOST:-amatech.automakad.com.br}/                  -> redireciona para /dashboard/
+##     https://${AMATECH_HOST:-amatech.automakad.com.br}/                  -> redireciona para /portal/
+##     https://${AMATECH_HOST:-amatech.automakad.com.br}/portal/           -> Portal ERP Hub
 ##     https://${AMATECH_HOST:-amatech.automakad.com.br}/rastreabilidade/  -> Rastreabilidade
 ##     https://${AMATECH_HOST:-amatech.automakad.com.br}/qualidade/        -> Qualidade
 ##     https://${AMATECH_HOST:-amatech.automakad.com.br}/manutencao/       -> Manutencao
@@ -224,12 +225,21 @@ services:
       labels:
         - traefik.enable=true
         - traefik.docker.network=VandreNet
-        - traefik.http.routers.portal.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && (PathPrefix(`/portal`) || Path(`/`))
+        - traefik.http.routers.portal.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && PathPrefix(`/portal`)
         - traefik.http.routers.portal.entrypoints=websecure
         - traefik.http.routers.portal.priority=30
         - traefik.http.routers.portal.tls.certresolver=letsencryptresolver
         - traefik.http.services.portal.loadbalancer.server.port=8500
         - traefik.http.services.portal.loadbalancer.passHostHeader=true
+        # Redirecionamento da raiz / para /portal/
+        - traefik.http.routers.portal-root.rule=Host(`${AMATECH_HOST:-amatech.automakad.com.br}`) && Path(`/`)
+        - traefik.http.routers.portal-root.entrypoints=websecure
+        - traefik.http.routers.portal-root.priority=35
+        - traefik.http.routers.portal-root.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.portal-root.middlewares=portal-root-redirect
+        - traefik.http.routers.portal-root.service=portal
+        - traefik.http.middlewares.portal-root-redirect.redirectregex.regex=^https?://[^/]+/?$$
+        - traefik.http.middlewares.portal-root-redirect.redirectregex.replacement=/portal/
 
   dashboard-tela:
     <<: *sistema

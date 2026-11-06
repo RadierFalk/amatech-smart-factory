@@ -27,7 +27,7 @@ MENU_GRUPOS = [
         ],
     ),
     (
-        "Manutenção",
+        "Manutenção Técnica",
         [
             ("fila_chamados", "list", "Fila de chamados"),
             ("preventiva", "event_repeat", "Preventiva"),
@@ -68,7 +68,8 @@ def _realizar_login(matricula: str, senha: str) -> None:
         "matricula": user.matricula,
         "perfil": user.perfil,
     }
-    st.session_state["pagina_atual"] = "painel_maquinas"
+    telas = PERMISSOES_POR_PERFIL.get(user.perfil, ["painel_maquinas"])
+    st.session_state["pagina_atual"] = telas[0]
 
 
 def _renderizar_tela_login() -> None:
@@ -269,7 +270,7 @@ def _renderizar_tela_login() -> None:
             st.rerun()
 
         if st.button(
-            "Orlando Vandres / Carlos Mota  —  GES-0001 · Gestor",
+            "Orlando Vandres / Carlos Mota  —  GES-0001 · Supervisor / Gestor",
             key="btn_demo_ges",
             use_container_width=True,
         ):

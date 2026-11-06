@@ -121,6 +121,10 @@ def render() -> None:
         st.warning("Realize login para acessar esta tela.")
         return
 
+    if usuario.get("perfil") in ("TECNICO", "TÉCNICO"):
+        st.error("Acesso negado: técnicos de manutenção não têm permissão para abrir chamados.")
+        return
+
     renderizar_topbar("Abrir chamado", "Registro rápido de parada de máquina")
 
     todas_maquinas = listar_equipamentos(apenas_ativos=True)
@@ -237,7 +241,10 @@ def render() -> None:
                             tipo_manutencao=tipo_sel,
                         )
                         st.toast(f"Chamado #{novo_id} registrado com sucesso!", icon="✅")
-                        navegar_para("ordem_servico", os_selecionada_id=novo_id)
+                        if usuario.get("perfil") == "OPERADOR":
+                            navegar_para("meus_chamados")
+                        else:
+                            navegar_para("ordem_servico", os_selecionada_id=novo_id)
                     except Exception as exc:
                         st.error(str(exc))
 
