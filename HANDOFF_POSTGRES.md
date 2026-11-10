@@ -177,4 +177,4 @@ Cada agente acrescenta uma entrada aqui. Não apague as anteriores.
   - Os tokens de cor vêm de `identidade/tokens.json` via `python identidade/gerar_temas.py`, que agora também escreve `frontend/src/styles/tokens.css`.
 - Validado: 23 testes Vitest (`npx ng test --watch=false`), build de produção e fluxo ponta a ponta pelo proxy, com a API rodando sobre SQLite em memória. **Não validado com Postgres** (ver o último critério da Tarefa A).
 - CI novo: `.github/workflows/frontend-testes.yml`.
-- **Push pendente:** a conta `leticia-student` recebeu 403 ao enviar para `RadierFalk/amatech-smart-factory`. Alguém com acesso de escrita precisa enviar a branch.
+- Branch enviada ao GitHub. Confira na aba Actions o resultado dos dois workflows: o do backend foi a primeira execução dos testes de API contra um PostgreSQL de verdade.
