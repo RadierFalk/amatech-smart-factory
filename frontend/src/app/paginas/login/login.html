@@ -1,0 +1,55 @@
+<main class="fundo">
+  <section class="painel" aria-labelledby="titulo-login">
+    <am-marca [tamanho]="40" class="marca" />
+
+    <form class="cartao formulario" [formGroup]="form" (ngSubmit)="entrar()" novalidate>
+      <div>
+        <h1 id="titulo-login" class="titulo-secao">Acesso ao ERP</h1>
+        <p class="legenda">Informe sua matrícula funcional e senha.</p>
+      </div>
+
+      <label class="campo">
+        <span>Matrícula funcional</span>
+        <input
+          formControlName="matricula"
+          autocomplete="username"
+          placeholder="Ex.: ADM-0001"
+          [attr.aria-invalid]="form.controls.matricula.touched && form.controls.matricula.invalid"
+        />
+      </label>
+
+      <label class="campo">
+        <span>Senha</span>
+        <input
+          type="password"
+          formControlName="senha"
+          autocomplete="current-password"
+          [attr.aria-invalid]="form.controls.senha.touched && form.controls.senha.invalid"
+        />
+      </label>
+
+      @if (erro(); as mensagem) {
+        <div class="aviso erro" role="alert">{{ mensagem }}</div>
+      }
+
+      <button type="submit" class="btn primario" [disabled]="enviando()">
+        {{ enviando() ? 'Entrando…' : 'Entrar' }}
+      </button>
+    </form>
+
+    @if (personas.length) {
+      <div class="demo">
+        <div class="demo-titulo">Demonstração: entrar como</div>
+        <div class="demo-grade">
+          @for (p of personas; track p.matricula) {
+            <button type="button" class="demo-btn" [disabled]="enviando()" (click)="entrarComo(p.matricula)">
+              <span>{{ p.rotulo }}</span>
+              <span class="codigo">{{ p.matricula }}</span>
+            </button>
+          }
+        </div>
+        <p class="demo-nota">Senha de todas as contas demo: <span class="codigo">amatech1234</span></p>
+      </div>
+    }
+  </section>
+</main>

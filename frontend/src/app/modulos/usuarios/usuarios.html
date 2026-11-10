@@ -1,0 +1,131 @@
+<div class="pagina">
+  <div class="pagina-topo">
+    <div>
+      <span class="selo-setor usr">USR</span>
+      <h1 class="titulo-tela">Gestão de usuários e acessos</h1>
+      <p class="legenda">Colaboradores, personas, ativação e senhas. A persona define os módulos que cada um vê.</p>
+    </div>
+    <button type="button" class="btn primario" (click)="formularioAberto.set(!formularioAberto())"
+            [attr.aria-expanded]="formularioAberto()">
+      {{ formularioAberto() ? 'Cancelar' : 'Novo usuário' }}
+    </button>
+  </div>
+
+  <div aria-live="polite">
+    @if (erro(); as m) { <div class="aviso erro" role="alert">{{ m }}</div> }
+    @if (sucesso(); as m) { <div class="aviso sucesso">{{ m }}</div> }
+  </div>
+
+  @if (formularioAberto()) {
+    <form class="cartao grade-form" [formGroup]="formNovo" (ngSubmit)="criar()" novalidate>
+      <h2 class="titulo-secao largura-total">Novo usuário</h2>
+
+      <label class="campo">
+        <span>Nome completo</span>
+        <input formControlName="nome" [attr.aria-invalid]="invalido('novo', 'nome')" />
+      </label>
+
+      <label class="campo">
+        <span>Persona</span>
+        <select formControlName="perfil">
+          @for (p of perfis; track p) { <option [value]="p">{{ p }}</option> }
+        </select>
+      </label>
+
+      <label class="campo">
+        <span>Senha inicial</span>
+        <input type="password" formControlName="senha" autocomplete="new-password"
+               [attr.aria-invalid]="invalido('novo', 'senha')" />
+        <span class="campo-dica">Mínimo de {{ senhaMinima }} caracteres.</span>
+      </label>
+
+      <label class="campo">
+        <span>Matrícula (opcional)</span>
+        <input formControlName="matricula" placeholder="Gerada pela persona" />
+        <span class="campo-dica">Em branco: próxima do prefixo (ex.: OPE-0002).</span>
+      </label>
+
+      <div class="largura-total">
+        <button type="submit" class="btn primario" [disabled]="ocupado() === 'novo'">
+          {{ ocupado() === 'novo' ? 'Salvando…' : 'Criar usuário' }}
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (senhaDe(); as alvo) {
+    <form class="cartao grade-form" [formGroup]="formSenha" (ngSubmit)="salvarSenha()" novalidate>
+      <h2 class="titulo-secao largura-total">
+        Redefinir senha de {{ alvo.nome }} <span class="codigo">({{ alvo.matricula }})</span>
+      </h2>
+      <label class="campo">
+        <span>Nova senha</span>
+        <input type="password" formControlName="novaSenha" autocomplete="new-password"
+               [attr.aria-invalid]="invalido('senha', 'novaSenha')" />
+        <span class="campo-dica">Mínimo de {{ senhaMinima }} caracteres.</span>
+      </label>
+      <div class="acoes-form">
+        <button type="submit" class="btn primario" [disabled]="ocupado() === alvo.id">Salvar senha</button>
+        <button type="button" class="btn" (click)="senhaDe.set(null)">Cancelar</button>
+      </div>
+    </form>
+  }
+
+  <section class="cartao">
+    <div class="filtro">
+      <label class="campo">
+        <span class="so-leitor">Buscar</span>
+        <input type="search" placeholder="Buscar por matrícula, nome ou persona"
+               [value]="busca()" (input)="busca.set($any($event.target).value)" />
+      </label>
+      <span class="legenda">{{ filtrados().length }} de {{ usuarios().length }}</span>
+    </div>
+
+    @if (carregando()) {
+      <p class="legenda">Carregando usuários…</p>
+    } @else {
+      <div class="tabela-rolagem">
+        <table class="tabela">
+          <thead>
+            <tr>
+              <th scope="col">Matrícula</th>
+              <th scope="col">Nome</th>
+              <th scope="col">Persona</th>
+              <th scope="col">Situação</th>
+              <th scope="col">Criado em</th>
+              <th scope="col"><span class="so-leitor">Ações</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (u of filtrados(); track u.id) {
+              <tr>
+                <td class="codigo">{{ u.matricula }}</td>
+                <td>{{ u.nome }} @if (ehEuMesmo(u)) { <span class="legenda">(você)</span> }</td>
+                <td>
+                  <select class="perfil" [value]="u.perfil" [disabled]="ehEuMesmo(u) || ocupado() === u.id"
+                          [attr.aria-label]="'Persona de ' + u.nome"
+                          (change)="trocarPerfil(u, $any($event.target))">
+                    @for (p of perfis; track p) { <option [value]="p" [selected]="p === u.perfil">{{ p }}</option> }
+                  </select>
+                </td>
+                <td><am-etiqueta [texto]="u.ativo ? 'Ativo' : 'Inativo'" /></td>
+                <td>{{ u.criado_em | date: 'dd/MM/yyyy' }}</td>
+                <td class="acoes">
+                  <button type="button" class="btn pequeno" [disabled]="ocupado() === u.id" (click)="abrirSenha(u)">
+                    Senha
+                  </button>
+                  <button type="button" class="btn pequeno" [class.perigo]="u.ativo"
+                          [disabled]="ehEuMesmo(u) || ocupado() === u.id" (click)="alternarAtivo(u)">
+                    {{ u.ativo ? 'Desativar' : 'Ativar' }}
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr><td colspan="6" class="legenda">Nenhum usuário encontrado.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

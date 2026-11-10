@@ -1,0 +1,52 @@
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+<header class="barra-movel">
+  <am-marca [tamanho]="28" />
+  <button
+    type="button"
+    class="btn-menu"
+    (click)="alternarMenu()"
+    [attr.aria-expanded]="menuAberto()"
+    aria-controls="menu-lateral"
+  >
+    {{ menuAberto() ? 'Fechar' : 'Menu' }}
+  </button>
+</header>
+
+<nav id="menu-lateral" class="lateral" [class.aberto]="menuAberto()" aria-label="Navegação principal">
+  <am-marca class="marca-lateral" />
+
+  @if (auth.usuario(); as u) {
+    <div class="usuario">
+      <div class="usuario-nome">{{ u.nome }}</div>
+      <div class="usuario-detalhe">{{ u.perfil }}</div>
+      <div class="usuario-detalhe codigo">{{ u.matricula }}</div>
+    </div>
+  }
+
+  <a
+    class="item"
+    routerLink="/"
+    routerLinkActive="ativo"
+    [routerLinkActiveOptions]="{ exact: true }"
+    (click)="fecharMenu()"
+  >
+    Hub de módulos
+  </a>
+
+  <div class="grupo">Módulos habilitados</div>
+  @for (m of auth.modulos() ?? []; track m.id) {
+    <a class="item" [routerLink]="'/' + m.id" routerLinkActive="ativo" (click)="fecharMenu()">
+      <span class="sigla">{{ m.sigla }}</span>
+      {{ m.nome }}
+    </a>
+  } @empty {
+    <div class="carregando">Carregando…</div>
+  }
+
+  <button type="button" class="item sair" (click)="auth.sair()">Encerrar sessão</button>
+</nav>
+
+<main id="conteudo" class="conteudo" tabindex="-1">
+  <router-outlet />
+</main>

@@ -80,6 +80,7 @@ uvicorn app.main:app --port 8000
 - [ ] `GET http://localhost:8000/api/saude` responde `{"api": "ok", "banco": "ok"}`.
 - [ ] `POST /api/auth/login` com `{"matricula": "ADM-0001", "senha": "amatech1234"}` devolve um token, e `GET /api/auth/modulos` com esse token lista as 5 siglas.
 - [ ] Os acentos aparecem corretos no banco: `SELECT perfil FROM usr.usuarios` mostra "Operador de Produção", e não "Produ��o".
+- [ ] **Ponta a ponta com o Angular:** com a API no ar (porta 8000), rode `cd frontend && npm ci && npx ng serve` e abra http://localhost:4200. Entre como ADM-0001: o hub mostra 5 módulos, e em "Gestão de usuários" dá para criar um usuário, trocar a persona dele, desativá-lo e redefinir a senha. Recarregue a página e confira se os dados continuam lá (é isso que prova que estão gravados no Postgres). Entre como TEC-2001: só aparecem MNT e DSH, e abrir http://localhost:4200/usuarios leva de volta ao hub.
 
 Se algo falhar, **corrija no código** e explique a causa no Registro. Não desative nem pule testes para fazer passar.
 
@@ -167,3 +168,13 @@ Cada agente acrescenta uma entrada aqui. Não apague as anteriores.
 - Validado: 16 testes de unidade; fumaça das rotas com SQLite em memória; DDL do Alembic em modo offline.
 - **Não validado:** nada rodou contra PostgreSQL. Os 11 testes de API foram pulados.
 - Pendente: Tarefas A e B; pergunta da seção 4.1 (volumes do servidor ou arquivos do repositório).
+
+### 2026-11-10: frontend Angular (mesma máquina, sem Docker)
+- Feito: `frontend/` em **Angular 21** (o 22 exige Node ≥ 24.15; esta máquina tem 24.13). Com Node atualizado, `ng update @angular/core@22 @angular/cli@22`.
+  - Login (com botões das personas demo), hub de módulos por persona, barra lateral, módulo USR completo.
+  - RAS, QLD, MNT e DSH com rota protegida e tela "em construção" até a API de cada um existir.
+  - `/api` vai por proxy para a porta 8000 (`frontend/proxy.conf.json`).
+  - Os tokens de cor vêm de `identidade/tokens.json` via `python identidade/gerar_temas.py`, que agora também escreve `frontend/src/styles/tokens.css`.
+- Validado: 23 testes Vitest (`npx ng test --watch=false`), build de produção e fluxo ponta a ponta pelo proxy, com a API rodando sobre SQLite em memória. **Não validado com Postgres** (ver o último critério da Tarefa A).
+- CI novo: `.github/workflows/frontend-testes.yml`.
+- **Push pendente:** a conta `leticia-student` recebeu 403 ao enviar para `RadierFalk/amatech-smart-factory`. Alguém com acesso de escrita precisa enviar a branch.

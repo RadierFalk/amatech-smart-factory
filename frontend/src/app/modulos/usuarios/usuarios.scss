@@ -1,0 +1,32 @@
+.grade-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.largura-total { grid-column: 1 / -1; }
+
+.acoes-form {
+  display: flex;
+  gap: var(--space-2);
+  align-self: end;
+}
+
+.filtro {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+
+  .campo { flex: 1; max-width: 420px; }
+}
+
+.perfil { min-width: 200px; }
+
+.acoes {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  white-space: nowrap;
+}
