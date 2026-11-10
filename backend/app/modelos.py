@@ -1,0 +1,7 @@
+"""Importa os modelos de todos os módulos para registrá-los no Base.metadata.
+
+Usado pelo Alembic e pelos testes. Ao criar os modelos de um módulo novo, importe-os aqui.
+"""
+from app.modulos.usuarios.modelos import Usuario
+
+__all__ = ["Usuario"]

@@ -1,0 +1,28 @@
+# PostgreSQL para desenvolvimento local da API única (backend/).
+#
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml ps        # aguarde "healthy"
+#
+# Cria dois bancos: amatech (desenvolvimento) e amatech_testes (apagado a cada execução do pytest).
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: amatech-postgres
+    environment:
+      POSTGRES_USER: amatech
+      POSTGRES_PASSWORD: amatech
+      POSTGRES_DB: amatech
+      TZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - amatech-pg:/var/lib/postgresql/data
+      - ./backend/docker/criar-banco-testes.sql:/docker-entrypoint-initdb.d/01-criar-banco-testes.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amatech -d amatech"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  amatech-pg:

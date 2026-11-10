@@ -17,3 +17,6 @@ Thumbs.db
 
 # Banco de identidades gerado em execucao
 portal/banco/*.db
+
+# Backend novo (API única)
+backend/.env
