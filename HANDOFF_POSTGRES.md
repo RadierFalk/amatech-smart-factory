@@ -67,7 +67,7 @@ cd backend
 cp .env.exemplo .env                                  # os valores padrão batem com o docker-compose.dev.yml
 alembic upgrade head
 alembic check                                         # esperado: "No new upgrade operations detected."
-python -m pytest -q -rs                               # esperado: 27 passed, 0 skipped
+python -m pytest -q -rs                               # esperado: todos passando, 0 skipped (42 em 2026-11-10)
 python -m scripts.seed_demo
 uvicorn app.main:app --port 8000
 ```
@@ -102,9 +102,24 @@ Ignore `qualidade/banco/backups/`. Os dados de produção podem estar nos volume
 
 O script recebe os caminhos por argumento, com os acima como padrão. Se um arquivo não existir, o script avisa e segue para o próximo, sem falhar.
 
-### 4.2 Escopo agora: só `usr.usuarios`
+### 4.2 Escopo agora: `usr.usuarios` e `mnt.*`
 
-Os modelos de `ras`, `qld`, `mnt` e `dsh` **ainda não existem** no `backend/`, a não ser que o Registro diga o contrário. Por isso, implemente agora só a parte de usuários e deixe o script organizado em uma função por schema (`migrar_usr`, `migrar_mnt`...), para cada módulo ser acrescentado quando o modelo dele existir. O script **devolve o mapa `(origem, id_antigo) -> usr.usuarios.id`**, porque as FKs dos outros módulos vão precisar dele.
+Já existem no `backend/` os modelos de `usr` e `mnt` (migrações `0001` e `0002`). Os de `ras`, `qld` e `dsh` ainda não, a não ser que o Registro diga o contrário. Implemente `migrar_usr` e `migrar_mnt` e deixe o script organizado em uma função por schema, para os outros entrarem quando o modelo deles existir. `migrar_usr` **devolve o mapa `(origem, id_antigo) -> usr.usuarios.id`**, que `migrar_mnt` usa nas FKs de usuário.
+
+**De `manutencao/manutencao.db` para `mnt` (modelos em `backend/app/modulos/manutencao/modelos.py`):**
+
+| SQLite antigo | PostgreSQL novo | Cuidados |
+|---|---|---|
+| `usuarios` | `usr.usuarios` | Pelo mapa de `migrar_usr` (seção 4.3). A tabela não existe mais em `mnt`. |
+| `equipamentos` | `mnt.equipamentos` | Mesmas colunas. `codigo_tag` em maiúsculas (há CHECK). `ativo` 0/1 vira boolean. |
+| `pecas` | `mnt.pecas` | Mesmas colunas. `codigo_peca` em maiúsculas (há CHECK). |
+| `chamados_manutencao` | `mnt.chamados` | `operador_abertura_id` e `tecnico_responsavel_id` passam pelo mapa de usuários. Datas texto (UTC) viram `timestamptz`. **Cancelados:** o sistema antigo gravava o motivo em `diagnostico_tecnico`; mova para `motivo_cancelamento` e deixe `diagnostico_tecnico` nulo. `origem_sistema` em minúsculas. |
+| `chamado_pecas_trocadas` | `mnt.chamado_pecas` | Agora há **UNIQUE (chamado_id, peca_id)**: some as quantidades de linhas repetidas da mesma peça na mesma OS (a conclusão antiga podia duplicar). |
+| `historico_status` | `mnt.historico_status` | `usuario_id` pelo mapa de usuários. Mantenha também as linhas em que `status_anterior = status_novo` (o sistema novo não grava mais essas, mas são histórico). |
+
+- **Preserve os IDs** de equipamentos, peças e chamados: o número da OS aparece para as pessoas ("OS #3"). Depois de inserir com IDs explícitos, ajuste as sequências: `SELECT setval(pg_get_serial_sequence('mnt.chamados', 'id'), (SELECT max(id) FROM mnt.chamados))`, e o mesmo para as outras tabelas.
+- **RN02 no banco:** o índice `ux_chamados_uma_os_ativa` recusa duas OS ativas na mesma máquina. Se o banco antigo tiver esse caso, o script não pode falhar no meio: coloque no relatório e pergunte ao dono do projeto qual manter.
+- **Aceite do `mnt`:** contagem de linhas igual à origem em cada tabela, exceto `chamado_pecas` quando houver linhas somadas (o relatório diz quantas). Depois da migração, `GET /api/mnt/indicadores` (logado como GES-0001) dá o mesmo total de chamados que a tela antiga de Indicadores.
 
 ### 4.3 Regras para unificar usuários (conflitos reais encontrados)
 
@@ -178,3 +193,23 @@ Cada agente acrescenta uma entrada aqui. Não apague as anteriores.
 - Validado: 23 testes Vitest (`npx ng test --watch=false`), build de produção e fluxo ponta a ponta pelo proxy, com a API rodando sobre SQLite em memória. **Não validado com Postgres** (ver o último critério da Tarefa A).
 - CI novo: `.github/workflows/frontend-testes.yml`.
 - Branch enviada ao GitHub. Confira na aba Actions o resultado dos dois workflows: o do backend foi a primeira execução dos testes de API contra um PostgreSQL de verdade.
+
+### 2026-11-10: módulo de Manutenção (mesma máquina, sem Docker)
+- Feito no backend:
+  - `app/modulos/manutencao/` com modelos, regras, cadastros, indicadores e 20 rotas em `/api/mnt`;
+  - migração `0002` com as tabelas `mnt`;
+  - `scripts/seed_demo.py` povoa também as 10 máquinas e as 7 peças.
+- Feito no frontend: `src/app/modulos/manutencao/` com painel, abrir chamado, meus chamados, fila, ordens de serviço, preventivas, indicadores (gráficos em `src/app/shared/graficos.ts`), histórico com CSV, cadastros e auditoria.
+- **Testes sem Docker:** o `tests/conftest.py` agora cai para SQLite em memória quando não acha o Postgres e `AMATECH_TEST_DATABASE_URL` não está definida.
+  - Isso valida as regras de negócio localmente; não substitui o Postgres.
+  - O CI define a variável e continua exigindo 0 skipped.
+  - Testes que só fazem sentido no Postgres usam `@pytest.mark.postgres`.
+- **Validado:**
+  - 42 testes do backend (no SQLite) e 30 do frontend;
+  - DDL das migrações em modo offline;
+  - roteiro no navegador (Edge headless, API sobre SQLite) com operador → técnico → supervisor, sem erros de console ou de API e sem rolagem horizontal no celular.
+- **Não validado:** nada contra o Postgres. Pontos para conferir na Tarefa A:
+  - `alembic check` com a `0002`;
+  - a trava `SELECT ... FOR UPDATE OF chamados` (o SQLite ignora `FOR UPDATE`);
+  - o índice parcial `ux_chamados_uma_os_ativa` sob concorrência real (duas aberturas simultâneas na mesma máquina devem resultar em uma 201 e uma 409).
+- Achado para o módulo DSH: a paleta categórica de `identidade/tokens.json` (`grafico-1..4`) **falha** no validador de paleta da skill de dataviz (`grafico-1` e `grafico-2` têm ΔE 14,9 em visão normal; `grafico-2` tem pouca saturação). Os gráficos de MNT usam uma série só e não são afetados. Corrija a paleta antes de fazer gráficos com várias séries.

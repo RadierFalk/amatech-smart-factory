@@ -47,8 +47,7 @@ export const routes: Routes = [
         path: 'manutencao',
         title: 'Manutenção · ERP AMATECH',
         canMatch: [moduloGuard('manutencao')],
-        loadComponent: emConstrucao,
-        data: { sigla: 'MNT', nome: 'Gestão da Manutenção de Ativos' },
+        loadChildren: () => import('./modulos/manutencao/manutencao.routes').then((m) => m.ROTAS_MANUTENCAO),
       },
       {
         path: 'dashboard',

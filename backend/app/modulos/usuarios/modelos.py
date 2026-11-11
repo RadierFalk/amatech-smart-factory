@@ -1,7 +1,7 @@
 """Tabela central de usuários (schema usr). Todos os módulos referenciam usr.usuarios.id."""
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Integer, String, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -23,5 +23,5 @@ class Usuario(Base):
     nome: Mapped[str] = mapped_column(String(100))
     senha_hash: Mapped[str] = mapped_column(String(255))
     perfil: Mapped[str] = mapped_column(String(50))
-    ativo: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
