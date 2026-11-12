@@ -4,6 +4,7 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 SEGREDO_DESENVOLVIMENTO = "dev-inseguro-troque-em-producao-0123456789"
+CHAVE_MAQUINAS_DESENVOLVIMENTO = "amatech-iot-demo"  # a mesma do sistema antigo (rastreabilidade/app/config.py)
 
 
 class Configuracao(BaseSettings):
@@ -21,9 +22,16 @@ class Configuracao(BaseSettings):
 
     ambiente: str = "desenvolvimento"  # desenvolvimento | producao
 
+    # Máquinas/IoT informam a etapa dos notebooks em /api/ras/maquinas/status com esta chave (X-API-Key).
+    chave_maquinas: str = CHAVE_MAQUINAS_DESENVOLVIMENTO
+    # Conta de serviço (inativa, sem login) que assina as mudanças feitas pelas máquinas.
+    matricula_servico: str = "SVC-INTEGRACAO"
+
     def validar_producao(self) -> None:
         if self.ambiente == "producao" and self.jwt_segredo == SEGREDO_DESENVOLVIMENTO:
             raise RuntimeError("Defina AMATECH_JWT_SEGREDO antes de subir em produção.")
+        if self.ambiente == "producao" and self.chave_maquinas == CHAVE_MAQUINAS_DESENVOLVIMENTO:
+            raise RuntimeError("Defina AMATECH_CHAVE_MAQUINAS antes de subir em produção.")
 
 
 @lru_cache

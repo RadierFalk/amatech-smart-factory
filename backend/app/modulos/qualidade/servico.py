@@ -4,6 +4,7 @@ Regras:
 - O responsável pela ocorrência é sempre quem a registrou (o usuário logado); editar não troca o responsável.
 - Ocorrência não é apagada: é ocultada e some das listas e dos indicadores.
 - Produto, estação, tipo de defeito e máquina precisam existir e estar ativos para um registro novo.
+- O resultado vai para a Rastreabilidade (etapa do notebook com o mesmo número de série).
 - Defeito causado pela máquina abre chamado na Manutenção (prioridade pela classificação). Se a Manutenção
   recusar (ex.: a máquina já tem OS ativa, RN02), a ocorrência é gravada assim mesmo e a recusa vira aviso.
 - Datas: gravadas em UTC; filtros por dia usam o dia da fábrica (Manaus).
@@ -30,6 +31,7 @@ from app.modulos.qualidade.constantes import (
     id_externo,
 )
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
+from app.modulos.rastreabilidade import producao as servico_ras
 from app.modulos.usuarios.modelos import Usuario
 
 # ---------------------------------------------------------------- cadastros (produtos, estações, tipos)
@@ -172,7 +174,9 @@ def registrar(
     sessao.add(oc)
     sessao.flush()
     sessao.refresh(oc)
-    avisos = [abrir_chamado_manutencao(sessao, oc, executor)] if abrir_chamado else []
+    avisos = [informar_rastreabilidade(sessao, oc, executor)]
+    if abrir_chamado:
+        avisos.append(abrir_chamado_manutencao(sessao, oc, executor))
     return oc, avisos
 
 
@@ -197,6 +201,30 @@ def ocultar(sessao: Session, ocorrencia_id: int) -> None:
     oc = obter(sessao, ocorrencia_id)
     oc.oculta = True
     sessao.flush()
+
+
+def informar_rastreabilidade(sessao: Session, oc: Ocorrencia, executor: Usuario) -> Aviso:
+    """Leva o resultado da inspeção à produção do notebook (mesmo número de série) na Rastreabilidade.
+
+    Reprovado -> etapa Reprovado (com não conformidade); Em reprocesso -> Reprovado e volta para Em Montagem;
+    Aprovado -> Aprovado, se ainda não passou dessa etapa. Num savepoint: se a RAS recusar, vira aviso.
+    """
+    classificacao = ROTULOS_CLASSIFICACAO[Classificacao(oc.classificacao)]
+    try:
+        with sessao.begin_nested():
+            r = servico_ras.aplicar_inspecao(
+                sessao,
+                executor,
+                numero_serie=oc.produto.numero_serie,
+                situacao=oc.situacao_produto,
+                descricao_falha=oc.observacao,
+                motivo_reprovacao=f"{oc.tipo_defeito.nome} ({classificacao})",
+                origem_sistema=ORIGEM_CHAMADO,
+                id_externo=id_externo(oc.id),
+            )
+    except ErroNegocio as e:
+        return Aviso("aviso", f"Rastreabilidade: o notebook não foi atualizado. {e.mensagem}")
+    return Aviso(r.tipo, r.mensagem)
 
 
 def abrir_chamado_manutencao(sessao: Session, oc: Ocorrencia, executor: Usuario) -> Aviso:

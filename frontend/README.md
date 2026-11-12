@@ -20,7 +20,7 @@ A API precisa estar no ar: veja `backend/` e `HANDOFF_POSTGRES.md` na raiz.
 | `src/app/core/` | Autenticação (signals + sessionStorage), interceptor JWT, guards por persona, tipos da API |
 | `src/app/layout/` | Casca das telas logadas (barra lateral `noite`) |
 | `src/app/paginas/` | Login, hub de módulos e tela "em construção" |
-| `src/app/modulos/<modulo>/` | Um módulo por setor, carregado sob demanda (hoje: `usuarios`, `manutencao`, `qualidade`) |
+| `src/app/modulos/<modulo>/` | Um módulo por setor, carregado sob demanda (hoje: `usuarios`, `manutencao`, `qualidade`, `rastreabilidade`) |
 | `src/app/shared/` | Peças da identidade visual (marca, etiqueta de estado) |
 
 ## Identidade visual

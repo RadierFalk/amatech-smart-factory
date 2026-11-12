@@ -81,6 +81,8 @@ h3 {
 .pagina {
   padding: var(--space-6);
   display: grid;
+  /* Coluna limitada à largura da tela: sem isso, formulários em grade (auto-fit) estouram no celular. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
   max-width: 1280px;
 }

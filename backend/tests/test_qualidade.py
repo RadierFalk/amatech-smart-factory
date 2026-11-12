@@ -103,7 +103,10 @@ def test_registro_grava_responsavel_logado_e_hora_de_manaus_em_utc(cliente, toke
     assert oc["responsavel_nome"] == "Maria"
     assert oc["numero_serie"] == "AMT-000017" and oc["equipamento_tag"] == "TEST-02"
     assert datetime.fromisoformat(oc["ocorrida_em"]) == datetime(2026, 11, 12, 12, 30, tzinfo=UTC)
-    assert oc["chamado_id"] is None and r.json()["avisos"] == []
+    assert oc["chamado_id"] is None
+    # Sem produção na Rastreabilidade com esse número de série: só avisa.
+    assert [a["tipo"] for a in r.json()["avisos"]] == ["aviso"]
+    assert "não está em produção" in r.json()["avisos"][0]["mensagem"]
 
 
 @pytest.mark.parametrize(
@@ -156,7 +159,7 @@ def test_abrir_chamado_na_manutencao(cliente, token_de, qld, sessao):
     r = registrar(cliente, token_de("QUA-0001"), qld, classificacao="CRITICO", abrir_chamado=True)
     assert r.status_code == 201, r.text
     oc = r.json()["ocorrencia"]
-    assert r.json()["avisos"][0]["tipo"] == "sucesso"
+    assert r.json()["avisos"][-1]["tipo"] == "sucesso"
     assert oc["chamado_id"] is not None and oc["chamado_status"] == "ABERTO"
 
     sessao.expire_all()
@@ -178,7 +181,7 @@ def test_maquina_ja_parada_vira_aviso_e_a_ocorrencia_fica_gravada(cliente, token
     r = registrar(cliente, h, qld, produto_id=qld["prod"][1], abrir_chamado=True)
 
     assert r.status_code == 201, r.text
-    aviso = r.json()["avisos"][0]
+    aviso = r.json()["avisos"][-1]
     assert aviso["tipo"] == "aviso" and "RN02" in aviso["mensagem"]
     assert r.json()["ocorrencia"]["chamado_id"] is None
     sessao.expire_all()

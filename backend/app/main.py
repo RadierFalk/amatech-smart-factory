@@ -13,6 +13,8 @@ from app.core.db import engine
 from app.core.erros import ErroNegocio
 from app.modulos.manutencao.rotas import rotas as rotas_manutencao
 from app.modulos.qualidade.rotas import rotas as rotas_qualidade
+from app.modulos.rastreabilidade.rotas import rotas as rotas_rastreabilidade
+from app.modulos.rastreabilidade.rotas import rotas_maquinas
 from app.modulos.usuarios.rotas import rotas_auth, rotas_usuarios
 
 cfg = obter_configuracao()
@@ -50,3 +52,5 @@ app.include_router(rotas_auth)
 app.include_router(rotas_usuarios)
 app.include_router(rotas_manutencao)
 app.include_router(rotas_qualidade)
+app.include_router(rotas_maquinas)  # antes de rotas_rastreabilidade: não exige login
+app.include_router(rotas_rastreabilidade)

@@ -10,14 +10,17 @@ Não use em produção: a senha é pública (está no README).
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.config import obter_configuracao
 from app.core.db import SessaoLocal
 from app.core.rbac import Perfil
 from app.core.seguranca import gerar_hash
 from app.modulos.manutencao.modelos import Equipamento, Peca
 from app.modulos.qualidade.modelos import Estacao, Produto, TipoDefeito
 from app.modulos.usuarios.modelos import Usuario
+from scripts import demo_rastreabilidade
 
 SENHA_DEMO = "amatech1234"
+SERVICO = obter_configuracao().matricula_servico
 
 PERSONAS = [
     ("ADM-0001", "Ana Souza", Perfil.ADMINISTRADOR),
@@ -82,6 +85,11 @@ def popular(sessao: Session) -> list[str]:
         for matricula, nome, perfil in PERSONAS:
             sessao.add(Usuario(matricula=matricula, nome=nome, senha_hash=hash_demo, perfil=perfil.value))
         feito.append(f"usr.usuarios: {len(PERSONAS)} personas (senha: {SENHA_DEMO})")
+    if not sessao.scalar(select(Usuario.id).where(Usuario.matricula == SERVICO)):
+        # Conta de serviço das máquinas (/api/ras/maquinas/status): inativa e sem senha válida, não faz login.
+        sessao.add(Usuario(matricula=SERVICO, nome="Integração (máquinas e outros sistemas)", senha_hash="!",
+                           perfil=Perfil.OPERADOR.value, ativo=False))
+        feito.append(f"usr.usuarios: conta de serviço {SERVICO}")
     if _vazia(sessao, Equipamento):
         for tag, nome, setor, posto in MAQUINAS:
             sessao.add(Equipamento(codigo_tag=tag, nome=nome, setor=setor, posto_trabalho=posto))
@@ -99,6 +107,13 @@ def popular(sessao: Session) -> list[str]:
     if _vazia(sessao, Produto):
         sessao.add_all(Produto(numero_serie=serie, modelo=modelo) for serie, modelo in PRODUTOS)
         feito.append(f"qld.produtos: {len(PRODUTOS)} notebooks")
+    sessao.flush()
+    pessoas = {p.matricula: p for p in sessao.scalars(select(Usuario))}
+    if all(m in pessoas for m in ("OPE-0001", "QUA-0001", "ALM-0001")):
+        feito += demo_rastreabilidade.popular(sessao, {
+            "operador": pessoas["OPE-0001"], "operador2": pessoas.get("OP-10234", pessoas["OPE-0001"]),
+            "inspetor": pessoas["QUA-0001"], "almoxarife": pessoas["ALM-0001"],
+        })
     sessao.flush()
     return feito
 

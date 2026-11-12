@@ -28,13 +28,11 @@ export const routes: Routes = [
         canMatch: [moduloGuard('usuarios')],
         loadComponent: () => import('./modulos/usuarios/usuarios').then((m) => m.Usuarios),
       },
-      // Módulos ainda sem API no backend único: rota protegida + aviso, trocados um a um.
       {
         path: 'rastreabilidade',
         title: 'Rastreabilidade · ERP AMATECH',
         canMatch: [moduloGuard('rastreabilidade')],
-        loadComponent: emConstrucao,
-        data: { sigla: 'RAS', nome: 'Rastreabilidade e Materiais' },
+        loadChildren: () => import('./modulos/rastreabilidade/rastreabilidade.routes').then((m) => m.ROTAS_RASTREABILIDADE),
       },
       {
         path: 'qualidade',
@@ -48,6 +46,7 @@ export const routes: Routes = [
         canMatch: [moduloGuard('manutencao')],
         loadChildren: () => import('./modulos/manutencao/manutencao.routes').then((m) => m.ROTAS_MANUTENCAO),
       },
+      // Ainda sem API no backend único: rota protegida + aviso "em construção".
       {
         path: 'dashboard',
         title: 'Dashboard · ERP AMATECH',

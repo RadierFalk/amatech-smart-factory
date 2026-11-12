@@ -14,8 +14,8 @@ Regras (HANDOFF_POSTGRES.md, seções 4.2 e 4.3):
   as tabelas de mnt mantêm os IDs de origem e também usam upsert.
 - Senhas nunca vão para o relatório nem são gravadas em texto puro.
 
-Uma função por schema (migrar_usr, migrar_mnt, migrar_qld). Os schemas ras e dsh entram aqui quando
-os modelos deles existirem; migrar_usr já lê os usuários desses bancos e devolve o mapa de IDs.
+Uma função por schema (migrar_usr, migrar_mnt, migrar_qld, migrar_ras). O schema dsh entra aqui quando
+o modelo dele existir; migrar_usr já lê os usuários desse banco e devolve o mapa de IDs.
 
 Contas da mesma pessoa com matrículas diferentes (ex.: MAT-00421 na Rastreabilidade e OP-10234 na
 Manutenção) só são unidas com --equivalencias; o relatório lista os nomes repetidos para ajudar a decidir.
@@ -45,6 +45,9 @@ from app.modulos.manutencao.constantes import STATUS_ATIVOS, StatusChamado
 from app.modulos.manutencao.modelos import Chamado, ChamadoPeca, Equipamento, HistoricoStatus, Peca
 from app.modulos.qualidade.constantes import LEGADO_CLASSIFICACAO, LEGADO_SITUACAO, LEGADO_STATUS
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
+from app.modulos.rastreabilidade.modelos import (
+    Baixa, Componente, Etapa, Modelo, ModeloComponente, NaoConformidade, Passagem, Producao, Solicitacao,
+)
 from app.modulos.usuarios.modelos import Usuario
 from scripts.seed_demo import PERSONAS, SENHA_DEMO
 
@@ -68,7 +71,13 @@ PERSONAS_POR_MATRICULA = {m: (nome, perfil) for m, nome, perfil in PERSONAS}
 
 TABELAS_COM_SEQUENCIA = ("usr.usuarios", "mnt.equipamentos", "mnt.pecas", "mnt.chamados",
                          "mnt.chamado_pecas", "mnt.historico_status",
-                         "qld.produtos", "qld.estacoes", "qld.tipos_defeito", "qld.ocorrencias")
+                         "qld.produtos", "qld.estacoes", "qld.tipos_defeito", "qld.ocorrencias",
+                         "ras.etapas", "ras.componentes", "ras.modelos", "ras.producoes", "ras.passagens",
+                         "ras.nao_conformidades", "ras.solicitacoes", "ras.baixas")
+
+# Equivalências que valem sempre (o --equivalencias pode acrescentar ou trocar):
+# a conta de serviço das máquinas da RAS é a mesma conta de serviço da Manutenção.
+EQUIVALENCIAS_PADRAO = {"MAT-IOT": "SVC-INTEGRACAO"}
 
 
 class ErroMigracao(Exception):
@@ -107,7 +116,7 @@ class Relatorio:
             ("Conflitos resolvidos", self.conflitos),
             ("Senhas em texto puro convertidas para Argon2 (matrículas)", self.senhas_convertidas),
             ("Contas sem login possível: hash inválido ou de formato não suportado (matrículas)", self.senhas_sem_login),
-            ("Equivalências de matrícula aplicadas (--equivalencias)", self.equivalencias_aplicadas),
+            ("Equivalências de matrícula aplicadas (padrão e --equivalencias)", self.equivalencias_aplicadas),
             ("Possíveis duplicados: mesmo nome com matrículas diferentes (nada foi unido; "
              "use --equivalencias se forem a mesma pessoa)", self.possiveis_duplicados),
             ("Registros ignorados", self.ignorados),
@@ -577,6 +586,144 @@ def migrar_qld(sessao: Session, conn: sqlite3.Connection, mapa: dict[tuple[str, 
     rel.gravadas["qld.ocorrencias"] = len(ocorrencias)
 
 
+# --------------------------------------------------------------------------- ras
+def migrar_ras(sessao: Session, conn: sqlite3.Connection, mapa: dict[tuple[str, int], int], rel: Relatorio) -> None:
+    """Etapas, componentes, modelos (BOM), produções, passagens, não conformidades e materiais, com os IDs de origem.
+
+    Datas da RAS antiga são texto em UTC (CURRENT_TIMESTAMP do SQLite). integracao_clientes e integracao_eventos
+    não são migradas (a API única não tem mais a API externa nem a fila de eventos)."""
+    def ler(tabela: str) -> list[sqlite3.Row]:
+        linhas = conn.execute(f"SELECT * FROM {tabela}").fetchall()  # noqa: S608 (nome fixo)
+        rel.lidas[f"ras.{tabela}"] = len(linhas)
+        return linhas
+
+    def usuario(id_antigo, onde: str) -> int | None:
+        return _usuario(mapa, id_antigo, onde, origem="ras")
+
+    status, componentes, produtos = ler("status_producao"), ler("componentes"), ler("produtos")
+    bom, producoes, historico = ler("produto_componentes"), ler("producoes"), ler("historico_passagem")
+    ncs, solicitacoes, baixas = ler("nao_conformidades"), ler("solicitacoes_materiais"), ler("baixas_materiais")
+
+    _conferir_ids_livres(sessao, Etapa, "nome", [(s["id"], s["nome_status"].strip()) for s in status])
+    _conferir_ids_livres(sessao, Componente, "sku", [(c["idcmp"], c["codigo_sku"].strip().upper()) for c in componentes])
+    _conferir_ids_livres(sessao, Modelo, "codigo", [(p["idprd"], p["codigo_modelo"].strip().upper()) for p in produtos])
+    _conferir_ids_livres(sessao, Producao, "numero_serie",
+                         [(p["id"], p["numero_serie_notebook"].strip().upper()) for p in producoes])
+
+    for s in status:
+        _upsert(sessao, Etapa.__table__, {"id": s["id"], "nome": s["nome_status"].strip(), "ordem": s["ordem"] or 0},
+                ["id"], ["nome", "ordem"])
+    rel.gravadas["ras.etapas"] = len(status)
+
+    for c in componentes:
+        estoque = c["qtd_estoque"] or 0
+        if estoque < 0:
+            raise ErroMigracao(f"Componente {c['codigo_sku']}: estoque negativo ({estoque}). Corrija na origem.")
+        _upsert(sessao, Componente.__table__, {"id": c["idcmp"], "sku": c["codigo_sku"].strip().upper(),
+                                               "nome": c["nome"].strip(), "estoque": estoque},
+                ["id"], ["sku", "nome", "estoque"])
+    rel.gravadas["ras.componentes"] = len(componentes)
+
+    for p in produtos:
+        _upsert(sessao, Modelo.__table__, {"id": p["idprd"], "codigo": p["codigo_modelo"].strip().upper(),
+                                           "nome": p["nome_modelo"].strip(), "meta": p["quantidade"]},
+                ["id"], ["codigo", "nome", "meta"])
+    rel.gravadas["ras.modelos"] = len(produtos)
+
+    for b in bom:
+        _upsert(sessao, ModeloComponente.__table__, {"modelo_id": b["produto_id"], "componente_id": b["componente_id"],
+                                                     "quantidade": b["quantidade_necessaria"]},
+                ["modelo_id", "componente_id"], ["quantidade"])
+    rel.gravadas["ras.modelo_componentes"] = len(bom)
+
+    # Última passagem de cada produção = atualizada_em (antes era calculada por subconsulta).
+    ultima: dict[int, datetime] = {}
+    for h in historico:
+        quando = para_datahora(h["data_horario"])
+        if h["producao_id"] is not None and (h["producao_id"] not in ultima or quando > ultima[h["producao_id"]]):
+            ultima[h["producao_id"]] = quando
+
+    migradas: set[int] = set()
+    colunas = [c.name for c in Producao.__table__.columns if c.name != "id"]
+    for p in producoes:
+        onde = f"produção {p['numero_serie_notebook']}"
+        if p["produto_id"] is None or p["status_atual_id"] is None:
+            rel.ignorados.append(f"ras.producoes id {p['id']} ({p['numero_serie_notebook']}): sem modelo ou sem etapa")
+            continue
+        criado_por = usuario(p["criado_por"], onde)
+        iniciada = para_datahora(p["data_inicio"] or p["criado_em"])
+        valores = {
+            "id": p["id"], "numero_serie": p["numero_serie_notebook"].strip().upper(),
+            "id_unica": p["id_unica_producao"].strip(), "modelo_id": p["produto_id"], "etapa_id": p["status_atual_id"],
+            "responsavel_id": usuario(p["responsavel_etapa_id"], onde) or criado_por, "criado_por_id": criado_por,
+            "iniciada_em": iniciada, "atualizada_em": max(iniciada, ultima.get(p["id"], iniciada)),
+        }
+        _upsert(sessao, Producao.__table__, valores, ["id"], colunas)
+        migradas.add(p["id"])
+    rel.gravadas["ras.producoes"] = len(migradas)
+
+    def da_producao(linha, tabela: str) -> bool:
+        if linha["producao_id"] in migradas:
+            return True
+        rel.ignorados.append(f"ras.{tabela} id {linha['id']}: produção {linha['producao_id']} não migrada")
+        return False
+
+    gravadas = 0
+    for h in historico:
+        if not da_producao(h, "historico_passagem"):
+            continue
+        onde = f"passagem id {h['id']}"
+        _upsert(sessao, Passagem.__table__, {
+            "id": h["id"], "producao_id": h["producao_id"], "etapa_id": h["status_id"],
+            "usuario_id": usuario(h["usuario_id"], onde), "responsavel_id": usuario(h["responsavel_etapa_id"], onde),
+            "registrada_em": para_datahora(h["data_horario"]), "origem": (h["origem_atualizacao"] or "MANUAL")[:50],
+        }, ["id"], ["producao_id", "etapa_id", "usuario_id", "responsavel_id", "registrada_em", "origem"])
+        gravadas += 1
+    rel.gravadas["ras.passagens"] = gravadas
+
+    gravadas = 0
+    colunas_nc = [c.name for c in NaoConformidade.__table__.columns if c.name != "id"]
+    for n in ncs:
+        if not da_producao(n, "nao_conformidades"):
+            continue
+        origem = (n["origem_sistema"] or "").strip().lower()
+        _upsert(sessao, NaoConformidade.__table__, {
+            "id": n["id"], "producao_id": n["producao_id"], "usuario_id": usuario(n["usuario_id"], f"NC id {n['id']}"),
+            "descricao_falha": n["descricao_falha"], "motivo_reprovacao": n["motivo_reprovacao"],
+            "registrada_em": para_datahora(n["data_registro"]),
+            # 'AMATECH' era o padrão para as NCs da própria Rastreabilidade: no novo, origem vazia.
+            "origem_sistema": None if origem in ("", "amatech") else origem, "id_externo": n["id_externo"],
+        }, ["id"], colunas_nc)
+        gravadas += 1
+    rel.gravadas["ras.nao_conformidades"] = gravadas
+
+    sol_migradas: set[int] = set()
+    colunas_sol = [c.name for c in Solicitacao.__table__.columns if c.name != "id"]
+    for s in solicitacoes:
+        if not da_producao(s, "solicitacoes_materiais"):
+            continue
+        _upsert(sessao, Solicitacao.__table__, {
+            "id": s["id"], "producao_id": s["producao_id"], "componente_id": s["componente_id"],
+            "quantidade": s["quantidade_solicitada"], "status": (s["status_solicitacao"] or "PENDENTE").strip().upper(),
+            "criado_por_id": usuario(s["criado_por"], f"solicitação id {s['id']}"),
+            "criada_em": para_datahora(s["criado_em"]),
+        }, ["id"], colunas_sol)
+        sol_migradas.add(s["id"])
+    rel.gravadas["ras.solicitacoes"] = len(sol_migradas)
+
+    gravadas = 0
+    for b in baixas:
+        if b["solicitacao_id"] not in sol_migradas:
+            rel.ignorados.append(f"ras.baixas_materiais id {b['id']}: solicitação {b['solicitacao_id']} não migrada")
+            continue
+        _upsert(sessao, Baixa.__table__, {
+            "id": b["id"], "solicitacao_id": b["solicitacao_id"], "usuario_id": usuario(b["usuario_id"], f"baixa id {b['id']}"),
+            "quantidade": b["quantidade_baixada"], "registrada_em": para_datahora(b["data_baixa"]),
+        }, ["id"], ["solicitacao_id", "usuario_id", "quantidade", "registrada_em"])
+        gravadas += 1
+    rel.gravadas["ras.baixas"] = gravadas
+
+
 # --------------------------------------------------------------------------- execução
 def ajustar_sequencias(sessao: Session) -> None:
     """Depois de inserir com IDs explícitos, o próximo ID gerado tem que vir depois do maior existente."""
@@ -599,12 +746,14 @@ def migrar(sessao: Session, caminhos: dict[str, Path], rel: Relatorio,
                 conexoes[origem] = abrir_somente_leitura(Path(caminho))
             else:
                 rel.origens_ausentes.append(f"{origem}: {caminho}")
-        mapa = migrar_usr(sessao, conexoes, rel, equivalencias or {})
+        mapa = migrar_usr(sessao, conexoes, rel, {**EQUIVALENCIAS_PADRAO, **(equivalencias or {})})
         if "mnt" in conexoes:
             migrar_mnt(sessao, conexoes["mnt"], mapa, rel)
         if "qld" in conexoes:
             sessao.flush()  # as máquinas da Manutenção precisam estar visíveis para mapear as TAGs
             migrar_qld(sessao, conexoes["qld"], mapa, rel)
+        if "ras" in conexoes:
+            migrar_ras(sessao, conexoes["ras"], mapa, rel)
         sessao.flush()
         ajustar_sequencias(sessao)
     finally:

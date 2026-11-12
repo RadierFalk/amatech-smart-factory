@@ -15,6 +15,7 @@ from app.core.rbac import Perfil
 from app.core.seguranca import verificar_senha
 from app.modulos.manutencao.modelos import Chamado, ChamadoPeca, Equipamento, HistoricoStatus, Peca
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
+from app.modulos.rastreabilidade.modelos import Baixa, Componente, Modelo, NaoConformidade, Passagem, Producao, Solicitacao
 from app.modulos.usuarios.modelos import Usuario
 from scripts import migrar_sqlite as m
 
@@ -54,8 +55,29 @@ DDL = {
             status_ocorrencia TEXT, visibilidade_ocorrencia TEXT DEFAULT 'Visivel', id_produto INTEGER,
             id_estacao INTEGER, id_tipo_defeito INTEGER, id_maquina INTEGER, id_usuario INTEGER);
     """,
-    "ras": """CREATE TABLE usuarios (id INTEGER PRIMARY KEY, matricula TEXT, nome TEXT, email TEXT, senha_hash TEXT,
-              cargo TEXT, ativo INTEGER DEFAULT 1, criado_em TEXT)""",
+    "ras": """
+        CREATE TABLE usuarios (id INTEGER PRIMARY KEY, matricula TEXT, nome TEXT, email TEXT, senha_hash TEXT,
+                               cargo TEXT, ativo INTEGER DEFAULT 1, criado_em TEXT);
+        CREATE TABLE status_producao (id INTEGER PRIMARY KEY, nome_status TEXT, ordem INTEGER, criado_por INTEGER);
+        CREATE TABLE componentes (idcmp INTEGER PRIMARY KEY, nome TEXT, codigo_sku TEXT, qtd_estoque INTEGER,
+                                  criado_por INTEGER);
+        CREATE TABLE produtos (idprd INTEGER PRIMARY KEY, nome_modelo TEXT, codigo_modelo TEXT, quantidade INTEGER,
+                               criado_por INTEGER);
+        CREATE TABLE produto_componentes (produto_id INTEGER, componente_id INTEGER, quantidade_necessaria INTEGER,
+                                          criado_por INTEGER);
+        CREATE TABLE producoes (id INTEGER PRIMARY KEY, numero_serie_notebook TEXT, id_unica_producao TEXT,
+            produto_id INTEGER, status_atual_id INTEGER, data_inicio TEXT, responsavel_etapa_id INTEGER,
+            criado_por INTEGER, criado_em TEXT);
+        CREATE TABLE historico_passagem (id INTEGER PRIMARY KEY, producao_id INTEGER, status_id INTEGER,
+            usuario_id INTEGER, responsavel_etapa_id INTEGER, data_horario TEXT, origem_atualizacao TEXT);
+        CREATE TABLE nao_conformidades (id INTEGER PRIMARY KEY, producao_id INTEGER, usuario_id INTEGER,
+            descricao_falha TEXT, motivo_reprovacao TEXT, data_registro TEXT, origem_sistema TEXT DEFAULT 'AMATECH',
+            id_externo TEXT);
+        CREATE TABLE solicitacoes_materiais (id INTEGER PRIMARY KEY, producao_id INTEGER, componente_id INTEGER,
+            quantidade_solicitada INTEGER, status_solicitacao TEXT, criado_por INTEGER, criado_em TEXT);
+        CREATE TABLE baixas_materiais (id INTEGER PRIMARY KEY, solicitacao_id INTEGER, usuario_id INTEGER,
+            quantidade_baixada INTEGER, data_baixa TEXT);
+    """,
     "dsh": """
         CREATE TABLE perfil (id_perfil INTEGER PRIMARY KEY, nome TEXT);
         CREATE TABLE usuario (id_usuario INTEGER PRIMARY KEY, nome TEXT, login TEXT, senha_hash TEXT,
@@ -491,3 +513,65 @@ def test_equivalencias_sem_as_colunas_certas(tmp_path):
     csv_.write_text("de,para\nA,B\n", encoding="utf-8")
     with pytest.raises(m.ErroMigracao, match="matricula_antiga"):
         m.ler_equivalencias(csv_)
+
+
+# --------------------------------------------------------------------------- ras
+def _ras_basico(b: Bancos) -> None:
+    b.sql("ras", """
+        INSERT INTO usuarios VALUES (1, 'MAT-0001', 'Administrador do Sistema', 'a@a', 'pbkdf2$1$x$y', 'Administrador', 1, '2026-10-01 10:00:00');
+        INSERT INTO usuarios VALUES (2, 'MAT-00421', 'Carlos Mendonça', 'c@a', 'pbkdf2$1$x$y', 'Operador', 1, '2026-10-01 10:00:00');
+        INSERT INTO usuarios VALUES (6, 'MAT-IOT', 'Integração', 'iot@a', '!', 'Integração', 0, '2026-10-01 10:00:00');
+        INSERT INTO status_producao VALUES (1, 'Em Fila', 1, 1);
+        INSERT INTO status_producao VALUES (2, 'Em Montagem', 2, 1);
+        INSERT INTO status_producao VALUES (8, 'Reprovado', 91, 1);
+        INSERT INTO componentes VALUES (3, 'Processador i5', 'cpu-i5-12', 350, 1);
+        INSERT INTO componentes VALUES (4, 'Bateria', 'BAT-45WH', NULL, 1);
+        INSERT INTO produtos VALUES (1, 'AMT N14', 'n14-i5-8-256', 600, 1);
+        INSERT INTO produto_componentes VALUES (1, 3, 1, 1);
+        INSERT INTO producoes VALUES (7, 'AMT-000007', 'PRD-AMT-000007-20261101', 1, 8, '2026-11-01 12:00:00', 2, 2, '2026-11-01 12:00:00');
+        INSERT INTO historico_passagem VALUES (20, 7, 1, 2, 2, '2026-11-01 12:00:00', 'MANUAL');
+        INSERT INTO historico_passagem VALUES (21, 7, 2, 2, 2, '2026-11-01 13:00:00', 'MANUAL');
+        INSERT INTO historico_passagem VALUES (22, 7, 8, 6, 2, '2026-11-01 14:30:00', 'MAQUINA/IOT');
+        INSERT INTO nao_conformidades VALUES (5, 7, 6, 'Reprovado pela máquina', 'Detecção', '2026-11-01 14:30:00', 'AMATECH', NULL);
+        INSERT INTO nao_conformidades VALUES (6, 7, 1, 'Tela', 'Tela (Maior)', '2026-11-01 14:40:00', 'Qualidade', 'QLD-12');
+        INSERT INTO solicitacoes_materiais VALUES (9, 7, 3, 1, 'ATENDIDA', 2, '2026-11-01 12:05:00');
+        INSERT INTO baixas_materiais VALUES (11, 9, 1, 1, '2026-11-01 12:20:00');
+    """)
+
+
+def test_migra_ras_preservando_ids(bancos, migrar, sessao):
+    _ras_basico(bancos)
+    rel = migrar(bancos)
+    sessao.expire_all()
+    us = _usuarios(sessao)
+
+    assert "MAT-IOT" not in us and us["SVC-INTEGRACAO"].ativo is False  # equivalência padrão
+    assert rel.equivalencias_aplicadas == ["RAS MAT-IOT -> SVC-INTEGRACAO"]
+    assert {c.id: (c.sku, c.estoque) for c in sessao.scalars(select(Componente))} == {3: ("CPU-I5-12", 350), 4: ("BAT-45WH", 0)}
+    modelo = sessao.get(Modelo, 1)
+    assert modelo.codigo == "N14-I5-8-256" and modelo.meta == 600 and [i.componente_id for i in modelo.componentes] == [3]
+
+    p = sessao.get(Producao, 7)
+    assert (p.numero_serie, p.etapa_id, p.responsavel_id) == ("AMT-000007", 8, us["MAT-00421"].id)
+    assert _utc(p.atualizada_em) == datetime(2026, 11, 1, 14, 30, tzinfo=UTC)  # última passagem
+    passagens = sessao.scalars(select(Passagem).order_by(Passagem.id)).all()
+    assert [(h.id, h.origem) for h in passagens] == [(20, "MANUAL"), (21, "MANUAL"), (22, "MAQUINA/IOT")]
+    assert passagens[-1].usuario_id == us["SVC-INTEGRACAO"].id
+
+    ncs = {n.id: n for n in sessao.scalars(select(NaoConformidade))}
+    assert ncs[5].origem_sistema is None  # 'AMATECH' era o padrão da própria RAS
+    assert (ncs[6].origem_sistema, ncs[6].id_externo) == ("qualidade", "QLD-12")
+    s = sessao.get(Solicitacao, 9)
+    assert s.status == "ATENDIDA" and s.quantidade_baixada == 1 and sessao.get(Baixa, 11).quantidade == 1
+    assert rel.gravadas["ras.passagens"] == 3 and rel.gravadas["ras.baixas"] == 1
+
+    rel2 = migrar(bancos)
+    assert rel2.usuarios_criados == [] and rel2.usuarios_atualizados == []
+
+
+def test_ras_estoque_negativo_desfaz_tudo(bancos, migrar, sessao):
+    _ras_basico(bancos)
+    bancos.sql("ras", "UPDATE componentes SET qtd_estoque = -2 WHERE idcmp = 3")
+    with pytest.raises(m.ErroMigracao, match="estoque negativo"):
+        migrar(bancos)
+    assert _usuarios(sessao) == {}

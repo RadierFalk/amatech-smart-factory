@@ -244,3 +244,23 @@ Cada agente acrescenta uma entrada aqui. Não apague as anteriores.
   - 89 testes do backend (SQLite local) e 40 do frontend; build de produção;
   - aceite com os dados reais: migrando os bancos do repositório, `/api/qld/indicadores` dá os mesmos números da tela antiga (38 visíveis, 6 abertas, 7 notebooks reprovados, contagens por estação, tipo e dia idênticas).
 - **Não validado:** no Postgres (o CI roda no push) e no navegador (não houve roteiro ponta a ponta desta vez).
+
+### 2026-11-12: módulo de Rastreabilidade (RAS) na API única e no Angular (máquina sem Docker)
+- CI do commit `dbe6ed5` (QLD) passou no Postgres: `alembic check` sem diferenças, 89 passed, 0 skipped.
+- Feito no backend:
+  - `app/modulos/rastreabilidade/` com etapas, componentes, modelos com a lista de componentes (BOM), produções, passagens de etapa, não conformidades, solicitações e baixas de material, painel e 4 relatórios: 30 rotas em `/api/ras`; migração `0004` (schema `ras`).
+  - Nomes novos: produtos -> `modelos`, status_producao -> `etapas`, historico_passagem -> `passagens`, solicitacoes_materiais -> `solicitacoes`, baixas_materiais -> `baixas`.
+  - Regras portadas: nº de série `AMT-<id>` e ID único com o dia da fábrica; reprovar exige falha e motivo e gera não conformidade; próxima etapa sugerida (de Parado/Reprovado volta para a 2ª etapa); solicitação PENDENTE -> PARCIAL -> ATENDIDA; baixa limitada ao saldo e ao estoque, com o componente travado (`FOR UPDATE`); alterar/excluir baixa devolve ao estoque.
+  - **Permissões:** no sistema antigo quase tudo era liberado para qualquer usuário logado. Agora: produção (criar, mudar etapa, NC) = Operador, Inspetor, Supervisor, Adm.; excluir produção = Supervisor, Adm.; solicitar material = Operador, Almoxarife, Supervisor, Adm.; baixa = Almoxarife, Adm. (como antes); componentes = Almoxarife, Supervisor, Adm.; modelos e etapas = Supervisor, Adm.
+  - Máquinas/IoT: `POST /api/ras/maquinas/status` com `X-API-Key` (`AMATECH_CHAVE_MAQUINAS`, obrigatória em produção), assinado pela conta de serviço `SVC-INTEGRACAO`.
+  - **Não portado (de propósito):** a API externa `/api/v1`, a fila de eventos e as chaves por sistema. Na API única os módulos se chamam por dentro.
+  - **QLD -> RAS:** registrar uma ocorrência leva o resultado à produção do mesmo nº de série (Reprovado / reprocesso volta para Em Montagem / Aprovado se ainda não passou), num savepoint como o chamado da MNT. Correção em relação ao antigo: se o notebook **já estava Reprovado**, a não conformidade da Qualidade é gravada assim mesmo (o antigo descartava a falha e dizia que tinha reprovado).
+  - Os notebooks da QLD continuam em `qld.produtos`, ligados à RAS pelo nº de série. **Pendente:** apontar `qld.ocorrencias` para `ras.producoes` (exige migrar a QLD junto com a RAS).
+  - `seed_demo` povoa a RAS (as 30 produções de demonstração do sistema antigo, com histórico e materiais) e cria a conta de serviço.
+- Script de migração: `migrar_ras` (IDs preservados; datas da RAS em UTC; NC com origem 'AMATECH' vira origem vazia) e a equivalência padrão `MAT-IOT -> SVC-INTEGRACAO`.
+- Frontend: `src/app/modulos/rastreabilidade/` com painel (atualiza a cada 30 s), produções, ficha do notebook (mudar etapa, NC, materiais, histórico), materiais (solicitações e baixas), relatórios com CSV e cadastros. Correção global em `styles.scss`: `.pagina` com `grid-template-columns: minmax(0, 1fr)` (os formulários em grade estouravam a tela no celular, inclusive nos módulos antigos).
+- Validado:
+  - 106 testes do backend (SQLite local) e 46 do frontend; build de produção; nomes das 47 constraints/índices da `0004` iguais aos dos modelos (comparação do DDL offline).
+  - Migração com um banco da RAS gerado pelo seed do sistema antigo: contagens iguais em todas as tabelas, e o painel e os 4 relatórios da API nova dão os mesmos números do código antigo.
+  - **Roteiro no navegador** (Edge sem interface, API sobre SQLite com o seed): telas de QLD e RAS por persona, fluxo QLD -> RAS -> MNT pela tela (ocorrência reprova o notebook e abre a OS), iniciar produção / mudar etapa / solicitar material / dar baixa, sem rolagem horizontal da página em 11 telas no celular, 0 erros de console ou de API.
+- **Não validado:** no Postgres (o CI roda no push).

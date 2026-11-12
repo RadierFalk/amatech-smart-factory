@@ -4,9 +4,14 @@ Usado pelo Alembic e pelos testes. Ao criar os modelos de um módulo novo, impor
 """
 from app.modulos.manutencao.modelos import Chamado, ChamadoPeca, Equipamento, HistoricoStatus, Peca
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
+from app.modulos.rastreabilidade.modelos import (
+    Baixa, Componente, Etapa, Modelo, ModeloComponente, NaoConformidade, Passagem, Producao, Solicitacao,
+)
 from app.modulos.usuarios.modelos import Usuario
 
 __all__ = [
     "Chamado", "ChamadoPeca", "Equipamento", "Estacao", "HistoricoStatus", "Ocorrencia", "Peca", "Produto",
     "TipoDefeito", "Usuario",
+    "Baixa", "Componente", "Etapa", "Modelo", "ModeloComponente", "NaoConformidade", "Passagem", "Producao",
+    "Solicitacao",
 ]
