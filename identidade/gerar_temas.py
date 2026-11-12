@@ -112,6 +112,31 @@ def gerar(sistema, c):
     print(f"{arquivo.relative_to(RAIZ)} atualizado")
 
 
+def css_tokens():
+    """Os tokens como variáveis CSS em :root, com o @import das fontes IBM Plex."""
+    tokens = json.loads((RAIZ / "identidade" / "tokens.json").read_text(encoding="utf-8"))
+    c = cores()
+    linhas = [f"  --{n}: {v};" for n, v in c.items()]
+    for familia in ("spacing", "radius", "shadow"):
+        linhas += [f"  --{t['name']}: {t['value']};" for t in tokens[familia]["tokens"]]
+    linhas += [f"  --font-{k}: {v};" for k, v in tokens["type"]["families"].items()]
+    fontes = (f'{GOOGLE}IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+Condensed:wght@600;700'
+              f'&family=IBM+Plex+Sans:wght@400;600&display=swap')
+    return ("/* Gerado por identidade/gerar_temas.py a partir de identidade/tokens.json: não edite à mão. */\n"
+            f'@import url("{fontes}");\n:root {{\n' + "\n".join(linhas) + "\n}\n")
+
+
+def gerar_frontend():
+    """O frontend Angular recebe os tokens em src/styles/tokens.css e o símbolo em public/."""
+    destino = RAIZ / "frontend"
+    if not destino.exists():
+        return
+    (destino / "src" / "styles").mkdir(parents=True, exist_ok=True)
+    (destino / "src" / "styles" / "tokens.css").write_text(css_tokens(), encoding="utf-8", newline="\n")
+    (destino / "public" / "amatech-simbolo.svg").write_bytes((RAIZ / "identidade" / "amatech-simbolo.svg").read_bytes())
+    print("frontend/src/styles/tokens.css e public/amatech-simbolo.svg atualizados")
+
+
 def gerar_rastreabilidade():
     """A Rastreabilidade serve só a própria pasta static/: recebe uma cópia dos tokens em CSS e do símbolo."""
     tokens = json.loads((RAIZ / "identidade" / "tokens.json").read_text(encoding="utf-8"))
@@ -135,3 +160,4 @@ if __name__ == "__main__":
     for nome in SISTEMAS:
         gerar(nome, paleta)
     gerar_rastreabilidade()
+    gerar_frontend()

@@ -1,0 +1,257 @@
+/*
+ * Estilos globais do ERP AMATECH.
+ * As cores, fontes e espaçamentos vêm de styles/tokens.css (gerado de identidade/tokens.json).
+ * Regras de uso de cada token: identidade/tokens.json e identidade/README.md.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--chao);
+  color: var(--tinta);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sinal);
+  outline-offset: 2px;
+}
+
+a {
+  color: var(--sinal);
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+}
+
+/* ---------- Tipografia ---------- */
+
+.titulo-tela {
+  font-family: var(--font-display);
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 600;
+}
+
+.titulo-secao {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.rotulo {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tinta-2);
+}
+
+.legenda {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--tinta-2);
+}
+
+.codigo {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ---------- Estrutura de página ---------- */
+
+.pagina {
+  padding: var(--space-6);
+  display: grid;
+  /* Coluna limitada à largura da tela: sem isso, formulários em grade (auto-fit) estouram no celular. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  max-width: 1280px;
+}
+
+.pagina-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.cartao {
+  background: var(--superficie);
+  border: 1px solid var(--linha);
+  border-radius: var(--radius-md);
+  box-shadow: var(--sombra-cartao);
+  padding: var(--space-4);
+}
+
+.selo-setor {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--on-sinal);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+
+  &.ras { background: var(--setor-ras); }
+  &.qld { background: var(--setor-qld); }
+  &.mnt { background: var(--setor-mnt); }
+  &.dsh { background: var(--setor-dsh); }
+  &.usr { background: var(--noite-2); }
+}
+
+/* ---------- Botões ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 36px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--linha-forte);
+  background: var(--superficie);
+  color: var(--tinta);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+
+  &:hover:not(:disabled) { background: var(--superficie-2); }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  &.primario {
+    background: var(--sinal);
+    border-color: var(--sinal);
+    color: var(--on-sinal);
+    &:hover:not(:disabled) { background: var(--sinal-forte); border-color: var(--sinal-forte); }
+  }
+
+  &.perigo {
+    color: var(--critico);
+    border-color: var(--critico);
+    &:hover:not(:disabled) { background: var(--critico-suave); }
+  }
+
+  &.pequeno {
+    min-height: 30px;
+    padding: var(--space-1) var(--space-3);
+    font-size: 13px;
+  }
+}
+
+/* ---------- Formulários ---------- */
+
+.campo {
+  display: grid;
+  gap: var(--space-1);
+
+  > span {
+    font-weight: 600;
+  }
+}
+
+.campo-dica {
+  font-size: 12px;
+  color: var(--tinta-2);
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 36px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--linha-forte);
+  border-radius: var(--radius-sm);
+  background: var(--superficie);
+  color: var(--tinta);
+  font: inherit;
+
+  &:focus-visible {
+    outline: 2px solid var(--sinal);
+    outline-offset: 0;
+    border-color: var(--sinal);
+  }
+
+  &[aria-invalid='true'] {
+    border-color: var(--critico);
+  }
+}
+
+/* ---------- Mensagens ---------- */
+
+.aviso {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  border-left: 4px solid;
+
+  &.erro { background: var(--critico-suave); border-color: var(--critico); color: var(--critico); }
+  &.sucesso { background: var(--ok-suave); border-color: var(--ok); color: var(--ok); }
+  &.atencao { background: var(--atencao-suave); border-color: var(--atencao); color: var(--atencao); }
+  &.info { background: var(--sinal-suave); border-color: var(--sinal); color: var(--sinal-forte); }
+}
+
+/* ---------- Tabelas ---------- */
+
+.tabela-rolagem {
+  overflow-x: auto;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+
+  th {
+    background: var(--superficie-2);
+    text-align: left;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--linha);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--tinta-2);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--linha);
+    vertical-align: middle;
+  }
+
+  tbody tr:hover {
+    background: var(--superficie-2);
+  }
+}
+
+/* Texto só para leitores de tela */
+.so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

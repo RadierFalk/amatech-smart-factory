@@ -1,0 +1,97 @@
+:host {
+  display: grid;
+  grid-template-columns: 264px 1fr;
+  min-height: 100vh;
+}
+
+.pular {
+  position: absolute;
+  left: -9999px;
+  &:focus { left: var(--space-2); top: var(--space-2); z-index: 10; background: var(--superficie); padding: var(--space-2); }
+}
+
+.barra-movel { display: none; }
+
+.lateral {
+  background: var(--noite);
+  color: var(--on-noite);
+  padding: var(--space-4) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.marca-lateral { padding: 0 var(--space-2) var(--space-4); }
+
+.usuario {
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--noite-2);
+}
+
+.usuario-nome { font-weight: 600; }
+.usuario-detalhe { color: var(--on-noite-suave); font-size: 12px; line-height: 16px; }
+
+.grupo {
+  margin: var(--space-4) var(--space-2) var(--space-1);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-noite-suave);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 0;
+  border-left: 3px solid transparent;
+  background: none;
+  color: var(--on-noite);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover { background: var(--noite-2); }
+  &.ativo { background: var(--noite-2); border-left-color: var(--led); }
+}
+
+.sigla { font-family: var(--font-mono); font-size: 12px; color: var(--led); min-width: 30px; }
+.carregando { padding: var(--space-2) var(--space-3); color: var(--on-noite-suave); }
+.sair { margin-top: auto; color: var(--on-noite-suave); }
+
+.conteudo { min-width: 0; outline: none; }
+
+@media (max-width: 800px) {
+  :host { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+
+  .barra-movel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-2) var(--space-4);
+    background: var(--noite);
+  }
+
+  .btn-menu {
+    background: var(--noite-2);
+    color: var(--on-noite);
+    border: 0;
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    font: inherit;
+  }
+
+  .lateral { display: none; position: static; height: auto; }
+  .lateral.aberto { display: flex; }
+  .marca-lateral { display: none; }
+}

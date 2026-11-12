@@ -1,0 +1,163 @@
+<div class="pagina">
+  <a class="voltar" routerLink="/manutencao">← Voltar à manutenção</a>
+
+  @if (os(); as os) {
+    <div class="pagina-topo">
+      <div>
+        <span class="rotulo">{{ r.tipo[os.tipo_manutencao] }}</span>
+        <h1 class="titulo-tela">OS #{{ os.id }} · <span class="codigo tag">{{ os.equipamento_tag }}</span></h1>
+        <p class="legenda">{{ os.equipamento_nome }} · {{ os.setor }}{{ os.posto_trabalho ? ' · ' + os.posto_trabalho : '' }}</p>
+      </div>
+      <div class="etiquetas">
+        <am-etiqueta [texto]="r.status[os.status_chamado]" [tom]="r.tomStatus[os.status_chamado]" />
+        <am-etiqueta [texto]="'Prioridade ' + r.prioridade[os.prioridade]" [tom]="r.tomPrioridade[os.prioridade]" />
+        <am-etiqueta [texto]="'Máquina: ' + r.equip[os.status_equipamento]" [tom]="r.tomEquip[os.status_equipamento]" />
+      </div>
+    </div>
+
+    <div aria-live="polite">
+      @if (erro(); as m) { <div class="aviso erro" role="alert">{{ m }}</div> }
+      @if (sucesso(); as m) { <div class="aviso sucesso">{{ m }}</div> }
+    </div>
+
+    <div class="colunas">
+      <section class="cartao">
+        <h2 class="titulo-secao">Chamado</h2>
+        <p class="falha">{{ os.descricao_falha }}</p>
+        <dl class="linha-do-tempo">
+          <div><dt>Aberto por</dt><dd>{{ os.operador_nome }}{{ os.origem_sistema ? ' (via ' + os.origem_sistema + ')' : '' }}</dd></div>
+          <div><dt>Abertura</dt><dd>{{ os.data_hora_abertura | date: 'dd/MM/yyyy HH:mm' : fuso }}</dd></div>
+          <div><dt>Técnico</dt><dd>{{ os.tecnico_nome ?? 'Aguardando' }}</dd></div>
+          @if (os.data_hora_inicio_atendimento) {
+            <div><dt>Início do atendimento</dt><dd>{{ os.data_hora_inicio_atendimento | date: 'dd/MM/yyyy HH:mm' : fuso }}</dd></div>
+          }
+          @if (os.data_hora_fim_atendimento) {
+            <div><dt>Encerramento</dt><dd>{{ os.data_hora_fim_atendimento | date: 'dd/MM/yyyy HH:mm' : fuso }}</dd></div>
+          }
+          @if (os.minutos_desde_abertura !== null) {
+            <div><dt>Tempo desde a abertura</dt><dd>{{ duracao(os.minutos_desde_abertura) }}</dd></div>
+          }
+          @if (os.minutos_em_atendimento !== null) {
+            <div><dt>Em atendimento há</dt><dd>{{ duracao(os.minutos_em_atendimento) }}</dd></div>
+          }
+          @if (os.downtime_minutos !== null && os.status_chamado === 'CONCLUIDO') {
+            <div><dt>Downtime</dt><dd><strong>{{ duracao(os.downtime_minutos) }}</strong></dd></div>
+          }
+        </dl>
+
+        @if (os.motivo_cancelamento) {
+          <div class="aviso info">Cancelada: {{ os.motivo_cancelamento }}</div>
+        }
+
+        <div class="acoes">
+          @if (podeAssumir()) {
+            <button type="button" class="btn primario" [disabled]="ocupado()" (click)="assumir()">Assumir esta OS</button>
+          }
+          @if (podeCancelar() && !cancelando()) {
+            <button type="button" class="btn perigo" (click)="cancelando.set(true)">Cancelar OS</button>
+          }
+        </div>
+
+        @if (cancelando()) {
+          <form class="cancelar" [formGroup]="formCancelar" (ngSubmit)="cancelar()" novalidate>
+            <label class="campo">
+              <span>Motivo do cancelamento</span>
+              <input formControlName="motivo" placeholder="Ex.: alarme falso do sensor" [attr.aria-invalid]="invalido('cancelar', 'motivo')" />
+            </label>
+            <div class="acoes">
+              <button type="submit" class="btn perigo" [disabled]="ocupado()">Confirmar cancelamento</button>
+              <button type="button" class="btn" (click)="cancelando.set(false)">Voltar</button>
+            </div>
+          </form>
+        }
+      </section>
+
+      <section class="cartao">
+        <h2 class="titulo-secao">Laudo técnico</h2>
+        @if (podeEditar()) {
+          <form class="laudo" [formGroup]="formLaudo" (ngSubmit)="concluir()" novalidate>
+            <label class="campo">
+              <span>Diagnóstico técnico</span>
+              <textarea formControlName="diagnostico_tecnico" rows="4" [attr.aria-invalid]="invalido('laudo', 'diagnostico_tecnico')"
+                        placeholder="O que foi encontrado e o que foi feito"></textarea>
+            </label>
+            <div class="duas">
+              <label class="campo">
+                <span>Causa raiz</span>
+                <input formControlName="causa_raiz" list="causas-raiz" [attr.aria-invalid]="invalido('laudo', 'causa_raiz')" />
+                <datalist id="causas-raiz">
+                  @for (c of causas(); track c) { <option [value]="c"></option> }
+                </datalist>
+              </label>
+              <label class="campo">
+                <span>Tipo de manutenção</span>
+                <select formControlName="tipo_manutencao">
+                  @for (t of tipos; track t) { <option [value]="t">{{ r.tipo[t] }}</option> }
+                </select>
+              </label>
+            </div>
+            <div class="acoes">
+              <button type="submit" class="btn primario" [disabled]="ocupado()">Concluir OS e liberar máquina</button>
+              @if (podeMexerEmPecas()) {
+                <button type="button" class="btn" [disabled]="ocupado()" (click)="salvarRascunho()">Salvar rascunho</button>
+              }
+            </div>
+          </form>
+        } @else if (os.diagnostico_tecnico || os.causa_raiz) {
+          <dl class="linha-do-tempo">
+            <div><dt>Diagnóstico</dt><dd>{{ os.diagnostico_tecnico ?? '—' }}</dd></div>
+            <div><dt>Causa raiz</dt><dd>{{ os.causa_raiz ?? '—' }}</dd></div>
+          </dl>
+        } @else {
+          <p class="legenda">
+            {{ os.status_chamado === 'ABERTO' ? 'O laudo é registrado pelo técnico depois de assumir a OS.' : 'Sem laudo registrado.' }}
+          </p>
+        }
+
+        <h2 class="titulo-secao pecas-titulo">Peças trocadas</h2>
+        @if (os.pecas.length) {
+          <table class="tabela">
+            <thead><tr><th scope="col">Código</th><th scope="col">Peça</th><th scope="col">Qtd.</th>
+              @if (podeMexerEmPecas()) { <th scope="col"><span class="so-leitor">Ações</span></th> }</tr></thead>
+            <tbody>
+              @for (p of os.pecas; track p.id) {
+                <tr>
+                  <td class="codigo">{{ p.codigo_peca }}</td>
+                  <td>{{ p.nome }}</td>
+                  <td>{{ p.quantidade }} {{ p.unidade_medida }}</td>
+                  @if (podeMexerEmPecas()) {
+                    <td><button type="button" class="btn pequeno" [disabled]="ocupado()" (click)="removerPeca(p.id)"
+                                [attr.aria-label]="'Remover ' + p.nome">Remover</button></td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        } @else {
+          <p class="legenda">Nenhuma peça registrada.</p>
+        }
+
+        @if (podeMexerEmPecas()) {
+          <form class="nova-peca" [formGroup]="formPeca" (ngSubmit)="adicionarPeca()" novalidate>
+            <label class="campo">
+              <span>Peça</span>
+              <select formControlName="peca_id" [attr.aria-invalid]="invalido('peca', 'peca_id')">
+                <option [ngValue]="0" disabled>Selecione…</option>
+                @for (p of pecas(); track p.id) { <option [ngValue]="p.id">{{ p.codigo_peca }} · {{ p.nome }}</option> }
+              </select>
+            </label>
+            <label class="campo qtd">
+              <span>Quantidade</span>
+              <input type="number" min="0.01" step="0.01" formControlName="quantidade" [attr.aria-invalid]="invalido('peca', 'quantidade')" />
+            </label>
+            <button type="submit" class="btn" [disabled]="ocupado()">Adicionar</button>
+          </form>
+        }
+      </section>
+    </div>
+  } @else if (!erro()) {
+    <p class="legenda">Carregando OS…</p>
+  } @else {
+    <div class="aviso erro" role="alert">{{ erro() }}</div>
+  }
+</div>

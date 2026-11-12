@@ -1,0 +1,57 @@
+/* Gráficos próprios do painel. Mesmas regras de shared/graficos: um eixo por gráfico, meta em tinta neutra,
+   estado sempre com texto (legenda escrita), dica no hover e no foco do teclado. */
+:host { display: grid; gap: var(--space-3); }
+
+.grafico { margin: 0; display: grid; gap: var(--space-3); p { margin: 0; } }
+.cabeca { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: var(--space-2) var(--space-4); }
+.cabeca p { margin: 0; }
+.sub { font-size: 14px; margin: 0; }
+.chaves { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); align-items: center;
+  span { display: inline-flex; align-items: center; gap: 6px; } i { display: inline-block; } }
+.amostra { width: 12px; height: 12px; border-radius: 2px; background: var(--grafico-1);
+  &.parcial { background: repeating-linear-gradient(135deg, var(--grafico-1) 0 3px, var(--sinal-suave) 3px 5px); } }
+.amostra-meta { width: 14px; height: 2px; background: var(--tinta); }
+.ponto { width: 10px; height: 10px; border-radius: 50%;
+  &.verde { background: var(--ok); } &.amarelo { background: #f2b21b; } &.vermelho { background: var(--critico); } }
+
+.alternar { justify-self: start; background: none; border: 0; padding: 0; color: var(--sinal); font: inherit; font-size: 12px;
+  cursor: pointer; text-decoration: underline; }
+
+.dica { display: none; position: absolute; z-index: 3; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  padding: var(--space-2) var(--space-3); background: var(--noite); color: var(--on-noite); border-radius: var(--radius-sm);
+  font-size: 12px; line-height: 16px; font-weight: 400; white-space: nowrap; pointer-events: none; }
+li:hover .dica, li:focus-visible .dica { display: block; }
+
+/* ---- colunas com meta */
+.plano { display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: var(--space-2); }
+.eixo-y { position: relative; font-size: 11px; color: var(--tinta-2);
+  span { position: absolute; right: 0; transform: translateY(50%); white-space: nowrap; }
+  .alvo { transform: translateY(-50%); color: var(--tinta); font-weight: 600; } }
+.colunas { list-style: none; margin: 0; padding: 0; height: 200px; display: flex; align-items: flex-end;
+  border-bottom: 1px solid var(--linha-forte);
+  background-image: linear-gradient(to top, var(--linha) 1px, transparent 1px); background-position: 0 100%;
+  li { position: relative; flex: 1; height: 100%; display: flex; justify-content: center; align-items: flex-end; outline-offset: 0;
+    &:hover .coluna, &:focus-visible .coluna { filter: brightness(0.85); } } }
+.coluna { width: min(34px, 70%); background: var(--grafico-1); border-radius: 4px 4px 0 0;
+  &.parcial { background: repeating-linear-gradient(135deg, var(--grafico-1) 0 6px, var(--sinal-suave) 6px 9px); } }
+.meta { position: absolute; left: 50%; transform: translate(-50%, 1px); width: min(50px, 90%); height: 2px; background: var(--tinta); }
+.hoje { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--sinal); color: var(--on-sinal);
+  font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: var(--radius-sm); }
+.rotulos { display: flex; padding-top: 6px;
+  span { flex: 1; text-align: center; font-size: 12px; line-height: 16px; color: var(--tinta-2); min-width: 0; }
+  b { color: var(--tinta); } .hoje-rot b { color: var(--sinal); } }
+
+/* ---- linha de atendimento */
+.atendimento { border-top: 1px solid var(--linha); padding-top: var(--space-3); display: grid; gap: var(--space-2); }
+.area-linha { position: relative; height: 140px;
+  svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  line { stroke: var(--grafico-1); stroke-width: 2; stroke-linecap: round; }
+  line.tracejada { stroke-dasharray: 5 4; }
+  line.alvo { stroke: var(--tinta); stroke-width: 1.5; stroke-dasharray: 6 4; } }
+.marca { position: absolute; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--superficie);
+  transform: translate(-50%, -50%); box-sizing: content-box;
+  &.verde { background: var(--ok); } &.amarelo { background: #f2b21b; } &.vermelho { background: var(--critico); }
+  &.parcial { border-color: var(--grafico-1); } }
+.valor { position: absolute; transform: translate(-50%, calc(-100% - 8px)); font-size: 12px; white-space: nowrap; color: var(--tinta);
+  &.abaixo { transform: translate(-50%, 10px); } &.critico { color: var(--critico); font-weight: 600; } }
+

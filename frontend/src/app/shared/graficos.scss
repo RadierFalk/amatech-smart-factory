@@ -1,0 +1,107 @@
+.grafico {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+  p { margin: 0; }
+}
+
+.alternar {
+  justify-self: start;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--sinal);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Dica: aparece no hover e no foco do teclado. Texto em tinta, nunca na cor da série. */
+.dica {
+  display: none;
+  position: absolute;
+  z-index: 2;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-2) var(--space-3);
+  background: var(--noite);
+  color: var(--on-noite);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+li:hover .dica,
+li:focus-visible .dica { display: block; }
+
+/* ---- barras horizontais */
+.barras {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+
+  li {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(90px, 32%) 1fr auto;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 3px var(--space-1);
+    border-radius: var(--radius-sm);
+    outline-offset: 0;
+    &:hover, &:focus-visible { background: var(--superficie-2); }
+  }
+}
+
+.rot { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.val { font-size: 12px; color: var(--tinta-2); font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
+.trilho { position: relative; height: 12px; display: flex; }
+/* Referência (meta): traço em tinta neutra, não uma cor de série. */
+.ref { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--tinta); border-radius: 1px; }
+.legenda-grafico { display: flex; align-items: center; gap: var(--space-1); font-size: 12px; color: var(--tinta-2); }
+.amostra-barra { display: inline-block; width: 12px; height: 8px; background: var(--grafico-1); border-radius: 0 2px 2px 0; }
+.amostra-ref { display: inline-block; width: 2px; height: 12px; background: var(--tinta); margin-left: var(--space-2); }
+.barra { height: 100%; background: var(--grafico-1); border-radius: 0 4px 4px 0;
+  &.critico { background: var(--critico); }
+  &.neutro { background: var(--linha-forte); }
+}
+
+/* ---- colunas no tempo */
+.area { position: relative; display: grid; gap: var(--space-1); padding-top: 18px; }
+.max { position: absolute; top: 0; left: 0; }
+
+.colunas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 160px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  border-bottom: 1px solid var(--linha);
+  background-image: linear-gradient(var(--linha) 1px, transparent 1px);
+  background-size: 100% 50%;
+  background-position: 0 0;
+
+  li {
+    position: relative;
+    flex: 1;
+    justify-content: center;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    outline-offset: 0;
+    &:hover .coluna, &:focus-visible .coluna { background: var(--sinal-forte); }
+  }
+}
+
+.coluna { width: min(40px, 80%); background: var(--grafico-1); border-radius: 4px 4px 0 0;
+  &.parcial { background: repeating-linear-gradient(135deg, var(--grafico-1) 0 6px, var(--sinal-suave) 6px 9px); }
+}
+.eixo { display: flex; justify-content: space-between; }
