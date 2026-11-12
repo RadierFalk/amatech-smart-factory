@@ -38,6 +38,22 @@ Todas as contas de demonstração utilizam a senha única **`amatech1234`**:
 
 ---
 
+## Demonstração da nova versão (Angular + FastAPI + PostgreSQL)
+
+Sobe o ERP novo completo numa máquina só, com dados de exemplo dos últimos 7 dias. Só precisa do Docker.
+
+| Sistema | Subir | Parar | Apagar os dados |
+|---|---|---|---|
+| Windows | `iniciar-demo.bat` (duplo clique) | `iniciar-demo.bat parar` | `iniciar-demo.bat zerar` |
+| Linux / macOS | `./iniciar-demo.sh` | `./iniciar-demo.sh parar` | `./iniciar-demo.sh zerar` |
+
+- Abre em **http://localhost:8080**. Contas: `ADM-0001`, `GES-0001`, `OPE-0001`, `QUA-0001`, `TEC-2001`, `ALM-0001`, senha `amatech1234`.
+- A primeira subida faz o build das imagens e leva alguns minutos; as seguintes são rápidas.
+- Windows sem Docker Desktop, com o Docker dentro do WSL: o `.bat` usa o WSL sozinho. Deixe a janela aberta durante a demonstração; fechar encerra o acesso.
+- Só para demonstração: segredos de desenvolvimento e dados fictícios. Produção: `SERVIDOR_ERP.md`.
+
+---
+
 ## Como Executar
 
 ### Opção 1: Script PowerShell (Recomendado no Windows)
