@@ -17,7 +17,7 @@ from app.core.seguranca import gerar_hash
 from app.modulos.manutencao.modelos import Equipamento, Peca
 from app.modulos.qualidade.modelos import Estacao, Produto, TipoDefeito
 from app.modulos.usuarios.modelos import Usuario
-from scripts import demo_dashboard, demo_rastreabilidade
+from scripts import demo_dashboard, demo_eventos, demo_rastreabilidade
 
 SENHA_DEMO = "amatech1234"
 SERVICO = obter_configuracao().matricula_servico
@@ -116,6 +116,8 @@ def popular(sessao: Session) -> list[str]:
         })
     sessao.flush()
     feito += demo_dashboard.popular(sessao, pessoas.get("GES-0001"))
+    sessao.flush()
+    feito += demo_eventos.popular(sessao, pessoas)
     sessao.flush()
     return feito
 

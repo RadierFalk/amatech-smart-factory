@@ -1,0 +1,52 @@
+# ERP AMATECH numa máquina só, para demonstração: banco, API e telas, já com dados de exemplo.
+#
+#   Use os scripts da raiz (fazem o build, esperam ficar pronto e abrem o navegador):
+#     Windows:        iniciar-demo.bat            (parar: iniciar-demo.bat parar)
+#     Linux / macOS:  ./iniciar-demo.sh           (parar: ./iniciar-demo.sh parar)
+#
+#   Endereço: http://localhost:8080  ·  contas de demonstração: ADM-0001, GES-0001, OPE-0001, QUA-0001,
+#   TEC-2001, ALM-0001 (senha amatech1234).
+#
+#   NÃO é para produção: segredos de desenvolvimento e dados fictícios. Produção: docker-compose.erp.yml.
+#   Os nomes erp-db / erp-api / erp-web são os mesmos da stack de produção (o nginx procura "erp-api").
+name: amatech-demo
+
+services:
+
+  erp-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: amatech
+      POSTGRES_PASSWORD: amatech-demo
+      POSTGRES_DB: amatech
+      TZ: UTC
+    volumes:
+      - demo-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amatech -d amatech"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  erp-api:
+    build: ./backend
+    environment:
+      AMATECH_DATABASE_URL: postgresql+psycopg://amatech:amatech-demo@erp-db:5432/amatech
+      AMATECH_AMBIENTE: desenvolvimento
+      AMATECH_CORS_ORIGENS: "[]"
+      AMATECH_SEED_DEMO: "1"
+      AMATECH_WORKERS: "1"
+    depends_on:
+      erp-db:
+        condition: service_healthy
+
+  erp-web:
+    build: ./frontend
+    depends_on:
+      - erp-api
+    ports:
+      # Só nesta máquina (localhost). Para mostrar em outro computador da rede, troque DEMO_ENDERECO por 0.0.0.0.
+      - "${DEMO_ENDERECO:-127.0.0.1}:${DEMO_PORTA_DOCKER:-8080}:8080"
+
+volumes:
+  demo-postgres:
