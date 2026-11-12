@@ -92,7 +92,7 @@ li:focus-visible .dica { display: block; }
   li {
     position: relative;
     flex: 1;
-    max-width: 40px;
+    justify-content: center;
     height: 100%;
     display: flex;
     align-items: flex-end;
@@ -101,7 +101,7 @@ li:focus-visible .dica { display: block; }
   }
 }
 
-.coluna { width: 100%; background: var(--grafico-1); border-radius: 4px 4px 0 0;
+.coluna { width: min(40px, 80%); background: var(--grafico-1); border-radius: 4px 4px 0 0;
   &.parcial { background: repeating-linear-gradient(135deg, var(--grafico-1) 0 6px, var(--sinal-suave) 6px 9px); }
 }
 .eixo { display: flex; justify-content: space-between; }
