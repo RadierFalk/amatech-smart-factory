@@ -3,8 +3,6 @@ import { Routes } from '@angular/router';
 import { autenticadoGuard, moduloGuard, visitanteGuard } from './core/auth/guards';
 import { Shell } from './layout/shell';
 
-const emConstrucao = () => import('./paginas/em-construcao/em-construcao').then((m) => m.EmConstrucao);
-
 export const routes: Routes = [
   {
     path: 'login',
@@ -46,13 +44,11 @@ export const routes: Routes = [
         canMatch: [moduloGuard('manutencao')],
         loadChildren: () => import('./modulos/manutencao/manutencao.routes').then((m) => m.ROTAS_MANUTENCAO),
       },
-      // Ainda sem API no backend único: rota protegida + aviso "em construção".
       {
         path: 'dashboard',
         title: 'Dashboard · ERP AMATECH',
         canMatch: [moduloGuard('dashboard')],
-        loadComponent: emConstrucao,
-        data: { sigla: 'DSH', nome: 'Dashboard Industrial e Metas' },
+        loadChildren: () => import('./modulos/dashboard/dashboard.routes').then((m) => m.ROTAS_DASHBOARD),
       },
     ],
   },

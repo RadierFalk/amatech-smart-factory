@@ -10,6 +10,8 @@ export interface PontoGrafico {
   valor: number;
   /** Texto da dica (ex.: "3 chamados · 2 h 10 min"). */
   detalhe?: string;
+  /** Valor de referência (ex.: meta), desenhado como um traço em tinta neutra sobre o trilho. */
+  referencia?: number;
 }
 
 /** Ranking horizontal: maior valor no topo. */
@@ -21,20 +23,30 @@ export interface PontoGrafico {
       @if (subtitulo()) { <p class="legenda">{{ subtitulo() }}</p> }
       @if (tabela()) {
         <table class="tabela">
-          <thead><tr><th scope="col">{{ rotuloCategoria() }}</th><th scope="col">{{ rotuloValor() }}</th></tr></thead>
-          <tbody>@for (p of pontos(); track p.rotulo) { <tr><td>{{ p.rotulo }}</td><td>{{ formatar()(p.valor) }}</td></tr> }</tbody>
+          <thead><tr><th scope="col">{{ rotuloCategoria() }}</th><th scope="col">{{ rotuloValor() }}</th>
+            @if (rotuloReferencia()) { <th scope="col">{{ rotuloReferencia() }}</th> }</tr></thead>
+          <tbody>@for (p of pontos(); track p.rotulo) {
+            <tr><td>{{ p.rotulo }}</td><td>{{ formatar()(p.valor) }}</td>
+              @if (rotuloReferencia()) { <td>{{ p.referencia === undefined ? '—' : formatar()(p.referencia) }}</td> }</tr>
+          }</tbody>
         </table>
       } @else if (pontos().length) {
         <ul class="barras">
           @for (p of pontos(); track p.rotulo) {
-            <li tabindex="0" [attr.aria-label]="p.rotulo + ': ' + formatar()(p.valor) + (p.detalhe ? ' · ' + p.detalhe : '')">
+            <li tabindex="0" [attr.aria-label]="p.rotulo + ': ' + formatar()(p.valor) + textoReferencia(p) + (p.detalhe ? ' · ' + p.detalhe : '')">
               <span class="rot">{{ p.rotulo }}</span>
-              <span class="trilho"><span class="barra" [style.width.%]="largura(p.valor)"></span></span>
+              <span class="trilho"><span class="barra" [style.width.%]="largura(p.valor)"></span>
+                @if (p.referencia !== undefined) { <span class="ref" [style.left.%]="posicao(p.referencia)" aria-hidden="true"></span> }</span>
               <span class="val">{{ formatar()(p.valor) }}</span>
-              @if (p.detalhe) { <span class="dica" role="tooltip">{{ p.rotulo }}<br />{{ p.detalhe }}</span> }
+              @if (p.detalhe || p.referencia !== undefined) {
+                <span class="dica" role="tooltip">{{ p.rotulo }}<br />{{ formatar()(p.valor) }}{{ textoReferencia(p) }}{{ p.detalhe ? ' · ' + p.detalhe : '' }}</span>
+              }
             </li>
           }
         </ul>
+        @if (rotuloReferencia()) {
+          <p class="legenda-grafico"><span class="amostra-barra"></span> {{ rotuloValor() }} <span class="amostra-ref"></span> {{ rotuloReferencia() }}</p>
+        }
       } @else {
         <p class="legenda">Sem dados no período.</p>
       }
@@ -50,13 +62,23 @@ export class BarrasHorizontais {
   readonly rotuloCategoria = input('Categoria');
   readonly rotuloValor = input('Valor');
   readonly formatar = input<(v: number) => string>((v) => String(v));
+  /** Nome da marca de referência (ex.: "Meta"). Vazio: o gráfico não tem referência. */
+  readonly rotuloReferencia = input('');
 
   protected readonly tabela = signal(false);
-  private readonly maximo = computed(() => Math.max(1, ...this.pontos().map((p) => p.valor)));
+  private readonly maximo = computed(() => Math.max(1, ...this.pontos().flatMap((p) => [p.valor, p.referencia ?? 0])));
 
   protected largura(valor: number): number {
     // Valor > 0 sempre aparece (mínimo de 1%), para não sumir ao lado de um valor muito maior.
     return valor > 0 ? Math.max(1, (valor / this.maximo()) * 100) : 0;
+  }
+
+  protected posicao(referencia: number): number {
+    return Math.min(100, (referencia / this.maximo()) * 100);
+  }
+
+  protected textoReferencia(p: PontoGrafico): string {
+    return p.referencia === undefined ? '' : ` de ${this.formatar()(p.referencia)} (${this.rotuloReferencia() || 'referência'})`;
   }
 }
 

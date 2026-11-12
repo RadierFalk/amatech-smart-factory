@@ -264,3 +264,20 @@ Cada agente acrescenta uma entrada aqui. Não apague as anteriores.
   - Migração com um banco da RAS gerado pelo seed do sistema antigo: contagens iguais em todas as tabelas, e o painel e os 4 relatórios da API nova dão os mesmos números do código antigo.
   - **Roteiro no navegador** (Edge sem interface, API sobre SQLite com o seed): telas de QLD e RAS por persona, fluxo QLD -> RAS -> MNT pela tela (ocorrência reprova o notebook e abre a OS), iniciar produção / mudar etapa / solicitar material / dar baixa, sem rolagem horizontal da página em 11 telas no celular, 0 erros de console ou de API.
 - **Não validado:** no Postgres (o CI roda no push).
+
+### 2026-11-12: módulo do Dashboard (DSH) na API única e no Angular (máquina sem Docker)
+- CI do commit `678ec33` (RAS) passou no Postgres: `alembic check` sem diferenças com a `0004`, 106 passed, 0 skipped.
+- **Decisão do dono do projeto:** o DSH calcula os indicadores **direto dos módulos**, sem cópias. Antes ele sincronizava produção, defeitos e paradas por HTTP para tabelas próprias; agora:
+  - produção = passagens da RAS pelas etapas Aprovado e Reprovado (realizada = aprovada + reprovada, como na sincronização antiga);
+  - retrabalho e defeitos por estação = ocorrências visíveis da QLD (retrabalho = Em reprocesso);
+  - paradas = chamados da MNT não cancelados (ativos contam até agora; preventiva que ainda não parou a máquina não conta);
+  - o DSH guarda só o que é dele: `dsh.turnos`, `dsh.limites` (semáforo), `dsh.metas`, `dsh.tipos_perda`, `dsh.perdas` (migração `0005`).
+  - Saíram o lançamento manual e o CSV de produção, defeitos e paradas, e a API externa `/api/indicadores` (os módulos consultam por dentro). Ficaram lançamento e CSV (tudo ou nada, RN06) de **metas e perdas**.
+- Fórmulas, turnos (06–14, 14–22) e limites do semáforo iguais ao antigo; eventos fora dos turnos ficam de fora. Teste do **caso de referência do enunciado** (meta 1.500, 1.420 produzidos, 60 reprovados, 85 min de parada) dá 94,7% / 4,2% / 215,7 un/h.
+- Permissões: painel e histórico para todos com acesso ao DSH (inclui o Técnico); metas, perdas, planilhas, turnos, tipos de perda e limites = Supervisor e Administrador (no antigo, o Supervisor).
+- `seed_demo`: turnos, limites, tipos de perda e metas/perdas de demonstração calculadas sobre a produção de demonstração da RAS.
+- Script de migração: `migrar_dsh` traz turnos (unidos pelo nome), limites, tipos de perda, metas e perdas. Produto do DSH antigo vira o modelo da RAS de mesmo nome ou código; estação vira a da QLD (com sinônimos, ex.: "Linha SMT" = "SMT"). O que não casa vai para "ignorados", e o relatório lembra que produção/defeitos/paradas do DSH antigo não são migrados (eram cópias).
+- **Paleta dos gráficos:** nenhum gráfico do ERP usa mais de uma série. "Produção × meta" virou barra realizada + **traço de referência** em tinta neutra (componente `BarrasHorizontais`, entrada `rotuloReferencia`), em vez de duas barras com cores categóricas. A paleta `grafico-1..4` continua reprovada no validador da skill de dataviz e **precisa ser corrigida antes do primeiro gráfico com várias séries**.
+- Frontend: `src/app/modulos/dashboard/` com painel (filtro de período/turno/modelo numa linha, 6 indicadores com semáforo em texto, máquinas paradas agora, 6 gráficos), histórico com CSV, metas e perdas (com importação e planilha modelo) e configuração. A tela "em construção" foi removida: os 5 módulos existem.
+- Validado: 120 testes do backend (SQLite local) e 53 do frontend; build de produção; nomes, colunas e CHECKs da `0005` iguais aos dos modelos (DDL offline); migração com o banco gerado pelo SQL do DSH antigo; **roteiro no navegador** com as telas dos 4 módulos por persona, fluxo QLD -> RAS -> MNT -> DSH (a OS aberta pela Qualidade aparece no painel do DSH como máquina parada), meta gravada pela tela e vista no painel, 14 telas sem rolagem horizontal no celular, 0 erros de console ou de API.
+- **Não validado:** no Postgres (o CI roda no push).

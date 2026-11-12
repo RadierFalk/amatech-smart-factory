@@ -61,7 +61,12 @@ li:focus-visible .dica { display: block; }
 
 .rot { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .val { font-size: 12px; color: var(--tinta-2); font-variant-numeric: tabular-nums; min-width: 56px; text-align: right; }
-.trilho { height: 12px; display: flex; }
+.trilho { position: relative; height: 12px; display: flex; }
+/* Referência (meta): traço em tinta neutra, não uma cor de série. */
+.ref { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--tinta); border-radius: 1px; }
+.legenda-grafico { display: flex; align-items: center; gap: var(--space-1); font-size: 12px; color: var(--tinta-2); }
+.amostra-barra { display: inline-block; width: 12px; height: 8px; background: var(--grafico-1); border-radius: 0 2px 2px 0; }
+.amostra-ref { display: inline-block; width: 2px; height: 12px; background: var(--tinta); margin-left: var(--space-2); }
 .barra { height: 100%; background: var(--grafico-1); border-radius: 0 4px 4px 0; }
 
 /* ---- colunas no tempo */

@@ -3,7 +3,7 @@
 Cada teste monta bancos SQLite pequenos (só as colunas que o script lê) e migra para o banco de testes.
 """
 import sqlite3
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from pathlib import Path
 
@@ -15,6 +15,7 @@ from app.core.rbac import Perfil
 from app.core.seguranca import verificar_senha
 from app.modulos.manutencao.modelos import Chamado, ChamadoPeca, Equipamento, HistoricoStatus, Peca
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
+from app.modulos.dashboard.modelos import Limite, Meta, Perda, TipoPerda, Turno
 from app.modulos.rastreabilidade.modelos import Baixa, Componente, Modelo, NaoConformidade, Passagem, Producao, Solicitacao
 from app.modulos.usuarios.modelos import Usuario
 from scripts import migrar_sqlite as m
@@ -82,6 +83,17 @@ DDL = {
         CREATE TABLE perfil (id_perfil INTEGER PRIMARY KEY, nome TEXT);
         CREATE TABLE usuario (id_usuario INTEGER PRIMARY KEY, nome TEXT, login TEXT, senha_hash TEXT,
                               id_perfil INTEGER, ativo INTEGER DEFAULT 1, criado_em TEXT);
+        CREATE TABLE turno (id_turno INTEGER PRIMARY KEY, nome TEXT, hora_inicio TEXT, hora_fim TEXT, duracao_min INTEGER);
+        CREATE TABLE produto (id_produto INTEGER PRIMARY KEY, modelo TEXT, descricao TEXT, ativo INTEGER DEFAULT 1);
+        CREATE TABLE estacao (id_estacao INTEGER PRIMARY KEY, nome TEXT, setor TEXT, ordem_fluxo INTEGER);
+        CREATE TABLE tipo_perda (id_tipo_perda INTEGER PRIMARY KEY, descricao TEXT);
+        CREATE TABLE parametro_alerta (id_parametro INTEGER PRIMARY KEY, indicador TEXT, limite_verde REAL,
+                                       limite_amarelo REAL, sentido TEXT);
+        CREATE TABLE meta_producao (id_meta INTEGER PRIMARY KEY, data TEXT, id_turno INTEGER, id_produto INTEGER,
+                                    qtd_meta INTEGER, registrado_por INTEGER);
+        CREATE TABLE perda (id_perda INTEGER PRIMARY KEY, data TEXT, id_turno INTEGER, id_estacao INTEGER,
+            id_produto INTEGER, id_tipo_perda INTEGER, quantidade INTEGER, observacao TEXT, registrado_por INTEGER,
+            id_importacao INTEGER);
     """,
 }
 
@@ -575,3 +587,46 @@ def test_ras_estoque_negativo_desfaz_tudo(bancos, migrar, sessao):
     with pytest.raises(m.ErroMigracao, match="estoque negativo"):
         migrar(bancos)
     assert _usuarios(sessao) == {}
+
+
+# --------------------------------------------------------------------------- dsh
+def test_migra_dsh_mapeando_modelo_e_estacao(bancos, migrar, sessao):
+    sessao.add_all([Modelo(codigo="N14-I5-8-256", nome="AMT N14"), Estacao(nome="SMT"),
+                    Turno(nome="1º turno", hora_inicio=time(7), hora_fim=time(15))])  # turno já existia (seed)
+    sessao.commit()
+    bancos.sql("dsh", """
+        INSERT INTO perfil VALUES (4, 'Supervisor de produção');
+        INSERT INTO usuario VALUES (2, 'Maria Souza', 'supervisor', 'pbkdf2_sha256$1$a$b', 4, 1, '2026-08-01 08:00:00');
+        INSERT INTO turno VALUES (1, '1º Turno', '06:00', '14:00', 480);
+        INSERT INTO turno VALUES (2, '2º turno', '14:00', '22:00', 480);
+        INSERT INTO produto VALUES (1, 'amt n14', NULL, 1);
+        INSERT INTO produto VALUES (2, 'Notebook modelo A', NULL, 1);
+        INSERT INTO estacao VALUES (1, 'Linha SMT', 'Produção', 1);
+        INSERT INTO estacao VALUES (2, 'Expedição', 'Expedição', 8);
+        INSERT INTO tipo_perda VALUES (1, 'Componente danificado');
+        INSERT INTO parametro_alerta VALUES (1, 'indice_defeitos', 3, 6, 'menor_melhor');
+        INSERT INTO meta_producao VALUES (1, '2026-08-15', 1, 1, 1500, 2);
+        INSERT INTO meta_producao VALUES (2, '2026-08-15', 2, 2, 900, 2);
+        INSERT INTO perda VALUES (5, '2026-08-15', 2, 1, 1, 1, 8, 'Conector', 2, 3);
+        INSERT INTO perda VALUES (6, '2026-08-15', 1, 2, 1, 1, 1, NULL, 2, NULL);
+    """)
+
+    rel = migrar(bancos)
+    sessao.expire_all()
+
+    turnos = {t.nome: t for t in sessao.scalars(select(Turno))}
+    assert set(turnos) == {"1º turno", "2º turno"}  # '1º Turno' unido ao que já existia, com o horário antigo
+    assert turnos["1º turno"].hora_inicio == time(6)
+    meta = sessao.scalar(select(Meta))
+    assert (meta.data, meta.quantidade, meta.turno_id) == (date(2026, 8, 15), 1500, turnos["1º turno"].id)
+    assert meta.registrado_por_id == _usuarios(sessao)["SUPERVISOR"].id
+    perda = sessao.get(Perda, 5)
+    assert perda.estacao.nome == "SMT" and perda.origem == "csv" and perda.tipo.nome == "Componente danificado"
+    assert sessao.get(Limite, "indice_defeitos").limite_verde == 3
+    assert rel.gravadas["dsh.metas"] == 1 and rel.gravadas["dsh.perdas"] == 1
+    assert any("Notebook modelo A" in i for i in rel.ignorados)
+    assert any("Expedição" in i for i in rel.ignorados)
+    assert any("NÃO foram migrados" in p for p in rel.pendencias)
+
+    rel2 = migrar(bancos)
+    assert rel2.gravadas["dsh.metas"] == 1 and len(sessao.scalars(select(Meta)).all()) == 1

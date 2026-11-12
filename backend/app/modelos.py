@@ -2,6 +2,7 @@
 
 Usado pelo Alembic e pelos testes. Ao criar os modelos de um módulo novo, importe-os aqui.
 """
+from app.modulos.dashboard.modelos import Limite, Meta, Perda, TipoPerda, Turno
 from app.modulos.manutencao.modelos import Chamado, ChamadoPeca, Equipamento, HistoricoStatus, Peca
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
 from app.modulos.rastreabilidade.modelos import (
@@ -14,4 +15,5 @@ __all__ = [
     "TipoDefeito", "Usuario",
     "Baixa", "Componente", "Etapa", "Modelo", "ModeloComponente", "NaoConformidade", "Passagem", "Producao",
     "Solicitacao",
+    "Limite", "Meta", "Perda", "TipoPerda", "Turno",
 ]

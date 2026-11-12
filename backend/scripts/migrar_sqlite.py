@@ -14,8 +14,9 @@ Regras (HANDOFF_POSTGRES.md, seções 4.2 e 4.3):
   as tabelas de mnt mantêm os IDs de origem e também usam upsert.
 - Senhas nunca vão para o relatório nem são gravadas em texto puro.
 
-Uma função por schema (migrar_usr, migrar_mnt, migrar_qld, migrar_ras). O schema dsh entra aqui quando
-o modelo dele existir; migrar_usr já lê os usuários desse banco e devolve o mapa de IDs.
+Uma função por schema (migrar_usr, migrar_mnt, migrar_qld, migrar_ras, migrar_dsh). Do Dashboard só vêm
+turnos, limites, tipos de perda, metas e perdas: produção, defeitos e paradas eram cópias dos outros
+sistemas e agora são calculados direto dos módulos.
 
 Contas da mesma pessoa com matrículas diferentes (ex.: MAT-00421 na Rastreabilidade e OP-10234 na
 Manutenção) só são unidas com --equivalencias; o relatório lista os nomes repetidos para ajudar a decidir.
@@ -30,7 +31,7 @@ import unicodedata
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -42,6 +43,7 @@ from app.core.rbac import Perfil
 from app.core.seguranca import gerar_hash, verificar_senha
 from app.core.tempo import FUSO_FABRICA
 from app.modulos.manutencao.constantes import STATUS_ATIVOS, StatusChamado
+from app.modulos.dashboard.modelos import Limite, Meta, Perda, TipoPerda, Turno
 from app.modulos.manutencao.modelos import Chamado, ChamadoPeca, Equipamento, HistoricoStatus, Peca
 from app.modulos.qualidade.constantes import LEGADO_CLASSIFICACAO, LEGADO_SITUACAO, LEGADO_STATUS
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
@@ -73,7 +75,8 @@ TABELAS_COM_SEQUENCIA = ("usr.usuarios", "mnt.equipamentos", "mnt.pecas", "mnt.c
                          "mnt.chamado_pecas", "mnt.historico_status",
                          "qld.produtos", "qld.estacoes", "qld.tipos_defeito", "qld.ocorrencias",
                          "ras.etapas", "ras.componentes", "ras.modelos", "ras.producoes", "ras.passagens",
-                         "ras.nao_conformidades", "ras.solicitacoes", "ras.baixas")
+                         "ras.nao_conformidades", "ras.solicitacoes", "ras.baixas",
+                         "dsh.turnos", "dsh.metas", "dsh.tipos_perda", "dsh.perdas")
 
 # Equivalências que valem sempre (o --equivalencias pode acrescentar ou trocar):
 # a conta de serviço das máquinas da RAS é a mesma conta de serviço da Manutenção.
@@ -724,6 +727,119 @@ def migrar_ras(sessao: Session, conn: sqlite3.Connection, mapa: dict[tuple[str, 
     rel.gravadas["ras.baixas"] = gravadas
 
 
+# --------------------------------------------------------------------------- dsh
+# Nome de estação do Dashboard antigo (normalizado) -> nome em qld.estacoes, quando não é só acento/maiúscula.
+SINONIMOS_ESTACAO_DSH = {"linha smt": "smt", "inspecao da qualidade": "inspecao de qualidade",
+                         "teste funcional": "teste funcional", "testes funcionais": "teste funcional"}
+
+
+def _chave(texto: str | None) -> str:
+    return " ".join(_sem_acento(texto or "").split())
+
+
+def migrar_dsh(sessao: Session, conn: sqlite3.Connection, mapa: dict[tuple[str, int], int], rel: Relatorio) -> None:
+    """Turnos (pelo nome), limites do semáforo, tipos de perda (pelo nome), metas e perdas.
+
+    O Dashboard antigo tinha cadastros próprios de produto e estação: aqui o produto vira o modelo da RAS com o
+    mesmo nome (ou código) e a estação vira a da QLD com o mesmo nome (sinônimos em SINONIMOS_ESTACAO_DSH).
+    Metas e perdas sem correspondência ficam de fora e vão para o relatório. Datas do Dashboard já eram do dia da
+    fábrica (texto AAAA-MM-DD), então não há conversão de fuso."""
+    def ler(sql: str, tabela: str) -> list[sqlite3.Row]:
+        linhas = conn.execute(sql).fetchall()
+        rel.lidas[f"dsh.{tabela}"] = len(linhas)
+        return linhas
+
+    turnos = ler("SELECT * FROM turno", "turno")
+    limites = ler("SELECT * FROM parametro_alerta", "parametro_alerta")
+    tipos = ler("SELECT * FROM tipo_perda", "tipo_perda")
+    metas = ler("SELECT m.*, p.modelo AS nome_modelo FROM meta_producao m JOIN produto p ON p.id_produto = m.id_produto",
+                "meta_producao")
+    perdas = ler("""SELECT pe.*, p.modelo AS nome_modelo, e.nome AS nome_estacao FROM perda pe
+                    JOIN produto p ON p.id_produto = pe.id_produto JOIN estacao e ON e.id_estacao = pe.id_estacao""",
+                 "perda")
+    agora = datetime.now(UTC)
+
+    def hora(texto: str):
+        return datetime.strptime(texto.strip()[:5], "%H:%M").time()
+
+    # Turnos e tipos de perda: unificados pelo nome (o destino pode já ter os do seed_demo).
+    turno_id: dict[int, int] = {}
+    for t in turnos:
+        existente = next((x for x in sessao.scalars(select(Turno)) if _chave(x.nome) == _chave(t["nome"])), None)
+        if existente is None:
+            existente = Turno(nome=t["nome"].strip(), hora_inicio=hora(t["hora_inicio"]), hora_fim=hora(t["hora_fim"]))
+            sessao.add(existente)
+        else:
+            existente.hora_inicio, existente.hora_fim = hora(t["hora_inicio"]), hora(t["hora_fim"])
+        sessao.flush()
+        turno_id[t["id_turno"]] = existente.id
+    rel.gravadas["dsh.turnos"] = len(turno_id)
+
+    tipo_id: dict[int, int] = {}
+    for t in tipos:
+        existente = next((x for x in sessao.scalars(select(TipoPerda)) if _chave(x.nome) == _chave(t["descricao"])), None)
+        if existente is None:
+            existente = TipoPerda(nome=t["descricao"].strip())
+            sessao.add(existente)
+            sessao.flush()
+        tipo_id[t["id_tipo_perda"]] = existente.id
+    rel.gravadas["dsh.tipos_perda"] = len(tipo_id)
+
+    for l in limites:
+        _upsert(sessao, Limite.__table__, {"indicador": l["indicador"], "limite_verde": l["limite_verde"],
+                                           "limite_amarelo": l["limite_amarelo"], "sentido": l["sentido"]},
+                ["indicador"], ["limite_verde", "limite_amarelo", "sentido"])
+    rel.gravadas["dsh.limites"] = len(limites)
+
+    modelos: dict[str, int] = {}
+    for m in sessao.scalars(select(Modelo)):
+        modelos[_chave(m.nome)] = m.id
+        modelos[_chave(m.codigo)] = m.id
+    estacoes = {_chave(e.nome): e.id for e in sessao.scalars(select(Estacao))}
+
+    def estacao(nome: str) -> int | None:
+        chave = _chave(nome)
+        return estacoes.get(SINONIMOS_ESTACAO_DSH.get(chave, chave))
+
+    gravadas = 0
+    for m in metas:
+        modelo = modelos.get(_chave(m["nome_modelo"]))
+        if modelo is None:
+            rel.ignorados.append(f"dsh.meta_producao id {m['id_meta']}: produto '{m['nome_modelo']}' não é um modelo da RAS")
+            continue
+        _upsert(sessao, Meta.__table__, {
+            "data": date.fromisoformat(m["data"]), "turno_id": turno_id[m["id_turno"]], "modelo_id": modelo,
+            "quantidade": m["qtd_meta"], "registrado_por_id": _usuario(mapa, m["registrado_por"], f"meta {m['id_meta']}", "dsh"),
+            "registrado_em": agora,
+        }, ["data", "turno_id", "modelo_id"], ["quantidade", "registrado_por_id"])
+        gravadas += 1
+    rel.gravadas["dsh.metas"] = gravadas
+
+    gravadas = 0
+    colunas = [c.name for c in Perda.__table__.columns if c.name != "id"]
+    for pe in perdas:
+        modelo, est = modelos.get(_chave(pe["nome_modelo"])), estacao(pe["nome_estacao"])
+        if modelo is None or est is None:
+            falta = f"produto '{pe['nome_modelo']}'" if modelo is None else f"estação '{pe['nome_estacao']}'"
+            rel.ignorados.append(f"dsh.perda id {pe['id_perda']}: {falta} sem correspondência")
+            continue
+        _upsert(sessao, Perda.__table__, {
+            "id": pe["id_perda"], "data": date.fromisoformat(pe["data"]), "turno_id": turno_id[pe["id_turno"]],
+            "estacao_id": est, "modelo_id": modelo, "tipo_perda_id": tipo_id[pe["id_tipo_perda"]],
+            "quantidade": pe["quantidade"], "observacao": pe["observacao"],
+            "origem": "csv" if pe["id_importacao"] else "manual",
+            "registrado_por_id": _usuario(mapa, pe["registrado_por"], f"perda {pe['id_perda']}", "dsh"),
+            "registrado_em": agora,
+        }, ["id"], colunas)
+        gravadas += 1
+    rel.gravadas["dsh.perdas"] = gravadas
+    if metas or perdas:
+        rel.pendencias.append("Produção, defeitos, retrabalho e paradas do Dashboard antigo NÃO foram migrados: eram cópias "
+                              "dos outros sistemas e agora são calculados direto de ras, qld e mnt. Registros lançados "
+                              "à mão ou por planilha no Dashboard antigo (sem origem em outro sistema) ficam só no "
+                              "banco antigo; confira se havia algum.")
+
+
 # --------------------------------------------------------------------------- execução
 def ajustar_sequencias(sessao: Session) -> None:
     """Depois de inserir com IDs explícitos, o próximo ID gerado tem que vir depois do maior existente."""
@@ -754,6 +870,9 @@ def migrar(sessao: Session, caminhos: dict[str, Path], rel: Relatorio,
             migrar_qld(sessao, conexoes["qld"], mapa, rel)
         if "ras" in conexoes:
             migrar_ras(sessao, conexoes["ras"], mapa, rel)
+        if "dsh" in conexoes:
+            sessao.flush()  # modelos (RAS) e estações (QLD) precisam estar visíveis para mapear os nomes
+            migrar_dsh(sessao, conexoes["dsh"], mapa, rel)
         sessao.flush()
         ajustar_sequencias(sessao)
     finally:
