@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.rbac import Perfil
 from app.core.seguranca import verificar_senha
 from app.modulos.manutencao.modelos import Chamado, ChamadoPeca, Equipamento, HistoricoStatus, Peca
+from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
 from app.modulos.usuarios.modelos import Usuario
 from scripts import migrar_sqlite as m
 
@@ -41,8 +42,18 @@ DDL = {
         CREATE TABLE historico_status (id INTEGER PRIMARY KEY, equipamento_id INTEGER, chamado_id INTEGER,
             usuario_id INTEGER, status_anterior TEXT, status_novo TEXT, alterado_em TIMESTAMP);
     """,
-    "qld": """CREATE TABLE usuario (id_usuario INTEGER PRIMARY KEY, nome_usuario TEXT, perfil_usuario TEXT,
-              matricula TEXT, senha_hash TEXT, ativo INTEGER DEFAULT 0, data_criacao TEXT)""",
+    "qld": """
+        CREATE TABLE usuario (id_usuario INTEGER PRIMARY KEY, nome_usuario TEXT, perfil_usuario TEXT,
+                              matricula TEXT, senha_hash TEXT, ativo INTEGER DEFAULT 0, data_criacao TEXT);
+        CREATE TABLE produto (id_produto INTEGER PRIMARY KEY, numero_serie_produto TEXT, modelo_produto TEXT);
+        CREATE TABLE estacao (id_estacao INTEGER PRIMARY KEY, nome_estacao TEXT, descricao_estacao TEXT);
+        CREATE TABLE tipo_defeito (id_tipo_defeito INTEGER PRIMARY KEY, nome_tipo_defeito TEXT, descricao_tipo_defeito TEXT);
+        CREATE TABLE maquina (id_maquina INTEGER PRIMARY KEY, nome_maquina TEXT, descricao_maquina TEXT);
+        CREATE TABLE ocorrencia (id_ocorrencia INTEGER PRIMARY KEY, data_ocorrencia DATE, hora_ocorrencia TIME,
+            classificacao_defeito TEXT, situacao_produto TEXT, observacao_ocorrencia TEXT, acao_realizada TEXT,
+            status_ocorrencia TEXT, visibilidade_ocorrencia TEXT DEFAULT 'Visivel', id_produto INTEGER,
+            id_estacao INTEGER, id_tipo_defeito INTEGER, id_maquina INTEGER, id_usuario INTEGER);
+    """,
     "ras": """CREATE TABLE usuarios (id INTEGER PRIMARY KEY, matricula TEXT, nome TEXT, email TEXT, senha_hash TEXT,
               cargo TEXT, ativo INTEGER DEFAULT 1, criado_em TEXT)""",
     "dsh": """
@@ -381,5 +392,102 @@ def test_bancos_do_repositorio(migrar, sessao):
     assert rel.gravadas["mnt.chamado_pecas"] + rel.pecas_somadas == rel.lidas["mnt.chamado_pecas_trocadas"]
     assert rel.pendencias == []
 
+    for origem, destino in (("produto", "produtos"), ("estacao", "estacoes"), ("tipo_defeito", "tipos_defeito"),
+                            ("ocorrencia", "ocorrencias")):
+        assert rel.gravadas[f"qld.{destino}"] == rel.lidas[f"qld.{origem}"]
+    sessao.expire_all()
+    ocorrencias = sessao.scalars(select(Ocorrencia)).all()
+    assert len(ocorrencias) == 39 and sum(o.oculta for o in ocorrencias) == 1
+
     rel2 = migrar(b)
     assert rel2.usuarios_criados == [] and rel2.usuarios_atualizados == []
+
+
+# --------------------------------------------------------------------------- qld
+def _qld_basico(b: Bancos) -> None:
+    _mnt_basico(b)  # máquinas SMT-01, SMT-02, EMB-01 na Manutenção
+    b.usuario_qld(2, "QUA-0001", "Maria Santos", "Inspetor de Qualidade")
+    b.sql("qld", """
+        INSERT INTO produto VALUES (1, 'amt-000001', 'AMT N14');
+        INSERT INTO produto VALUES (17, 'AMT-000017', 'AMT N16');
+        INSERT INTO estacao VALUES (5, 'Teste Funcional', 'Testes funcionais do produto');
+        INSERT INTO tipo_defeito VALUES (1, 'Tela', NULL);
+        INSERT INTO maquina VALUES (4, 'smt-01', 'Insersora');
+        INSERT INTO maquina VALUES (9, 'EMB-01', NULL);
+        INSERT INTO ocorrencia VALUES (1, '2026-09-28', '08:15', 'Maior', 'Reprovado', 'Tela com falha.',
+            'Retido.', 'Em_analise', 'Visivel', 1, 5, 1, 4, 2);
+        INSERT INTO ocorrencia VALUES (7, '2026-09-28', '22:40:10', 'Critico', 'Em_reprocesso', 'Tela apagada.',
+            'Reprocesso.', 'Resolvida', 'Oculta', 17, 5, 1, 9, 2);
+    """)
+
+
+def test_migra_qld_preservando_ids_e_convertendo_valores(bancos, migrar, sessao):
+    _qld_basico(bancos)
+    rel = migrar(bancos)
+    sessao.expire_all()
+
+    assert {p.id: p.numero_serie for p in sessao.scalars(select(Produto))} == {1: "AMT-000001", 17: "AMT-000017"}
+    assert sessao.get(Estacao, 5).nome == "Teste Funcional"
+    assert sessao.get(TipoDefeito, 1).descricao is None
+
+    oc = {o.id: o for o in sessao.scalars(select(Ocorrencia))}
+    assert set(oc) == {1, 7}
+    um, sete = oc[1], oc[7]
+    assert (um.classificacao, um.situacao_produto, um.status, um.oculta) == ("MAIOR", "REPROVADO", "EM_ANALISE", False)
+    assert (sete.classificacao, sete.situacao_produto, sete.status, sete.oculta) == ("CRITICO", "EM_REPROCESSO", "RESOLVIDA", True)
+    # Hora digitada na tela = hora de Manaus: 08:15 -> 12:15 UTC; 22:40 -> 02:40 UTC do dia seguinte.
+    assert _utc(um.ocorrida_em) == datetime(2026, 9, 28, 12, 15, tzinfo=UTC)
+    assert _utc(sete.ocorrida_em) == datetime(2026, 9, 29, 2, 40, 10, tzinfo=UTC)
+    # A máquina 4 da Qualidade (TAG smt-01) é o equipamento 1 da Manutenção; a 9 (EMB-01) é o 8.
+    assert (um.equipamento_id, sete.equipamento_id) == (1, 8)
+    assert um.responsavel_id == _usuarios(sessao)["QUA-0001"].id
+    assert rel.gravadas["qld.ocorrencias"] == 2
+
+
+def test_maquina_da_qualidade_sem_cadastro_na_manutencao_desfaz_tudo(bancos, migrar, sessao):
+    _qld_basico(bancos)
+    bancos.sql("qld", "UPDATE maquina SET nome_maquina = 'XYZ-99' WHERE id_maquina = 9")
+    with pytest.raises(m.ErroMigracao, match="XYZ-99"):
+        migrar(bancos)
+    assert _usuarios(sessao) == {}
+
+
+def test_valor_antigo_desconhecido_desfaz_tudo(bancos, migrar, sessao):
+    _qld_basico(bancos)
+    bancos.sql("qld", "UPDATE ocorrencia SET status_ocorrencia = 'Arquivada' WHERE id_ocorrencia = 1")
+    with pytest.raises(m.ErroMigracao, match="Arquivada"):
+        migrar(bancos)
+
+
+# --------------------------------------------------------------------------- equivalências e duplicados
+def test_mesmo_nome_com_matriculas_diferentes_so_avisa(bancos, migrar, sessao):
+    bancos.usuario_mnt(1, "OP-10234", nome="Carlos Mendonça")
+    bancos.sql("ras", "", ("INSERT INTO usuarios VALUES (?,?,?,?,?,?,?,?)",
+                           (2, "MAT-00421", "Carlos Mendonca", "c@a", "!", "Operador", 1, "2026-10-01 00:00:00")))
+    rel = migrar(bancos)
+    assert set(_usuarios(sessao)) == {"OP-10234", "MAT-00421"}
+    assert rel.possiveis_duplicados == ["Carlos Mendonça: MAT-00421, OP-10234"]
+
+
+def test_equivalencias_unem_contas_da_mesma_pessoa(bancos, engine_testes, sessao, tmp_path):
+    bancos.usuario_mnt(1, "OP-10234", nome="Carlos Mendonça", senha="123456")
+    bancos.sql("ras", "", ("INSERT INTO usuarios VALUES (?,?,?,?,?,?,?,?)",
+                           (2, "MAT-00421", "Carlos Mendonça", "c@a", "!", "Operador", 1, "2026-10-01 00:00:00")))
+    csv_ = tmp_path / "equivalencias.csv"
+    csv_.write_text("matricula_antiga;matricula_nova\nmat-00421 ;OP-10234\n", encoding="utf-8")
+
+    equivalencias = m.ler_equivalencias(csv_)
+    rel = m.executar(sessionmaker(bind=engine_testes), bancos.caminhos, False, equivalencias)
+
+    us = _usuarios(sessao)
+    assert set(us) == {"OP-10234"}
+    assert _utc(us["OP-10234"].criado_em) == datetime(2026, 10, 1, tzinfo=UTC)  # a data mais antiga das duas contas
+    assert rel.equivalencias_aplicadas == ["RAS MAT-00421 -> OP-10234"]
+    assert rel.possiveis_duplicados == []
+
+
+def test_equivalencias_sem_as_colunas_certas(tmp_path):
+    csv_ = tmp_path / "e.csv"
+    csv_.write_text("de,para\nA,B\n", encoding="utf-8")
+    with pytest.raises(m.ErroMigracao, match="matricula_antiga"):
+        m.ler_equivalencias(csv_)

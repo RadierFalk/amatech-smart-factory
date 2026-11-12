@@ -206,6 +206,7 @@ select {
 
   &.erro { background: var(--critico-suave); border-color: var(--critico); color: var(--critico); }
   &.sucesso { background: var(--ok-suave); border-color: var(--ok); color: var(--ok); }
+  &.atencao { background: var(--atencao-suave); border-color: var(--atencao); color: var(--atencao); }
   &.info { background: var(--sinal-suave); border-color: var(--sinal); color: var(--sinal-forte); }
 }
 

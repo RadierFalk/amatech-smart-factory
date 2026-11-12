@@ -40,8 +40,7 @@ export const routes: Routes = [
         path: 'qualidade',
         title: 'Qualidade · ERP AMATECH',
         canMatch: [moduloGuard('qualidade')],
-        loadComponent: emConstrucao,
-        data: { sigla: 'QLD', nome: 'Controle da Qualidade e Defeitos' },
+        loadChildren: () => import('./modulos/qualidade/qualidade.routes').then((m) => m.ROTAS_QUALIDADE),
       },
       {
         path: 'manutencao',

@@ -1,4 +1,4 @@
-"""Dados de demonstração para um banco novo: as 6 personas, as máquinas e o catálogo de peças.
+"""Dados de demonstração para um banco novo: personas, máquinas, peças e os cadastros da Qualidade.
 
 Uso (a partir de backend/, depois de `alembic upgrade head`):
     python -m scripts.seed_demo
@@ -14,6 +14,7 @@ from app.core.db import SessaoLocal
 from app.core.rbac import Perfil
 from app.core.seguranca import gerar_hash
 from app.modulos.manutencao.modelos import Equipamento, Peca
+from app.modulos.qualidade.modelos import Estacao, Produto, TipoDefeito
 from app.modulos.usuarios.modelos import Usuario
 
 SENHA_DEMO = "amatech1234"
@@ -51,6 +52,23 @@ PECAS = [
     ("PN-VEN-120", "Ventoinha Cooler Industrial 120mm"),
 ]
 
+# Mesmos cadastros de qualidade/criar_banco.py (séries e modelos iguais aos da Rastreabilidade).
+ESTACOES = [
+    ("SMT", "Montagem de componentes eletrônicos"),
+    ("Inserção Manual", "Inserção manual de componentes"),
+    ("Montagem Final", "Montagem final do notebook"),
+    ("Instalação de Software", "Instalação e configuração do software"),
+    ("Teste Funcional", "Testes funcionais do produto"),
+    ("Inspeção de Qualidade", "Inspeção e controle da qualidade"),
+    ("Embalagem", "Embalagem do produto final"),
+]
+
+TIPOS_DEFEITO = ["Tela", "Teclado", "Touchpad", "USB", "Áudio", "Wi-Fi", "Câmera", "Bateria",
+                 "Armazenamento", "Desempenho", "Montagem", "Software"]
+
+MODELOS_NOTEBOOK = ["AMT N14", "AMT N15", "AMT N16", "AMT N17", "AMT N18"]
+PRODUTOS = [(f"AMT-{n:06d}", MODELOS_NOTEBOOK[(n - 1) % len(MODELOS_NOTEBOOK)]) for n in range(1, 31)]
+
 
 def _vazia(sessao: Session, modelo) -> bool:
     return not sessao.scalar(select(func.count()).select_from(modelo))
@@ -72,6 +90,15 @@ def popular(sessao: Session) -> list[str]:
         for codigo, nome in PECAS:
             sessao.add(Peca(codigo_peca=codigo, nome=nome, unidade_medida="UN"))
         feito.append(f"mnt.pecas: {len(PECAS)} peças")
+    if _vazia(sessao, Estacao):
+        sessao.add_all(Estacao(nome=nome, descricao=descricao) for nome, descricao in ESTACOES)
+        feito.append(f"qld.estacoes: {len(ESTACOES)} estações")
+    if _vazia(sessao, TipoDefeito):
+        sessao.add_all(TipoDefeito(nome=nome) for nome in TIPOS_DEFEITO)
+        feito.append(f"qld.tipos_defeito: {len(TIPOS_DEFEITO)} tipos de defeito")
+    if _vazia(sessao, Produto):
+        sessao.add_all(Produto(numero_serie=serie, modelo=modelo) for serie, modelo in PRODUTOS)
+        feito.append(f"qld.produtos: {len(PRODUTOS)} notebooks")
     sessao.flush()
     return feito
 

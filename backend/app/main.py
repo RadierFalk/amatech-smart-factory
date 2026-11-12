@@ -12,6 +12,7 @@ from app.core.config import obter_configuracao
 from app.core.db import engine
 from app.core.erros import ErroNegocio
 from app.modulos.manutencao.rotas import rotas as rotas_manutencao
+from app.modulos.qualidade.rotas import rotas as rotas_qualidade
 from app.modulos.usuarios.rotas import rotas_auth, rotas_usuarios
 
 cfg = obter_configuracao()
@@ -48,3 +49,4 @@ def saude():
 app.include_router(rotas_auth)
 app.include_router(rotas_usuarios)
 app.include_router(rotas_manutencao)
+app.include_router(rotas_qualidade)

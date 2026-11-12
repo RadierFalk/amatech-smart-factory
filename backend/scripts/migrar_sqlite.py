@@ -14,12 +14,16 @@ Regras (HANDOFF_POSTGRES.md, seções 4.2 e 4.3):
   as tabelas de mnt mantêm os IDs de origem e também usam upsert.
 - Senhas nunca vão para o relatório nem são gravadas em texto puro.
 
-Uma função por schema (migrar_usr, migrar_mnt). Os schemas ras, qld e dsh entram aqui quando
+Uma função por schema (migrar_usr, migrar_mnt, migrar_qld). Os schemas ras e dsh entram aqui quando
 os modelos deles existirem; migrar_usr já lê os usuários desses bancos e devolve o mapa de IDs.
+
+Contas da mesma pessoa com matrículas diferentes (ex.: MAT-00421 na Rastreabilidade e OP-10234 na
+Manutenção) só são unidas com --equivalencias; o relatório lista os nomes repetidos para ajudar a decidir.
 """
 from __future__ import annotations
 
 import argparse
+import csv
 import sqlite3
 import sys
 import unicodedata
@@ -39,6 +43,8 @@ from app.core.seguranca import gerar_hash, verificar_senha
 from app.core.tempo import FUSO_FABRICA
 from app.modulos.manutencao.constantes import STATUS_ATIVOS, StatusChamado
 from app.modulos.manutencao.modelos import Chamado, ChamadoPeca, Equipamento, HistoricoStatus, Peca
+from app.modulos.qualidade.constantes import LEGADO_CLASSIFICACAO, LEGADO_SITUACAO, LEGADO_STATUS
+from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
 from app.modulos.usuarios.modelos import Usuario
 from scripts.seed_demo import PERSONAS, SENHA_DEMO
 
@@ -61,7 +67,8 @@ FUSO_ORIGEM = {"portal": UTC, "mnt": UTC, "qld": UTC, "ras": UTC, "dsh": FUSO_FA
 PERSONAS_POR_MATRICULA = {m: (nome, perfil) for m, nome, perfil in PERSONAS}
 
 TABELAS_COM_SEQUENCIA = ("usr.usuarios", "mnt.equipamentos", "mnt.pecas", "mnt.chamados",
-                         "mnt.chamado_pecas", "mnt.historico_status")
+                         "mnt.chamado_pecas", "mnt.historico_status",
+                         "qld.produtos", "qld.estacoes", "qld.tipos_defeito", "qld.ocorrencias")
 
 
 class ErroMigracao(Exception):
@@ -83,6 +90,8 @@ class Relatorio:
     gravadas: dict[str, int] = field(default_factory=dict)       # "mnt.chamados" -> linhas
     pecas_somadas: int = 0
     pendencias: list[str] = field(default_factory=list)          # decisões para o dono do projeto
+    equivalencias_aplicadas: list[str] = field(default_factory=list)
+    possiveis_duplicados: list[str] = field(default_factory=list)  # mesmo nome, matrículas diferentes
 
     def texto(self, simulacao: bool) -> str:
         linhas = ["=" * 70, "MIGRAÇÃO SQLite -> PostgreSQL" + ("  (SIMULAÇÃO: nada foi gravado)" if simulacao else ""),
@@ -98,6 +107,9 @@ class Relatorio:
             ("Conflitos resolvidos", self.conflitos),
             ("Senhas em texto puro convertidas para Argon2 (matrículas)", self.senhas_convertidas),
             ("Contas sem login possível: hash inválido ou de formato não suportado (matrículas)", self.senhas_sem_login),
+            ("Equivalências de matrícula aplicadas (--equivalencias)", self.equivalencias_aplicadas),
+            ("Possíveis duplicados: mesmo nome com matrículas diferentes (nada foi unido; "
+             "use --equivalencias se forem a mesma pessoa)", self.possiveis_duplicados),
             ("Registros ignorados", self.ignorados),
         ]
         for titulo, itens in secoes:
@@ -211,12 +223,34 @@ _CONSULTAS_USUARIOS: dict[str, str] = {
 }
 
 
-def ler_usuarios(origem: str, conn: sqlite3.Connection, rel: Relatorio) -> list[UsuarioOrigem]:
+def ler_equivalencias(caminho: Path) -> dict[str, str]:
+    """CSV com cabeçalho `matricula_antiga,matricula_nova` (separador , ou ;): une contas da mesma pessoa."""
+    with open(caminho, encoding="utf-8-sig", newline="") as arquivo:
+        primeira = arquivo.readline()
+        arquivo.seek(0)
+        leitor = csv.DictReader(arquivo, delimiter=";" if ";" in primeira else ",")
+        faltando = {"matricula_antiga", "matricula_nova"} - set(leitor.fieldnames or [])
+        if faltando:
+            raise ErroMigracao(f"{caminho}: faltam as colunas {', '.join(sorted(faltando))}")
+        pares = {}
+        for linha in leitor:
+            antiga = normalizar_matricula(linha["matricula_antiga"])
+            nova = normalizar_matricula(linha["matricula_nova"])
+            if antiga and nova and antiga != nova:
+                pares[antiga] = nova
+    return pares
+
+
+def ler_usuarios(origem: str, conn: sqlite3.Connection, rel: Relatorio,
+                 equivalencias: dict[str, str] | None = None) -> list[UsuarioOrigem]:
     linhas = conn.execute(_CONSULTAS_USUARIOS[origem]).fetchall()
     rel.lidas[f"{origem}.usuarios"] = len(linhas)
     lidos = []
     for id_antigo, matricula, nome, perfil, senha, ativo, criado in linhas:
         mat = normalizar_matricula(matricula)
+        if equivalencias and mat in equivalencias:
+            rel.equivalencias_aplicadas.append(f"{origem.upper()} {mat} -> {equivalencias[mat]}")
+            mat = equivalencias[mat]
         if not mat:
             rel.ignorados.append(f"{origem} usuário id {id_antigo} ({nome}): sem matrícula")
             continue
@@ -285,13 +319,30 @@ def _consolidar(mat: str, registros: list[UsuarioOrigem], rel: Relatorio) -> tup
     return nome, perfil.value, ativo, min(datas) if datas else None
 
 
-def migrar_usr(sessao: Session, conexoes: dict[str, sqlite3.Connection], rel: Relatorio) -> dict[tuple[str, int], int]:
+def _avisar_duplicados(por_matricula: dict[str, list[UsuarioOrigem]], rel: Relatorio) -> None:
+    """Mesmo nome (sem acento, sem diferenciar maiúsculas) em matrículas diferentes: talvez a mesma pessoa."""
+    por_nome: dict[str, set[str]] = defaultdict(set)
+    rotulo: dict[str, str] = {}
+    for mat, registros in por_matricula.items():
+        for r in registros:
+            chave = " ".join(_sem_acento(r.nome).split())
+            if chave:
+                por_nome[chave].add(mat)
+                rotulo.setdefault(chave, r.nome)
+    for chave, mats in sorted(por_nome.items()):
+        if len(mats) > 1:
+            rel.possiveis_duplicados.append(f"{rotulo[chave]}: {', '.join(sorted(mats))}")
+
+
+def migrar_usr(sessao: Session, conexoes: dict[str, sqlite3.Connection], rel: Relatorio,
+               equivalencias: dict[str, str] | None = None) -> dict[tuple[str, int], int]:
     """Unifica os usuários de todas as origens em usr.usuarios. Devolve (origem, id_antigo) -> usr.usuarios.id."""
     por_matricula: dict[str, list[UsuarioOrigem]] = defaultdict(list)
     for origem in ("portal", *ORDEM_MODULOS):
         if origem in conexoes:
-            for u in ler_usuarios(origem, conexoes[origem], rel):
+            for u in ler_usuarios(origem, conexoes[origem], rel, equivalencias):
                 por_matricula[u.matricula].append(u)
+    _avisar_duplicados(por_matricula, rel)
 
     tabela = Usuario.__table__
     mapa: dict[tuple[str, int], int] = {}
@@ -322,21 +373,24 @@ def migrar_usr(sessao: Session, conexoes: dict[str, sqlite3.Connection], rel: Re
 
 
 # --------------------------------------------------------------------------- mnt
-def _usuario(mapa: dict[tuple[str, int], int], id_antigo: int | None, onde: str) -> int | None:
+def _usuario(mapa: dict[tuple[str, int], int], id_antigo: int | None, onde: str, origem: str = "mnt") -> int | None:
     if id_antigo is None:
         return None
     try:
-        return mapa[("mnt", id_antigo)]
+        return mapa[(origem, id_antigo)]
     except KeyError:
-        raise ErroMigracao(f"{onde}: usuário id {id_antigo} não existe em manutencao.usuarios") from None
+        raise ErroMigracao(f"{onde}: usuário id {id_antigo} não existe (ou não tem matrícula) "
+                           f"nos usuários de {origem.upper()}") from None
 
 
-def _conferir_ids_livres(sessao: Session, modelo, coluna: str, origem: list[sqlite3.Row], campo: str) -> None:
-    """O destino pode ter dados do seed_demo com outros IDs: aí o upsert por ID colidiria com a chave única."""
+def _conferir_ids_livres(sessao: Session, modelo, coluna: str, pares: list[tuple[int, str]]) -> None:
+    """O destino pode ter dados do seed_demo com outros IDs: aí o upsert por ID colidiria com a chave única.
+
+    `pares` = (id na origem, valor da chave única já normalizado)."""
     tabela = modelo.__table__
     existentes = dict(sessao.execute(select(tabela.c[coluna], tabela.c.id)).all())
-    divergentes = [f"{r[campo]} (origem id {r['id']}, destino id {existentes[r[campo].upper()]})"
-                   for r in origem if r[campo].upper() in existentes and existentes[r[campo].upper()] != r["id"]]
+    divergentes = [f"{chave} (origem id {id_}, destino id {existentes[chave]})"
+                   for id_, chave in pares if chave in existentes and existentes[chave] != id_]
     if divergentes:
         raise ErroMigracao(f"{tabela.fullname} já tem registros com outros IDs: {'; '.join(divergentes)}. "
                            "Migre para um banco vazio (sem o seed_demo).")
@@ -350,8 +404,8 @@ def migrar_mnt(sessao: Session, conn: sqlite3.Connection, mapa: dict[tuple[str, 
 
     equipamentos, pecas = ler("equipamentos"), ler("pecas")
     chamados, trocas, historico = ler("chamados_manutencao"), ler("chamado_pecas_trocadas"), ler("historico_status")
-    _conferir_ids_livres(sessao, Equipamento, "codigo_tag", equipamentos, "codigo_tag")
-    _conferir_ids_livres(sessao, Peca, "codigo_peca", pecas, "codigo_peca")
+    _conferir_ids_livres(sessao, Equipamento, "codigo_tag", [(e["id"], e["codigo_tag"].strip().upper()) for e in equipamentos])
+    _conferir_ids_livres(sessao, Peca, "codigo_peca", [(p["id"], p["codigo_peca"].strip().upper()) for p in pecas])
 
     colunas_eqp = ["codigo_tag", "nome", "setor", "posto_trabalho", "status_operacional", "ativo"]
     for e in equipamentos:
@@ -442,6 +496,87 @@ def migrar_mnt(sessao: Session, conn: sqlite3.Connection, mapa: dict[tuple[str, 
     rel.gravadas["mnt.historico_status"] = gravados
 
 
+# --------------------------------------------------------------------------- qld
+def _legado(tabela: dict, valor, onde: str) -> str:
+    try:
+        return tabela[(valor or "").strip()].value
+    except KeyError:
+        raise ErroMigracao(f"{onde}: valor {valor!r} desconhecido (esperado um de {', '.join(tabela)})") from None
+
+
+def migrar_qld(sessao: Session, conn: sqlite3.Connection, mapa: dict[tuple[str, int], int], rel: Relatorio) -> None:
+    """Produtos, estações, tipos de defeito e ocorrências, com os IDs de origem.
+
+    A tabela maquina da Qualidade guardava a TAG; a ocorrência passa a apontar para mnt.equipamentos.
+    Por isso migrar_mnt (ou o cadastro das máquinas) tem que vir antes."""
+    def ler(tabela: str) -> list[sqlite3.Row]:
+        linhas = conn.execute(f"SELECT * FROM {tabela}").fetchall()  # noqa: S608 (nome fixo)
+        rel.lidas[f"qld.{tabela}"] = len(linhas)
+        return linhas
+
+    produtos, estacoes, tipos = ler("produto"), ler("estacao"), ler("tipo_defeito")
+    maquinas, ocorrencias = ler("maquina"), ler("ocorrencia")
+
+    serie = {p["id_produto"]: p["numero_serie_produto"].strip().upper() for p in produtos}
+    _conferir_ids_livres(sessao, Produto, "numero_serie", list(serie.items()))
+    _conferir_ids_livres(sessao, Estacao, "nome", [(e["id_estacao"], e["nome_estacao"].strip()) for e in estacoes])
+    _conferir_ids_livres(sessao, TipoDefeito, "nome", [(t["id_tipo_defeito"], t["nome_tipo_defeito"].strip()) for t in tipos])
+
+    for p in produtos:
+        valores = {"id": p["id_produto"], "numero_serie": serie[p["id_produto"]], "modelo": p["modelo_produto"].strip()}
+        _upsert(sessao, Produto.__table__, valores, ["id"], ["numero_serie", "modelo"])
+    rel.gravadas["qld.produtos"] = len(produtos)
+
+    for linhas, modelo, prefixo, chave in ((estacoes, Estacao, "estacao", "qld.estacoes"),
+                                           (tipos, TipoDefeito, "tipo_defeito", "qld.tipos_defeito")):
+        for r in linhas:
+            valores = {"id": r[f"id_{prefixo}"], "nome": r[f"nome_{prefixo}"].strip(),
+                       "descricao": (r[f"descricao_{prefixo}"] or "").strip() or None}
+            _upsert(sessao, modelo.__table__, valores, ["id"], ["nome", "descricao"])
+        rel.gravadas[chave] = len(linhas)
+
+    # Máquina da Qualidade (TAG) -> mnt.equipamentos.id
+    tags = dict(sessao.execute(select(Equipamento.codigo_tag, Equipamento.id)).all())
+    maquina_para_equipamento: dict[int, int] = {}
+    sem_cadastro = []
+    for mq in maquinas:
+        tag = mq["nome_maquina"].strip().upper()
+        if tag in tags:
+            maquina_para_equipamento[mq["id_maquina"]] = tags[tag]
+        else:
+            sem_cadastro.append(tag)
+    usadas_sem_cadastro = {o["id_maquina"] for o in ocorrencias} - set(maquina_para_equipamento)
+    if usadas_sem_cadastro:
+        raise ErroMigracao(
+            f"Máquinas da Qualidade sem cadastro na Manutenção: {', '.join(sorted(sem_cadastro))}. "
+            "Cadastre essas TAGs em mnt.equipamentos (ou migre o banco da Manutenção junto) e rode de novo.")
+    if sem_cadastro:
+        rel.ignorados.append(f"qld.maquina sem ocorrências e sem cadastro na Manutenção: {', '.join(sem_cadastro)}")
+
+    colunas = [c.name for c in Ocorrencia.__table__.columns if c.name != "id"]
+    for o in ocorrencias:
+        onde = f"ocorrência #{o['id_ocorrencia']}"
+        # Data e hora da tela: hora da fábrica (Manaus).
+        ocorrida_em = para_datahora(f"{o['data_ocorrencia']} {o['hora_ocorrencia']}", FUSO_FABRICA)
+        valores = {
+            "id": o["id_ocorrencia"],
+            "ocorrida_em": ocorrida_em,
+            "classificacao": _legado(LEGADO_CLASSIFICACAO, o["classificacao_defeito"], onde),
+            "situacao_produto": _legado(LEGADO_SITUACAO, o["situacao_produto"], onde),
+            "status": _legado(LEGADO_STATUS, o["status_ocorrencia"], onde),
+            "observacao": (o["observacao_ocorrencia"] or "").strip(),
+            "acao_realizada": (o["acao_realizada"] or "").strip(),
+            "oculta": (o["visibilidade_ocorrencia"] or "").strip().lower() == "oculta",
+            "produto_id": o["id_produto"],
+            "estacao_id": o["id_estacao"],
+            "tipo_defeito_id": o["id_tipo_defeito"],
+            "equipamento_id": maquina_para_equipamento[o["id_maquina"]],
+            "responsavel_id": _usuario(mapa, o["id_usuario"], onde, origem="qld"),
+        }
+        _upsert(sessao, Ocorrencia.__table__, valores, ["id"], colunas)
+    rel.gravadas["qld.ocorrencias"] = len(ocorrencias)
+
+
 # --------------------------------------------------------------------------- execução
 def ajustar_sequencias(sessao: Session) -> None:
     """Depois de inserir com IDs explícitos, o próximo ID gerado tem que vir depois do maior existente."""
@@ -454,7 +589,8 @@ def ajustar_sequencias(sessao: Session) -> None:
         ))
 
 
-def migrar(sessao: Session, caminhos: dict[str, Path], rel: Relatorio) -> None:
+def migrar(sessao: Session, caminhos: dict[str, Path], rel: Relatorio,
+           equivalencias: dict[str, str] | None = None) -> None:
     """Executa a migração inteira na sessão recebida, sem commit."""
     conexoes: dict[str, sqlite3.Connection] = {}
     try:
@@ -463,9 +599,12 @@ def migrar(sessao: Session, caminhos: dict[str, Path], rel: Relatorio) -> None:
                 conexoes[origem] = abrir_somente_leitura(Path(caminho))
             else:
                 rel.origens_ausentes.append(f"{origem}: {caminho}")
-        mapa = migrar_usr(sessao, conexoes, rel)
+        mapa = migrar_usr(sessao, conexoes, rel, equivalencias or {})
         if "mnt" in conexoes:
             migrar_mnt(sessao, conexoes["mnt"], mapa, rel)
+        if "qld" in conexoes:
+            sessao.flush()  # as máquinas da Manutenção precisam estar visíveis para mapear as TAGs
+            migrar_qld(sessao, conexoes["qld"], mapa, rel)
         sessao.flush()
         ajustar_sequencias(sessao)
     finally:
@@ -473,12 +612,13 @@ def migrar(sessao: Session, caminhos: dict[str, Path], rel: Relatorio) -> None:
             conn.close()
 
 
-def executar(fabrica_sessao: Callable[[], Session], caminhos: dict[str, Path], simular: bool) -> Relatorio:
+def executar(fabrica_sessao: Callable[[], Session], caminhos: dict[str, Path], simular: bool,
+             equivalencias: dict[str, str] | None = None) -> Relatorio:
     """Uma transação só: commit no final, ou rollback em --simular e em qualquer erro."""
     rel = Relatorio()
     with fabrica_sessao() as sessao:
         try:
-            migrar(sessao, caminhos, rel)
+            migrar(sessao, caminhos, rel, equivalencias)
         except Exception:
             sessao.rollback()
             raise
@@ -498,13 +638,16 @@ def main(argv: list[str] | None = None) -> int:
     for origem, padrao in CAMINHOS_PADRAO.items():
         parser.add_argument(f"--{origem}", type=Path, default=padrao, help=f"banco SQLite ({origem}); padrão: {padrao}")
     parser.add_argument("--simular", action="store_true", help="faz tudo e desfaz no final (só o relatório)")
+    parser.add_argument("--equivalencias", type=Path,
+                        help="CSV matricula_antiga,matricula_nova: une contas da mesma pessoa em sistemas diferentes")
     args = parser.parse_args(argv)
 
     from app.core.db import SessaoLocal  # só conecta quando roda de verdade
 
     caminhos = {origem: getattr(args, origem) for origem in CAMINHOS_PADRAO}
     try:
-        rel = executar(SessaoLocal, caminhos, args.simular)
+        equivalencias = ler_equivalencias(args.equivalencias) if args.equivalencias else None
+        rel = executar(SessaoLocal, caminhos, args.simular, equivalencias)
     except ErroMigracao as e:
         print(f"ERRO: {e}\nNada foi gravado.", file=sys.stderr)
         return 1

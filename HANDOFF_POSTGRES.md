@@ -228,3 +228,19 @@ Cada agente acrescenta uma entrada aqui. Não apague as anteriores.
 - **Perguntas para o dono do projeto:**
   1. (continua aberta) Migrar dos volumes `dados-*` do servidor ou dos arquivos do repositório?
   2. O Dashboard não tem matrícula: o login (`admin`, `supervisor`...) vira a matrícula (`ADMIN`, `SUPERVISOR`). A Rastreabilidade usa `MAT-xxxx`. Se forem as mesmas pessoas das personas (ex.: `MAT-0001` = `ADM-0001`), é preciso uma tabela de equivalência de matrículas; sem ela, viram usuários separados.
+
+### 2026-11-12: módulo de Qualidade (QLD) na API única e no Angular (máquina sem Docker)
+- Feito no backend:
+  - `app/modulos/qualidade/` com modelos, serviço, indicadores e 13 rotas em `/api/qld`; migração `0003` com as tabelas `qld`.
+  - Máquinas vêm de `mnt.equipamentos` (a tabela `maquina` da QLD guardava só a TAG). Notebooks ficam em `qld.produtos` até a RAS entrar na API única.
+  - Data e hora digitadas (hora de Manaus) viraram `ocorrida_em` (timestamptz, UTC). Valores em códigos (`CRITICO`, `EM_REPROCESSO`, `EM_ANALISE`); `visibilidade` virou `oculta`.
+  - "Abrir chamado na manutenção" chama `servico_mnt.abrir_chamado_por_tag` dentro da mesma transação, num savepoint: se a MNT recusar (RN02), a ocorrência é gravada e a recusa vira aviso. Dá para abrir o chamado depois (`POST /api/qld/ocorrencias/{id}/chamado`). O vínculo é `origem_sistema='qualidade'` + `id_externo='QLD-<id>'`, como no sistema antigo.
+  - Permissões: a matriz de `qualidade/permissoes.py`, com o **Supervisor igual ao Inspetor** (não existia na QLD; o GES-0001 era Administrador lá). Técnico continua sem acesso ao módulo (`rbac.py`).
+  - **Não portado:** o aviso à Rastreabilidade (mudar a etapa do notebook). Entra quando a RAS existir na API única.
+  - `seed_demo` povoa também estações, tipos de defeito e 30 notebooks.
+- Script de migração: `migrar_qld` (IDs preservados; TAG -> `mnt.equipamentos`; recusa tudo se uma TAG usada não existir na MNT), `--equivalencias arquivo.csv` (`matricula_antiga,matricula_nova`) e a lista de **possíveis duplicados** (mesmo nome, matrículas diferentes; só avisa).
+- Feito no frontend: `src/app/modulos/qualidade/` com painel (indicadores e gráficos), registrar/editar ocorrência, histórico (busca, filtros, ocultar, abrir chamado, CSV) e cadastros. Nova variante global `.aviso.atencao`.
+- Validado:
+  - 89 testes do backend (SQLite local) e 40 do frontend; build de produção;
+  - aceite com os dados reais: migrando os bancos do repositório, `/api/qld/indicadores` dá os mesmos números da tela antiga (38 visíveis, 6 abertas, 7 notebooks reprovados, contagens por estação, tipo e dia idênticas).
+- **Não validado:** no Postgres (o CI roda no push) e no navegador (não houve roteiro ponta a ponta desta vez).
