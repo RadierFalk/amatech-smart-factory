@@ -128,6 +128,8 @@ import { RasService } from '../ras.service';
         @if (permissoes()?.excluir_producao) {
           <div><button type="button" class="btn perigo" [disabled]="ocupado()" (click)="excluir()">Excluir produção</button></div>
         }
+      } @else if (!erro()) {
+        <p class="legenda" role="status">Carregando a produção…</p>
       }
     </div>
   `,

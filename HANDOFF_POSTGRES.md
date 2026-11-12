@@ -74,13 +74,13 @@ uvicorn app.main:app --port 8000
 
 **Critérios de aceite (todos obrigatórios):**
 
-- [ ] `alembic upgrade head` roda num banco vazio, e `alembic downgrade base` seguido de `alembic upgrade head` funciona.
-- [ ] `alembic check` não acusa diferença entre os modelos e a migração. Se acusar, corrija a migração escrita à mão para bater com o modelo, e não o contrário, a menos que o modelo esteja errado.
-- [ ] `pytest`: **0 skipped**. Um teste pulado significa que o banco não foi alcançado, e isso não conta como passar.
-- [ ] `GET http://localhost:8000/api/saude` responde `{"api": "ok", "banco": "ok"}`.
-- [ ] `POST /api/auth/login` com `{"matricula": "ADM-0001", "senha": "amatech1234"}` devolve um token, e `GET /api/auth/modulos` com esse token lista as 5 siglas.
-- [ ] Os acentos aparecem corretos no banco: `SELECT perfil FROM usr.usuarios` mostra "Operador de Produção", e não "Produ��o".
-- [ ] **Ponta a ponta com o Angular:** com a API no ar (porta 8000), rode `cd frontend && npm ci && npx ng serve` e abra http://localhost:4200. Entre como ADM-0001: o hub mostra 5 módulos, e em "Gestão de usuários" dá para criar um usuário, trocar a persona dele, desativá-lo e redefinir a senha. Recarregue a página e confira se os dados continuam lá (é isso que prova que estão gravados no Postgres). Entre como TEC-2001: só aparecem MNT e DSH, e abrir http://localhost:4200/usuarios leva de volta ao hub.
+- [x] `alembic upgrade head` roda num banco vazio, e `alembic downgrade base` seguido de `alembic upgrade head` funciona.
+- [x] `alembic check` não acusa diferença entre os modelos e a migração. Se acusar, corrija a migração escrita à mão para bater com o modelo, e não o contrário, a menos que o modelo esteja errado.
+- [x] `pytest`: **0 skipped**. Um teste pulado significa que o banco não foi alcançado, e isso não conta como passar.
+- [x] `GET http://localhost:8000/api/saude` responde `{"api": "ok", "banco": "ok"}`.
+- [x] `POST /api/auth/login` com `{"matricula": "ADM-0001", "senha": "amatech1234"}` devolve um token, e `GET /api/auth/modulos` com esse token lista as 5 siglas.
+- [x] Os acentos aparecem corretos no banco: `SELECT perfil FROM usr.usuarios` mostra "Operador de Produção", e não "Produ��o".
+- [x] **Ponta a ponta com o Angular:** com a API no ar (porta 8000), rode `cd frontend && npm ci && npx ng serve` e abra http://localhost:4200. Entre como ADM-0001: o hub mostra 5 módulos, e em "Gestão de usuários" dá para criar um usuário, trocar a persona dele, desativá-lo e redefinir a senha. Recarregue a página e confira se os dados continuam lá (é isso que prova que estão gravados no Postgres). Entre como TEC-2001: só aparecem MNT e DSH, e abrir http://localhost:4200/usuarios leva de volta ao hub.
 
 Se algo falhar, **corrija no código** e explique a causa no Registro. Não desative nem pule testes para fazer passar.
 
@@ -281,3 +281,22 @@ Cada agente acrescenta uma entrada aqui. Não apague as anteriores.
 - Frontend: `src/app/modulos/dashboard/` com painel (filtro de período/turno/modelo numa linha, 6 indicadores com semáforo em texto, máquinas paradas agora, 6 gráficos), histórico com CSV, metas e perdas (com importação e planilha modelo) e configuração. A tela "em construção" foi removida: os 5 módulos existem.
 - Validado: 120 testes do backend (SQLite local) e 53 do frontend; build de produção; nomes, colunas e CHECKs da `0005` iguais aos dos modelos (DDL offline); migração com o banco gerado pelo SQL do DSH antigo; **roteiro no navegador** com as telas dos 4 módulos por persona, fluxo QLD -> RAS -> MNT -> DSH (a OS aberta pela Qualidade aparece no painel do DSH como máquina parada), meta gravada pela tela e vista no painel, 14 telas sem rolagem horizontal no celular, 0 erros de console ou de API.
 - **Não validado:** no Postgres (o CI roda no push).
+
+### 2026-11-12: Tarefas A e B no PostgreSQL de verdade (máquina com Docker no WSL)
+- CI do commit `2612305` (DSH) passou no Postgres: `alembic check` sem diferenças com a `0005`, 120 passed, 0 skipped.
+- **Tarefa A: todos os critérios cumpridos** (marcados na seção 3), com o `docker-compose.dev.yml` (PostgreSQL 17, UTF8, UTC):
+  - `alembic upgrade head` num banco vazio (versão `0005`), `downgrade base` (0 tabelas) e `upgrade head` de novo (24 tabelas); `alembic check` limpo antes e depois.
+  - `pytest`: **120 passed, 0 skipped**; `/api/saude` = `{"api": "ok", "banco": "ok"}`; acentos gravados em UTF-8 ("Produção" = `c3a7 c3a3`).
+  - **Concorrência real** (o que o SQLite não exercita): duas aberturas simultâneas na mesma máquina, nas 10 máquinas -> sempre uma aceita e uma recusada (409, RN02); 10 rodadas de duas baixas simultâneas disputando 4 unidades -> sempre uma aceita, estoque final 1, nunca negativo (`FOR UPDATE` no componente).
+  - **Navegador sobre o Postgres:** roteiro com as telas dos 4 módulos por persona, fluxo QLD -> RAS -> MNT -> DSH, iniciar produção / mudar etapa / material / baixa, meta pelo DSH e 14 telas no celular: tudo OK, 0 erros. Gestão de usuários pela tela (criar, trocar persona, redefinir senha, desativar, recarregar e conferir; login do desativado recusado) e hub por persona (ADM-0001 vê 5 módulos; TEC-2001 só MNT e DSH, e `/usuarios` volta ao hub): tudo OK.
+  - Ajuste de tela encontrado no caminho: a ficha da produção (RAS) mostra "Carregando a produção…" enquanto busca os dados (antes ficava em branco).
+- **Tarefa B no Postgres** (banco novo `amatech_migracao`), com os bancos de MNT e QLD do repositório e os de RAS e DSH gerados pelos seeds dos sistemas antigos:
+  - `--simular` não grava nada; a migração grava exatamente o que o relatório diz (22 usuários, 4 chamados, 12 linhas de histórico, 39 ocorrências, 30 produções, 115 passagens, 350 solicitações, 266 baixas...); a segunda execução não muda nada (22 sem mudança).
+  - Sequências ajustadas (o próximo ID vem depois do maior migrado) e uma produção nova criada depois da migração não colide.
+  - API sobre o banco migrado: login das personas com a senha do README, login com senha antiga em texto puro convertida (OP-10234 / 123456), conta de serviço sem login (401); `/api/mnt/indicadores` dá **4 chamados**, o mesmo total da tela antiga; QLD 38 visíveis / 6 abertas / 7 reprovados; painel da RAS igual ao antigo.
+  - Observação: no Postgres a sequência não volta no rollback, então uma `--simular` antes da migração deixa um "buraco" na numeração dos IDs gerados (ex.: usuários de 23 a 44). Não afeta nada; se quiser IDs a partir de 1, migre sem simular antes num banco recém-criado.
+- **Como rodar nesta máquina** (Docker Engine dentro do Ubuntu do WSL, rede `mirrored`): a porta 5432 publicada pelo Docker **não** é alcançável a partir do Windows (conexão expira). O que funciona:
+  - backend, migrações, testes e scripts **dentro do WSL** (venv em `~/amatech-venv`, Python 3.14 como o CI), falando com o Postgres em `localhost:5432`;
+  - a API dentro do WSL em `--host 127.0.0.1 --port 8000`: no modo espelhado, o `localhost:8000` do Windows a alcança, e o `ng serve` do Windows usa o proxy normalmente;
+  - o WSL desliga quando fica ocioso e leva o contêiner junto: rode `docker start amatech-postgres` antes de usar.
+- Pendente: QLD apontando para `ras.producoes`; `docker-compose`/guia de servidor da nova arquitetura; migração com os volumes de produção e a virada (desligar o Streamlit, PR para a `main`); Angular 22; paleta de várias séries.
