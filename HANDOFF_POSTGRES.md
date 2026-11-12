@@ -213,3 +213,18 @@ Cada agente acrescenta uma entrada aqui. Não apague as anteriores.
   - a trava `SELECT ... FOR UPDATE OF chamados` (o SQLite ignora `FOR UPDATE`);
   - o índice parcial `ux_chamados_uma_os_ativa` sob concorrência real (duas aberturas simultâneas na mesma máquina devem resultar em uma 201 e uma 409).
 - Achado para o módulo DSH: a paleta categórica de `identidade/tokens.json` (`grafico-1..4`) **falha** no validador de paleta da skill de dataviz (`grafico-1` e `grafico-2` têm ΔE 14,9 em visão normal; `grafico-2` tem pouca saturação). Os gráficos de MNT usam uma série só e não são afetados. Corrija a paleta antes de fazer gráficos com várias séries.
+
+### 2026-11-12: Tarefa B, migração de `usr` e `mnt` (máquina sem Docker)
+- Antes de começar: o CI do commit `4a5a007` já roda no Postgres de verdade (`alembic upgrade head`, `alembic check` sem diferenças, **42 passed, 0 skipped**). Da Tarefa A ainda falta o que o CI não cobre: `downgrade base` + `upgrade head`, acentos no banco, ponta a ponta no navegador e as duas aberturas simultâneas.
+- Feito: `backend/scripts/migrar_sqlite.py` (`migrar_usr`, `migrar_mnt`, `--simular`, uma transação, upsert, `setval` das sequências) e `backend/tests/test_migrar_sqlite.py` (24 testes: cada regra da 4.3, mnt, RN02, idempotência, `--simular`, origem ausente, bancos do repositório).
+- Resultado com os bancos do repositório (MNT + QLD; portal, RAS e DSH não existem no Git): **11 usuários**, os 5 conflitos de perfil da tabela 4.3, 4 senhas em texto puro convertidas, `SVC-INTEGRACAO` sem login. `mnt`: 10 máquinas, 7 peças, 4 chamados, 2 peças trocadas (nenhuma somada), 12 linhas de histórico. Nenhuma OS ativa em duplicidade. Segunda execução: nada muda.
+- Decisões tomadas e que valem conferência:
+  - Sem o banco do portal, nome e perfil das 6 personas vêm de `seed_demo.PERSONAS` (o portal gera os mesmos dados).
+  - O Dashboard grava `criado_em` em hora local (`datetime('now','localtime')`): convertido de UTC-4 para UTC, e não tratado como UTC.
+  - Hashes PBKDF2 (RAS e DSH) são mantidos como estão: essas contas ficam sem login até alguém redefinir a senha pelo módulo USR. O relatório lista as matrículas.
+  - RN02 na origem: fica a OS ativa mais antiga, e as outras (com o histórico delas) ficam fora e vão para "PENDÊNCIAS".
+  - O destino precisa estar vazio em `mnt` ou ter os mesmos IDs: se o `seed_demo` já rodou com outros IDs, o script recusa e não grava nada.
+- Validado: 66 testes do backend no SQLite local. **Não validado no Postgres**: a execução real do script (o CI roda os testes novos no Postgres no próximo push) e o aceite `GET /api/mnt/indicadores` comparado com a tela antiga.
+- **Perguntas para o dono do projeto:**
+  1. (continua aberta) Migrar dos volumes `dados-*` do servidor ou dos arquivos do repositório?
+  2. O Dashboard não tem matrícula: o login (`admin`, `supervisor`...) vira a matrícula (`ADMIN`, `SUPERVISOR`). A Rastreabilidade usa `MAT-xxxx`. Se forem as mesmas pessoas das personas (ex.: `MAT-0001` = `ADM-0001`), é preciso uma tabela de equivalência de matrículas; sem ela, viram usuários separados.
