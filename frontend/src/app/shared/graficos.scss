@@ -67,7 +67,10 @@ li:focus-visible .dica { display: block; }
 .legenda-grafico { display: flex; align-items: center; gap: var(--space-1); font-size: 12px; color: var(--tinta-2); }
 .amostra-barra { display: inline-block; width: 12px; height: 8px; background: var(--grafico-1); border-radius: 0 2px 2px 0; }
 .amostra-ref { display: inline-block; width: 2px; height: 12px; background: var(--tinta); margin-left: var(--space-2); }
-.barra { height: 100%; background: var(--grafico-1); border-radius: 0 4px 4px 0; }
+.barra { height: 100%; background: var(--grafico-1); border-radius: 0 4px 4px 0;
+  &.critico { background: var(--critico); }
+  &.neutro { background: var(--linha-forte); }
+}
 
 /* ---- colunas no tempo */
 .area { position: relative; display: grid; gap: var(--space-1); padding-top: 18px; }
@@ -98,5 +101,7 @@ li:focus-visible .dica { display: block; }
   }
 }
 
-.coluna { width: 100%; background: var(--grafico-1); border-radius: 4px 4px 0 0; }
+.coluna { width: 100%; background: var(--grafico-1); border-radius: 4px 4px 0 0;
+  &.parcial { background: repeating-linear-gradient(135deg, var(--grafico-1) 0 6px, var(--sinal-suave) 6px 9px); }
+}
 .eixo { display: flex; justify-content: space-between; }

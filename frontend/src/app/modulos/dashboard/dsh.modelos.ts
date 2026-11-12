@@ -74,7 +74,57 @@ export interface Painel {
     parada_por_turno: { rotulo: string; minutos: number }[];
   };
   paradas_em_andamento: ParadaAgora[];
+  lead_time: { minutos: number | null; expedidos: number; por_modelo: { modelo: string; minutos: number; expedidos: number }[] };
+  em_producao: { total: number; por_etapa: (Contagem & { lateral: boolean })[] };
+  producao_por_turno: LinhaHistorico[];
+  qualidade: Qualidade;
+  manutencao: Manutencao;
+  materiais: Materiais;
 }
+
+export interface Qualidade {
+  ocorrencias: number;
+  abertas: number;
+  em_analise: number;
+  resolvidas: number;
+  criticas: number;
+  criticas_pendentes: number;
+  por_tipo: Contagem[];
+  por_dia: { data: string; quantidade: number }[];
+  criticas_recentes: {
+    id: number; ocorrida_em: string; defeito: string; numero_serie: string; modelo: string; estacao: string;
+    status: 'ABERTA' | 'EM_ANALISE' | 'RESOLVIDA';
+  }[];
+}
+
+export interface Manutencao {
+  disponibilidade: number | null;
+  mttr_minutos: number | null;
+  mtta_minutos: number | null;
+  mtbf_minutos: number | null;
+  chamados: number;
+  chamados_ativos: number;
+  por_setor: { setor: string; minutos: number; paradas: number }[];
+  por_maquina: { maquina: string; nome: string; setor: string; minutos: number; paradas: number; parada_agora: boolean }[];
+  por_dia: { data: string; minutos: number }[];
+  por_causa: Contagem[];
+}
+
+export interface Materiais {
+  pendentes: number;
+  parciais: number;
+  producoes_com_pendencia: number;
+  baixas: number;
+  unidades_baixadas: number;
+  limite_critico: number;
+  estoque_critico: { sku: string; nome: string; estoque: number; pedido: number; insuficiente: boolean }[];
+  pendencias_por_componente: { sku: string; nome: string; producoes: number; quantidade: number; insuficiente: boolean }[];
+}
+
+export const ROTULO_STATUS_OCORRENCIA = { ABERTA: 'Aberta', EM_ANALISE: 'Em análise', RESOLVIDA: 'Resolvida' } as const;
+export const TOM_STATUS_OCORRENCIA: Record<keyof typeof ROTULO_STATUS_OCORRENCIA, Tom> = {
+  ABERTA: 'critico', EM_ANALISE: 'atencao', RESOLVIDA: 'ok',
+};
 
 export interface FiltroPainel {
   de: string;
@@ -110,6 +160,7 @@ export interface Perda {
 
 export interface LinhaHistorico {
   data: string;
+  turno_id: number;
   turno: string;
   modelo: string;
   realizada: number;
@@ -144,6 +195,20 @@ export function somarDias(data: string, dias: number): string {
   const d = new Date(`${data}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + dias);
   return d.toISOString().slice(0, 10);
+}
+
+/** Semáforo do atendimento da meta pelos limites cadastrados (sem limite: o padrão 95% / 75%). */
+export function semaforoMeta(valor: number | null, limites: Limite[] = []): Semaforo | null {
+  if (valor === null) return null;
+  const l = limites.find((x) => x.indicador === 'atendimento_meta');
+  const verde = l?.limite_verde ?? 95;
+  const amarelo = l?.limite_amarelo ?? 75;
+  return valor >= verde ? 'verde' : valor >= amarelo ? 'amarelo' : 'vermelho';
+}
+
+/** "2026-08-15" -> "sáb". */
+export function diaSemana(data: string): string {
+  return ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'][new Date(`${data}T12:00:00Z`).getUTCDay()];
 }
 
 /** "2026-08-15" -> "15/08". */

@@ -12,6 +12,10 @@ export interface PontoGrafico {
   detalhe?: string;
   /** Valor de referência (ex.: meta), desenhado como um traço em tinta neutra sobre o trilho. */
   referencia?: number;
+  /** Destaque com significado (ex.: máquina parada agora). A tela explica a cor numa legenda escrita. */
+  tom?: 'critico' | 'neutro';
+  /** Período ainda em curso (ex.: hoje): coluna hachurada. */
+  parcial?: boolean;
 }
 
 /** Ranking horizontal: maior valor no topo. */
@@ -35,7 +39,7 @@ export interface PontoGrafico {
           @for (p of pontos(); track p.rotulo) {
             <li tabindex="0" [attr.aria-label]="p.rotulo + ': ' + formatar()(p.valor) + textoReferencia(p) + (p.detalhe ? ' · ' + p.detalhe : '')">
               <span class="rot">{{ p.rotulo }}</span>
-              <span class="trilho"><span class="barra" [style.width.%]="largura(p.valor)"></span>
+              <span class="trilho"><span class="barra" [class.critico]="p.tom === 'critico'" [class.neutro]="p.tom === 'neutro'" [style.width.%]="largura(p.valor)"></span>
                 @if (p.referencia !== undefined) { <span class="ref" [style.left.%]="posicao(p.referencia)" aria-hidden="true"></span> }</span>
               <span class="val">{{ formatar()(p.valor) }}</span>
               @if (p.detalhe || p.referencia !== undefined) {
@@ -100,7 +104,7 @@ export class BarrasHorizontais {
           <ul class="colunas">
             @for (p of pontos(); track p.rotulo) {
               <li tabindex="0" [attr.aria-label]="p.rotulo + ': ' + formatar()(p.valor) + (p.detalhe ? ' · ' + p.detalhe : '')">
-                <span class="coluna" [style.height.%]="altura(p.valor)"></span>
+                <span class="coluna" [class.parcial]="p.parcial" [style.height.%]="altura(p.valor)"></span>
                 <span class="dica" role="tooltip">{{ p.rotulo }}<br />{{ formatar()(p.valor) }}{{ p.detalhe ? ' · ' + p.detalhe : '' }}</span>
               </li>
             }

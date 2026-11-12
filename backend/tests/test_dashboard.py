@@ -15,7 +15,7 @@ from app.modulos.dashboard.modelos import Limite, Meta, TipoPerda, Turno
 from app.modulos.manutencao.modelos import Chamado, Equipamento
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
 from app.modulos.rastreabilidade.constantes import ETAPAS_PADRAO
-from app.modulos.rastreabilidade.modelos import Etapa, Modelo, Passagem, Producao
+from app.modulos.rastreabilidade.modelos import Baixa, Componente, Etapa, Modelo, Passagem, Producao, Solicitacao
 
 DIA = date(2026, 8, 15)
 AGORA = datetime(2026, 8, 16, 15, 0, tzinfo=UTC)  # 11:00 de 16/08 em Manaus
@@ -275,3 +275,95 @@ def test_historico_de_producao(cliente, token_de, dsh, sessao):
         ("2026-08-16", "2º turno", "AMT N16", 4, 0, None),
         ("2026-08-15", "1º turno", "AMT N14", 10, 20, 50.0),
     ]
+
+
+# ---------------------------------------------------------------- abas por setor
+
+
+def test_aba_producao_lead_time_e_etapas(cliente, token_de, dsh, sessao):
+    # N14 começou às 06:00 e chegou na Expedição às 12:00 (6 h); N16 segue em Em Teste.
+    sessao.execute(insert(Passagem), [{"producao_id": dsh["producao"][0], "etapa_id": dsh["etapa"]["Expedição"],
+                                       "usuario_id": dsh["u"]["ope"].id, "registrada_em": manaus(DIA, 12), "origem": "MANUAL"}])
+    sessao.get(Producao, dsh["producao"][0]).etapa_id = dsh["etapa"]["Expedição"]
+    sessao.get(Producao, dsh["producao"][1]).etapa_id = dsh["etapa"]["Em Teste"]
+    sessao.commit()
+    passagens(sessao, dsh, manaus(DIA, 10), aprovadas=9, reprovadas=1)
+    meta(sessao, dsh, 20)
+
+    p = painel(cliente, token_de("GES-0001"))
+    assert p["lead_time"] == {"minutos": 360, "expedidos": 1, "por_modelo": [{"modelo": "AMT N14", "minutos": 360, "expedidos": 1}]}
+    assert p["em_producao"]["total"] == 1
+    assert {e["rotulo"]: e["quantidade"] for e in p["em_producao"]["por_etapa"]}["Em Teste"] == 1
+    assert "Expedição" not in [e["rotulo"] for e in p["em_producao"]["por_etapa"]]
+    assert [(l["turno_id"], l["modelo"], l["realizada"], l["meta"]) for l in p["producao_por_turno"]] == [
+        (dsh["turno"][0], "AMT N14", 10, 20)]
+    filtrado = painel(cliente, token_de("GES-0001"), modelo_id=dsh["modelo"][1])
+    assert filtrado["lead_time"]["minutos"] is None and filtrado["em_producao"]["total"] == 1
+
+
+def test_aba_qualidade(cliente, token_de, dsh, sessao):
+    produto = Produto(numero_serie="AMT-000001", modelo="AMT N14")
+    sessao.add(produto)
+    sessao.commit()
+    tipo = sessao.scalar(select(TipoDefeito))
+    for hora, classificacao, status in ((9, "CRITICO", "ABERTA"), (10, "CRITICO", "RESOLVIDA"), (11, "MENOR", "EM_ANALISE")):
+        sessao.add(Ocorrencia(ocorrida_em=manaus(DIA, hora), classificacao=classificacao, situacao_produto="REPROVADO",
+                              status=status, observacao="x", acao_realizada="y", produto_id=produto.id,
+                              estacao_id=dsh["estacao"][0], tipo_defeito_id=tipo.id, equipamento_id=dsh["maquina"],
+                              responsavel_id=dsh["u"]["ges"].id))
+    sessao.commit()
+
+    q = painel(cliente, token_de("GES-0001"))["qualidade"]
+    assert (q["ocorrencias"], q["abertas"], q["em_analise"], q["resolvidas"]) == (3, 1, 1, 1)
+    assert (q["criticas"], q["criticas_pendentes"]) == (2, 1)
+    assert q["por_tipo"] == [{"rotulo": "Tela", "quantidade": 3}]
+    assert q["por_dia"] == [{"data": "2026-08-15", "quantidade": 3}]
+    assert [c["status"] for c in q["criticas_recentes"]] == ["RESOLVIDA", "ABERTA"]  # mais recente primeiro
+    assert q["criticas_recentes"][0]["numero_serie"] == "AMT-000001"
+
+
+def test_aba_manutencao(cliente, token_de, dsh, sessao):
+    c = chamado(sessao, dsh, manaus(DIA, 8), fim=manaus(DIA, 9, 25), downtime=85)
+    c.data_hora_inicio_atendimento = manaus(DIA, 8, 10)
+    c.causa_raiz = "Desgaste mecânico"
+    sessao.commit()
+
+    m = painel(cliente, token_de("TEC-2001"))["manutencao"]
+    assert (m["mttr_minutos"], m["mtta_minutos"]) == (75.0, 10.0)
+    # 1 máquina × 1 dia × 2 turnos de 8 h = 960 min programados; 85 parados.
+    assert m["disponibilidade"] == 91.15
+    assert m["mtbf_minutos"] == 875.0
+    assert (m["chamados"], m["chamados_ativos"]) == (1, 0)
+    assert m["por_setor"] == [{"setor": "Testes Funcionais", "minutos": 85, "paradas": 1}]
+    assert m["por_maquina"][0] | {"nome": None} == {"maquina": "TEST-02", "nome": None, "setor": "Testes Funcionais",
+                                                    "minutos": 85, "paradas": 1, "parada_agora": False}
+    assert m["por_dia"] == [{"data": "2026-08-15", "minutos": 85}]
+    assert m["por_causa"] == [{"rotulo": "Desgaste mecânico", "quantidade": 1}]
+
+    vazio = painel(cliente, token_de("TEC-2001"), de="2026-08-01", ate="2026-08-01")["manutencao"]
+    assert (vazio["mttr_minutos"], vazio["mtbf_minutos"], vazio["disponibilidade"]) == (None, None, 100.0)
+
+
+def test_aba_materiais(cliente, token_de, dsh, sessao):
+    bateria = Componente(sku="BAT-45WH", nome="Bateria 45 Wh", estoque=4)
+    tela = Componente(sku="LCD-156-FHD", nome="Tela 15,6", estoque=200)
+    sessao.add_all([bateria, tela])
+    sessao.commit()
+    ges = dsh["u"]["ges"].id
+    pedido_bateria = Solicitacao(producao_id=dsh["producao"][0], componente_id=bateria.id, quantidade=18, status="PENDENTE",
+                                 criado_por_id=ges, criada_em=manaus(DIA, 7))
+    pedido_tela = Solicitacao(producao_id=dsh["producao"][0], componente_id=tela.id, quantidade=10, status="PARCIAL",
+                              criado_por_id=ges, criada_em=manaus(DIA, 7))
+    sessao.add_all([pedido_bateria, pedido_tela])
+    sessao.commit()
+    sessao.add(Baixa(solicitacao_id=pedido_tela.id, usuario_id=ges, quantidade=4, registrada_em=manaus(DIA, 10)))
+    sessao.commit()
+
+    m = painel(cliente, token_de("GES-0001"))["materiais"]
+    assert (m["pendentes"], m["parciais"], m["producoes_com_pendencia"]) == (1, 1, 1)
+    assert (m["baixas"], m["unidades_baixadas"]) == (1, 4)
+    assert m["estoque_critico"] == [{"sku": "BAT-45WH", "nome": "Bateria 45 Wh", "estoque": 4, "pedido": 18, "insuficiente": True}]
+    assert [(p["sku"], p["quantidade"], p["insuficiente"]) for p in m["pendencias_por_componente"]] == [
+        ("BAT-45WH", 18, True), ("LCD-156-FHD", 6, False)]
+    outro = painel(cliente, token_de("GES-0001"), modelo_id=dsh["modelo"][1])["materiais"]
+    assert (outro["pendentes"], outro["baixas"], outro["pendencias_por_componente"]) == (0, 0, [])

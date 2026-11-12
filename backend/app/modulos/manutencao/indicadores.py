@@ -68,10 +68,16 @@ def _media(valores: list[float]) -> float:
 
 
 def indicadores(sessao: Session, periodo_dias: int | None = None, setor: str | None = None) -> dict[str, Any]:
-    agora = tempo.agora()
     maquinas = _maquinas_ativas(sessao, setor)
     chamados = _chamados_do_periodo(sessao, periodo_dias, setor)
+    tempo_programado = max(1, len(maquinas) * TEMPO_PROGRAMADO_POR_MAQUINA_MIN)
+    return resumo(chamados, maquinas, tempo.agora(), tempo_programado)
 
+
+def resumo(chamados: list[Chamado], maquinas: list[Equipamento], agora: datetime, tempo_programado: int) -> dict[str, Any]:
+    """Indicadores de uma lista de chamados. `tempo_programado` (min) é a base da disponibilidade e do MTBF;
+    o Dashboard passa o tempo de turno do período escolhido."""
+    tempo_programado = max(1, tempo_programado)
     por_status_maquina = {s.value: 0 for s in StatusEquipamento}
     for m in maquinas:
         por_status_maquina[m.status_operacional] += 1
@@ -100,7 +106,6 @@ def indicadores(sessao: Session, periodo_dias: int | None = None, setor: str | N
         if c.data_hora_inicio_atendimento
     ]
 
-    tempo_programado = max(1, len(maquinas) * TEMPO_PROGRAMADO_POR_MAQUINA_MIN)
     disponibilidade = round(max(0.0, min(100.0, (1 - downtime_total / tempo_programado) * 100)), 2)
 
     falhas_corretivas = sum(

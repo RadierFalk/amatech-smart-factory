@@ -24,8 +24,14 @@ export const ROTAS_DASHBOARD: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'painel' },
       {
         path: 'painel',
-        title: 'Painel de indicadores · DSH',
         loadComponent: () => import('./paginas/painel').then((m) => m.PainelDsh),
+        children: [
+          { path: '', title: 'Visão geral · DSH', loadComponent: () => import('./paginas/aba-geral').then((m) => m.AbaGeral) },
+          { path: 'producao', title: 'Produção · DSH', loadComponent: () => import('./paginas/aba-producao').then((m) => m.AbaProducao) },
+          { path: 'qualidade', title: 'Qualidade · DSH', loadComponent: () => import('./paginas/aba-qualidade').then((m) => m.AbaQualidade) },
+          { path: 'manutencao', title: 'Manutenção · DSH', loadComponent: () => import('./paginas/aba-manutencao').then((m) => m.AbaManutencao) },
+          { path: 'materiais', title: 'Materiais · DSH', loadComponent: () => import('./paginas/aba-materiais').then((m) => m.AbaMateriais) },
+        ],
       },
       {
         path: 'historico',

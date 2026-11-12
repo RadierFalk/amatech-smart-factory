@@ -1,0 +1,22 @@
+/* Matriz modelo × dia × turno: cor + texto em cada célula, dica no hover e no foco. */
+:host { display: grid; gap: var(--space-3); }
+.cabeca p { margin: 0; }
+.dica { display: none; position: absolute; z-index: 3; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  padding: var(--space-2) var(--space-3); background: var(--noite); color: var(--on-noite); border-radius: var(--radius-sm);
+  font-size: 12px; line-height: 16px; font-weight: 400; white-space: nowrap; pointer-events: none; }
+td:hover .dica, td:focus-visible .dica { display: block; }
+.chaves-matriz { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2) !important;
+  span { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: var(--radius-pill); } }
+.matriz { border-collapse: separate; border-spacing: 3px; width: 100%; min-width: 760px; font-size: 12px;
+  th { font-size: 11px; font-weight: 600; color: var(--tinta); text-align: center; padding: 4px; white-space: nowrap;
+    border-bottom: 2px solid var(--linha); }
+  th.hoje { color: var(--sinal); border-bottom-color: var(--sinal); }
+  th.turno { color: var(--tinta-2); font-weight: 400; border-bottom: 0; }
+  th.modelo { text-align: left; border-bottom: 0; padding: 6px 8px; }
+  td { position: relative; text-align: center; padding: 7px 2px; border-radius: var(--radius-sm); font-weight: 600;
+    font-variant-numeric: tabular-nums; outline-offset: 1px; }
+  .total { text-align: right; padding: 6px 8px; font-weight: 600; border-bottom: 0; } }
+.cel-ok { background: var(--ok-suave); color: var(--ok); }
+.cel-atencao { background: var(--atencao-suave); color: var(--atencao); }
+.cel-critico { background: var(--critico-suave); color: var(--critico); }
+.cel-neutro { background: var(--neutro-suave); color: var(--tinta-2); }

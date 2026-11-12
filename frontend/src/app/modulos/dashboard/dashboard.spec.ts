@@ -1,15 +1,21 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Type } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 
 import { Usuario } from '../../core/modelos';
 import { BarrasHorizontais } from '../../shared/graficos';
 import { OpcoesDsh, Painel, somarDias } from './dsh.modelos';
+import { DshService } from './dsh.service';
 import { LayoutDsh } from './layout-dsh';
+import { AbaGeral } from './paginas/aba-geral';
+import { AbaManutencao } from './paginas/aba-manutencao';
+import { AbaMateriais } from './paginas/aba-materiais';
+import { AbaProducao } from './paginas/aba-producao';
 import { csv } from './paginas/historico';
 import { Lancamentos } from './paginas/lancamentos';
-import { PainelDsh } from './paginas/painel';
+import { EstadoPainel, PainelDsh } from './paginas/painel';
 
 const SUPERVISOR: Usuario = { id: 2, matricula: 'GES-0001', nome: 'Orlando', perfil: 'Supervisor / Gestor', ativo: true, criado_em: '' };
 
@@ -42,6 +48,20 @@ function painel(p: Partial<Painel> = {}): Painel {
       defeitos_por_estacao: [], retrabalho_por_estacao: [], parada_por_turno: [{ rotulo: '1º turno', minutos: 85 }],
     },
     paradas_em_andamento: [],
+    lead_time: { minutos: 400, expedidos: 3, por_modelo: [{ modelo: 'AMT N14', minutos: 400, expedidos: 3 }] },
+    em_producao: { total: 5, por_etapa: [{ rotulo: 'Em Teste', quantidade: 4, lateral: false },
+                                         { rotulo: 'Parado', quantidade: 1, lateral: true }] },
+    producao_por_turno: [{ data: '2026-08-15', turno_id: 1, turno: '1º turno', modelo: 'AMT N14', realizada: 1420, aprovada: 1360,
+                           reprovada: 60, meta: 1500, atendimento_meta: 94.7 }],
+    qualidade: { ocorrencias: 3, abertas: 1, em_analise: 1, resolvidas: 1, criticas: 1, criticas_pendentes: 1,
+                 por_tipo: [{ rotulo: 'Tela', quantidade: 3 }], por_dia: [{ data: '2026-08-15', quantidade: 3 }], criticas_recentes: [] },
+    manutencao: { disponibilidade: 91.15, mttr_minutos: 75, mtta_minutos: 10, mtbf_minutos: 875, chamados: 1, chamados_ativos: 0,
+                  por_setor: [{ setor: 'Testes', minutos: 85, paradas: 1 }], por_dia: [{ data: '2026-08-15', minutos: 85 }],
+                  por_maquina: [{ maquina: 'TEST-02', nome: 'Testador', setor: 'Testes', minutos: 85, paradas: 1, parada_agora: false }],
+                  por_causa: [] },
+    materiais: { pendentes: 1, parciais: 1, producoes_com_pendencia: 1, baixas: 1, unidades_baixadas: 4, limite_critico: 50,
+                 estoque_critico: [{ sku: 'BAT-45WH', nome: 'Bateria 45 Wh', estoque: 4, pedido: 18, insuficiente: true }],
+                 pendencias_por_componente: [{ sku: 'BAT-45WH', nome: 'Bateria 45 Wh', producoes: 1, quantidade: 18, insuficiente: true }] },
     ...p,
   };
 }
@@ -58,22 +78,23 @@ describe('Dashboard', () => {
     sessionStorage.clear();
     sessionStorage.setItem('amatech.token', 't');
     sessionStorage.setItem('amatech.usuario', JSON.stringify(SUPERVISOR));
-    TestBed.configureTestingModule({ providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({ providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), EstadoPainel] });
     http = TestBed.inject(HttpTestingController);
   });
 
   afterEach(() => http.verify());
 
-  it('menu mostra Metas e perdas e Configuração só para a gestão', async () => {
+  it('abas dos setores para todos; Metas e perdas e Configuração só para a gestão', async () => {
     const f = TestBed.createComponent(LayoutDsh);
     f.detectChanges();
     http.expectOne('/api/dsh/opcoes').flush(opcoes(false));
     await esperar(f);
-    const abas = [...f.nativeElement.querySelectorAll('.abas a')].map((a: Element) => a.textContent!.trim());
-    expect(abas).toEqual(['Painel', 'Histórico']);
+    const textos = (sel: string) => [...f.nativeElement.querySelectorAll(sel)].map((a: Element) => a.textContent!.trim());
+    expect(textos('.abas a')).toEqual(['Visão geral', 'Produção', 'Qualidade', 'Manutenção', 'Materiais']);
+    expect(textos('.outras a')).toEqual(['Histórico']);
   });
 
-  async function abrirPainel(dados: Painel) {
+  it('o painel busca 7 dias até o "hoje" do servidor e guarda os dados para as abas', async () => {
     const f = TestBed.createComponent(PainelDsh);
     f.detectChanges();
     http.expectOne('/api/dsh/opcoes').flush(opcoes(true));
@@ -82,39 +103,81 @@ describe('Dashboard', () => {
     const req = http.expectOne((r) => r.url === '/api/dsh/painel');
     expect(req.request.params.get('de')).toBe('2026-08-09');
     expect(req.request.params.get('ate')).toBe('2026-08-15');
-    req.flush(dados);
+    req.flush(painel());
     await esperar(f);
-    return f;
+    const estado = f.debugElement.injector.get(EstadoPainel);
+    expect(estado.dados()!.producao.realizada).toBe(1420);
+    expect(estado.incluiHoje()).toBe(true);
+  });
+
+  /** Abre uma aba com os dados já carregados, como se viesse do painel. */
+  async function abrirAba<T>(tipo: Type<T>, dados: Painel): Promise<HTMLElement> {
+    const carregando = TestBed.inject(DshService).carregarOpcoes();
+    http.expectOne('/api/dsh/opcoes').flush(opcoes(true));
+    await carregando;
+    const f = TestBed.createComponent(tipo);
+    const estado = f.debugElement.injector.get(EstadoPainel);
+    estado.filtro.set({ de: '2026-08-15', ate: '2026-08-15' });
+    estado.dados.set(dados);
+    f.detectChanges();
+    await esperar(f);
+    return f.nativeElement as HTMLElement;
   }
 
-  it('cartões mostram valor no formato brasileiro e o semáforo com texto', async () => {
-    const el: HTMLElement = (await abrirPainel(painel())).nativeElement;
-    const kpis = [...el.querySelectorAll('.kpi')].map((k) => k.textContent!.replace(/\s+/g, ' ').trim());
-    expect(kpis[0]).toContain('94,7%');
-    expect(kpis[0]).toContain('1.420 de 1.500');
-    expect(kpis[0]).toContain('Atenção'); // amarelo nunca é só cor
-    expect(kpis[3]).toContain('215,7 un/h');
-    expect(kpis[4]).toContain('1 h 25 min');
+  const textoKpis = (el: HTMLElement) => [...el.querySelectorAll('am-kpi')].map((k) => k.textContent!.replace(/\s+/g, ' ').trim());
+  const PARADA = {
+    chamado_id: 7, maquina: 'TEST-02', nome: 'Testador', setor: 'Testes', status_chamado: 'ABERTO',
+    motivo: 'Sondas sem contato', desde: '2026-08-15T12:00:00Z', minutos: 30,
+  };
+
+  it('visão geral: seis cartões, semáforo com texto e alertas do momento', async () => {
+    const el = await abrirAba(AbaGeral, painel({ paradas_em_andamento: [PARADA] }));
+    const kpis = textoKpis(el);
+    expect(kpis.length).toBe(6);
+    expect(kpis[0]).toContain('1.420 un.');
+    expect(kpis[1]).toContain('94,7%');
+    expect(kpis[1]).toContain('Atenção'); // amarelo nunca é só cor
+    expect(kpis[2]).toContain('6 h 40 min');
+    expect(kpis[4]).toContain('1 parada(s) agora');
+    const alertas = el.querySelector('.alertas')!.textContent!;
+    expect(alertas).toContain('TEST-02 parada');
+    expect(alertas).toContain('BAT-45WH insuficiente');
+    expect([...el.querySelectorAll('.setor h2')].map((h) => h.textContent!.replace(/\s+/g, ' ').trim())).toEqual(
+      ['RAS Produção', 'QLD Qualidade', 'MNT Manutenção', 'RAS Materiais']);
   });
 
-  it('sem meta mostra "Sem meta" e avisa as máquinas paradas agora', async () => {
-    const el: HTMLElement = (await abrirPainel(painel({
-      atendimento_meta: { valor: null, semaforo: null },
-      producao: { realizada: 10, aprovada: 10, reprovada: 0, meta: 0 },
-      paradas_em_andamento: [{ chamado_id: 7, maquina: 'TEST-02', nome: 'Testador', setor: 'Testes', status_chamado: 'ABERTO',
-                               motivo: 'Sondas sem contato', desde: '2026-08-15T12:00:00Z', minutos: 30 }],
-    }))).nativeElement;
-    expect(el.querySelector('.kpi')!.textContent).toContain('Sem meta');
-    expect(el.querySelector('.paradas')!.textContent).toContain('TEST-02');
+  it('visão geral sem meta mostra "Sem meta"', async () => {
+    const el = await abrirAba(AbaGeral, painel({
+      atendimento_meta: { valor: null, semaforo: null }, producao: { realizada: 10, aprovada: 10, reprovada: 0, meta: 0 },
+    }));
+    expect(textoKpis(el)[1]).toContain('Sem meta');
+  });
+
+  it('produção: meta como traço de referência, etapas fora do fluxo em vermelho e matriz com texto', async () => {
+    const el = await abrirAba(AbaProducao, painel());
+    expect(el.querySelectorAll('am-producao-meta-dia .meta').length).toBe(1);
+    expect(el.querySelector('am-producao-meta-dia .hoje')!.textContent).toContain('Hoje');
+    expect(el.querySelectorAll('.barra.critico').length).toBe(1); // Parado
+    expect(el.textContent).toContain('Vermelho = fora do fluxo');
+    const celulas = [...el.querySelectorAll('.matriz td[tabindex]')];
+    expect(celulas.map((c) => c.firstChild!.textContent)).toEqual(['94%', '—']); // 1º turno com meta; 2º turno vazio
+    expect(celulas[0].className).toContain('cel-atencao'); // 94,7% fica abaixo dos 95% do alvo
+  });
+
+  it('manutenção: aviso da máquina parada agora e MTTR/MTBF formatados', async () => {
+    const el = await abrirAba(AbaManutencao, painel({ paradas_em_andamento: [PARADA] }));
     expect(el.querySelector('.paradas')!.textContent).toContain('OS #7');
+    const kpis = textoKpis(el);
+    expect(kpis[0]).toContain('91,2%');
+    expect(kpis[1]).toContain('1 h 15 min');
+    expect(kpis[2]).toContain('14 h 35 min');
   });
 
-  it('produção × meta desenha a meta como marca de referência', async () => {
-    const el: HTMLElement = (await abrirPainel(painel())).nativeElement;
-    const ref = el.querySelector<HTMLElement>('.ref')!;
-    expect(ref).not.toBeNull();
-    expect(ref.style.left).toBe('100%'); // a meta (1.500) é o maior valor do gráfico
-    expect(el.querySelector('.legenda-grafico')!.textContent).toContain('Meta');
+  it('materiais: estoque que não cobre o pedido aparece como Insuficiente', async () => {
+    const el = await abrirAba(AbaMateriais, painel());
+    expect(el.querySelector('tbody')!.textContent).toContain('Insuficiente');
+    expect(el.querySelector<HTMLElement>('.trilho span')!.style.width).toBe('22%'); // 4 de 18
+    expect(el.textContent).toContain('Vermelho = o estoque não cobre o que falta');
   });
 
   it('importação com erro mostra linha, coluna e problema', async () => {
