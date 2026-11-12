@@ -28,9 +28,14 @@ class Configuracao(BaseSettings):
     matricula_servico: str = "SVC-INTEGRACAO"
 
     def validar_producao(self) -> None:
-        if self.ambiente == "producao" and self.jwt_segredo == SEGREDO_DESENVOLVIMENTO:
+        """Em produção, recusa subir com os segredos de desenvolvimento ou com os de exemplo do .env.exemplo."""
+        if self.ambiente != "producao":
+            return
+        if self.jwt_segredo == SEGREDO_DESENVOLVIMENTO or self.jwt_segredo.lower().startswith("troque"):
             raise RuntimeError("Defina AMATECH_JWT_SEGREDO antes de subir em produção.")
-        if self.ambiente == "producao" and self.chave_maquinas == CHAVE_MAQUINAS_DESENVOLVIMENTO:
+        if len(self.jwt_segredo) < 32:
+            raise RuntimeError("AMATECH_JWT_SEGREDO precisa ter pelo menos 32 caracteres.")
+        if self.chave_maquinas == CHAVE_MAQUINAS_DESENVOLVIMENTO or self.chave_maquinas.lower().startswith("troque"):
             raise RuntimeError("Defina AMATECH_CHAVE_MAQUINAS antes de subir em produção.")
 
 

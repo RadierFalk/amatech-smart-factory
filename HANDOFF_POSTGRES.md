@@ -300,3 +300,16 @@ Cada agente acrescenta uma entrada aqui. Não apague as anteriores.
   - a API dentro do WSL em `--host 127.0.0.1 --port 8000`: no modo espelhado, o `localhost:8000` do Windows a alcança, e o `ng serve` do Windows usa o proxy normalmente;
   - o WSL desliga quando fica ocioso e leva o contêiner junto: rode `docker start amatech-postgres` antes de usar.
 - Pendente: QLD apontando para `ras.producoes`; `docker-compose`/guia de servidor da nova arquitetura; migração com os volumes de produção e a virada (desligar o Streamlit, PR para a `main`); Angular 22; paleta de várias séries.
+
+### 2026-11-12: produção do ERP novo (imagens, stack e guia)
+- Feito:
+  - `backend/Dockerfile` (Python 3.14, sem root; `docker/iniciar.sh` espera o Postgres, roda `alembic upgrade head`, opcionalmente o `seed_demo` com `AMATECH_SEED_DEMO=1`, e sobe o uvicorn) e `frontend/Dockerfile` (build do Angular + `nginx-unprivileged`, que serve as telas e repassa `/api/` para a API).
+  - `docker-compose.erp.yml`: stack `amatech-erp` com `erp-db`, `erp-api` e `erp-web`; só o `erp-web` na `VandreNet` (Traefik por `ERP_HOST`); banco e API numa rede interna `attachable`, sem portas publicadas. Roda ao lado da stack antiga até a virada.
+  - `.github/workflows/erp-imagens.yml`: em PR só constrói; na `main`, em tag `v*` ou manual, publica `ghcr.io/<repo>-api` e `-web` (tags `latest`, `sha-*`, versão).
+  - `SERVIDOR_ERP.md`: instalar, migrar os dados dos volumes antigos (`docker run` do script na rede da stack), cópia de segurança e restauração, atualizar e voltar versão, problemas comuns e o roteiro da virada.
+  - `.env.exemplo`: seção ERP novo. A API em produção agora recusa segredo JWT com menos de 32 caracteres e valores de exemplo ("troque...").
+- Validado no Docker do WSL:
+  - `docker compose` com um arquivo de ajuste (sem Swarm): imagens constroem (API 337 MB, web 83 MB), API espera o banco, migra e povoa; pelo nginx: telas, rotas do Angular, `/api`, login, chave das máquinas (errada 401, certa 200), cabeçalhos de segurança e cache; API e banco sem porta publicada; processos sem root.
+  - **Swarm de teste** (desfeito no final): deploy recusado sem as variáveis obrigatórias; com o `.env`, os 3 serviços em 1/1, DNS `erp-*` entre serviços, labels do Traefik; migração dos volumes com o comando do guia; `pg_dump` e `pg_restore --clean`.
+  - 126 testes do backend no Postgres (0 skipped).
+- Não validado: o Traefik/HTTPS de verdade e a publicação no GHCR (o workflow só roda na `main`, em tag ou manualmente).

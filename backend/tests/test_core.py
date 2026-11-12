@@ -60,3 +60,31 @@ def test_token_adulterado_e_rejeitado():
     token = criar_token("1")
     with pytest.raises(jwt.PyJWTError):
         decodificar_token(token[:-2] + ("AA" if not token.endswith("AA") else "BB"))
+
+
+# ---------------------------------------------------------------- configuração de produção
+
+
+@pytest.mark.parametrize(
+    ("segredo", "chave", "trecho"),
+    [
+        ("dev-inseguro-troque-em-producao-0123456789", "chave-boa-123", "AMATECH_JWT_SEGREDO"),
+        ("troque-este-segredo-com-mais-de-32-caracteres", "chave-boa-123", "AMATECH_JWT_SEGREDO"),
+        ("curto-demais", "chave-boa-123", "32 caracteres"),
+        ("x" * 40, "amatech-iot-demo", "AMATECH_CHAVE_MAQUINAS"),
+        ("x" * 40, "troque-esta-chave", "AMATECH_CHAVE_MAQUINAS"),
+    ],
+)
+def test_producao_recusa_segredos_de_exemplo(segredo, chave, trecho):
+    from app.core.config import Configuracao
+
+    cfg = Configuracao(ambiente="producao", jwt_segredo=segredo, chave_maquinas=chave)
+    with pytest.raises(RuntimeError, match=trecho):
+        cfg.validar_producao()
+
+
+def test_producao_aceita_segredos_proprios_e_desenvolvimento_nao_valida():
+    from app.core.config import Configuracao
+
+    Configuracao(ambiente="producao", jwt_segredo="y" * 48, chave_maquinas="chave-da-fabrica-7").validar_producao()
+    Configuracao(ambiente="desenvolvimento").validar_producao()  # padrões de desenvolvimento valem fora de produção

@@ -1,0 +1,94 @@
+version: "3.8"
+
+## ================================================================== ##
+## ERP AMATECH (API única + Angular + PostgreSQL) - Stack Docker Swarm ##
+## ================================================================== ##
+##
+##   https://${ERP_HOST}/        -> erp-web (nginx: telas do Angular)
+##   https://${ERP_HOST}/api/... -> erp-web repassa para erp-api (FastAPI)
+##   erp-db (PostgreSQL)         -> só na rede interna da stack, sem porta publicada
+##   Nomes com prefixo erp-: a erp-web também está na VandreNet, e um "api" de outra stack confundiria o DNS.
+##
+##   Roda AO LADO da stack antiga (docker-compose.yml, Streamlit) até a virada: outro domínio, outros volumes.
+##   Guia completo (instalar, migrar os dados antigos, cópia de segurança, atualizar): SERVIDOR_ERP.md
+##
+##   Subir:  set -a; . ./.env; set +a; docker stack deploy -c docker-compose.erp.yml amatech-erp
+##
+## ================================================================== ##
+
+x-deploy: &deploy-padrao
+  mode: replicated
+  replicas: 1
+  placement:
+    constraints:
+      - node.role == manager
+  restart_policy:
+    condition: any
+    delay: 5s
+
+services:
+
+  erp-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: amatech
+      POSTGRES_PASSWORD: ${ERP_DB_SENHA:?defina ERP_DB_SENHA no .env}
+      POSTGRES_DB: amatech
+      TZ: UTC
+    volumes:
+      - erp-postgres:/var/lib/postgresql/data
+    networks:
+      - interna
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U amatech -d amatech"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    deploy:
+      <<: *deploy-padrao
+
+  erp-api:
+    image: ${ERP_IMAGEM_API:-ghcr.io/radierfalk/amatech-smart-factory-api:latest}
+    environment:
+      AMATECH_DATABASE_URL: postgresql+psycopg://amatech:${ERP_DB_SENHA:?defina ERP_DB_SENHA no .env}@erp-db:5432/amatech
+      AMATECH_JWT_SEGREDO: ${ERP_JWT_SEGREDO:?defina ERP_JWT_SEGREDO no .env}
+      AMATECH_CHAVE_MAQUINAS: ${ERP_CHAVE_MAQUINAS:?defina ERP_CHAVE_MAQUINAS no .env}
+      AMATECH_AMBIENTE: producao
+      AMATECH_JWT_EXPIRACAO_MINUTOS: ${ERP_JWT_EXPIRACAO_MINUTOS:-480}
+      # Mesma origem (o nginx repassa /api): o navegador não precisa de CORS.
+      AMATECH_CORS_ORIGENS: "[]"
+      AMATECH_SEED_DEMO: ${ERP_SEED_DEMO:-0}
+      AMATECH_WORKERS: ${ERP_WORKERS:-2}
+    networks:
+      - interna
+    deploy:
+      <<: *deploy-padrao
+
+  erp-web:
+    image: ${ERP_IMAGEM_WEB:-ghcr.io/radierfalk/amatech-smart-factory-web:latest}
+    networks:
+      - interna
+      - VandreNet
+    deploy:
+      <<: *deploy-padrao
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=VandreNet
+        - traefik.http.routers.amatech-erp.rule=Host(`${ERP_HOST:?defina ERP_HOST no .env}`)
+        - traefik.http.routers.amatech-erp.entrypoints=websecure
+        - traefik.http.routers.amatech-erp.tls.certresolver=letsencryptresolver
+        - traefik.http.services.amatech-erp.loadbalancer.server.port=8080
+        - traefik.http.services.amatech-erp.loadbalancer.passHostHeader=true
+
+volumes:
+  erp-postgres:
+
+networks:
+  # Rede só desta stack: o banco e a API não ficam visíveis na VandreNet.
+  # attachable: permite rodar o script de migração (docker run --network amatech-erp_interna ...) contra o banco.
+  interna:
+    driver: overlay
+    attachable: true
+  VandreNet:
+    external: true
+    name: VandreNet
