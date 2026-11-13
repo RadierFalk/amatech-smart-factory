@@ -5,11 +5,11 @@ name: Imagens do ERP (API e web)
 # - Push na main, tag v* ou execução manual: publica no GHCR como
 #     ghcr.io/<dono>/<repositório>-api  e  ghcr.io/<dono>/<repositório>-web
 #   com as tags latest (só na main), o SHA do commit e a versão da tag.
-# A imagem antiga (Streamlit, Dockerfile da raiz) continua em docker-publish.yml até a virada.
+# O Dockerfile da raiz pertence ao sistema legado (Streamlit) e não é publicado.
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     tags: ["v*"]
     paths: ["backend/**", "frontend/**", ".github/workflows/erp-imagens.yml"]
   pull_request:
@@ -56,7 +56,7 @@ jobs:
             type=ref,event=pr
 
       - name: Construir${{ github.event_name != 'pull_request' && ' e publicar' || '' }}
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.contexto }}
           push: ${{ github.event_name != 'pull_request' }}
