@@ -5,7 +5,7 @@ Permissões por persona (seguem a matriz do portal antigo):
 | Ação                                              | Personas                                  |
 |---------------------------------------------------|-------------------------------------------|
 | Ver máquinas, chamados, peças, opções             | todas com acesso ao módulo (rbac.py)      |
-| Abrir chamado corretivo                           | Operador, Administrador                   |
+| Abrir chamado corretivo                           | Operador, Técnico, Supervisor, Administrador |
 | Fila, assumir, laudo, peças, programar preventiva | Técnico, Administrador                    |
 | Concluir OS                                       | Técnico responsável; Supervisor e Adm.    |
 | Cancelar OS, cadastros, indicadores, auditoria    | Supervisor, Administrador                 |
@@ -46,7 +46,7 @@ from app.modulos.manutencao.esquemas import (
 from app.modulos.usuarios.modelos import Usuario
 
 P = Perfil
-ABRIR = (P.OPERADOR, P.ADMINISTRADOR)
+ABRIR = (P.OPERADOR, P.TECNICO, P.SUPERVISOR, P.ADMINISTRADOR)
 TECNICA = (P.TECNICO, P.ADMINISTRADOR)
 GESTAO = (P.SUPERVISOR, P.ADMINISTRADOR)
 CONCLUIR = (P.TECNICO, P.SUPERVISOR, P.ADMINISTRADOR)
