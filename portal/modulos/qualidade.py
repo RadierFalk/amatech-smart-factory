@@ -8,17 +8,18 @@ from typing import Any
 import streamlit as st
 
 from identidade import amatech
-from integracao_local import ambiente_modulo
+from integracao_local import ambiente_modulo, sincronizar_usuario_nos_modulos
 
 
 def renderizar_modulo_qualidade(usuario_erp: dict[str, Any]) -> None:
     """Renderiza o módulo de Controle da Qualidade integrado ao ERP."""
-    usuario_qld = st.session_state.get("usuario_autenticado") or {
-        "id": 1,
-        "matricula": usuario_erp["matricula"],
-        "nome": usuario_erp["nome"],
-        "perfil": "Operador",
-    }
+    usuario_qld = st.session_state.get("usuario_autenticado")
+
+    # Sessão antiga (sem id_usuario) ou ausente: ressincroniza com o banco da Qualidade
+    # em vez de assumir um id fixo, que faria a ação ser registrada no usuário errado.
+    if not usuario_qld or "id_usuario" not in usuario_qld:
+        sincronizar_usuario_nos_modulos(usuario_erp, st.session_state)
+        usuario_qld = st.session_state["usuario_autenticado"]
 
     with ambiente_modulo("qualidade"):
         import banco
