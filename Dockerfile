@@ -1,4 +1,4 @@
-# Imagem única dos quatro sistemas. Cada serviço do docker-compose.yml escolhe a pasta (working_dir) e o comando.
+# Imagem única dos quatro sistemas ANTIGOS (Streamlit). Cada serviço do docker-compose.legado.yml escolhe a pasta (working_dir) e o comando.
 FROM python:3.14-slim
 
 # TZ no formato POSIX (UTC-4, Manaus): funciona sem instalar o pacote tzdata. Usado nos horários "agora" das telas.
