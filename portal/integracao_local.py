@@ -393,6 +393,7 @@ def sincronizar_usuario_nos_modulos(usuario_erp: dict[str, Any], session_state: 
                 )
                 conn.commit()
         session_state["usuario_autenticado"] = {
+            "id_usuario": id_qld,  # chave que qualidade/autenticacao.validar_ator exige
             "id": id_qld,
             "matricula": matricula,
             "nome": nome,
