@@ -1,7 +1,9 @@
 """Tabelas do módulo de Qualidade (schema qld).
 
 Usuários vêm de usr.usuarios e máquinas de mnt.equipamentos (a Manutenção é a dona das TAGs).
-Produtos (notebooks) ficam aqui até o módulo de Rastreabilidade, dono deles, existir na API única.
+Notebooks: a Rastreabilidade é a dona (ras.producoes). Cada produto daqui é o espelho de uma produção
+(`producao_id`), criado na primeira ocorrência daquele notebook. Produtos sem produção são o histórico do sistema
+antigo (notebooks que só existiam na Qualidade).
 """
 from datetime import datetime
 
@@ -11,6 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db import Base
 from app.modulos.manutencao.modelos import Equipamento
 from app.modulos.qualidade.constantes import Classificacao, SituacaoProduto, StatusOcorrencia
+from app.modulos.rastreabilidade.modelos import Producao
 from app.modulos.usuarios.modelos import Usuario
 
 
@@ -29,6 +32,10 @@ class Produto(Base):
     numero_serie: Mapped[str] = mapped_column(String(30), unique=True)
     modelo: Mapped[str] = mapped_column(String(50))
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    # Produção da Rastreabilidade deste notebook (1 para 1). Vazio: notebook do histórico, sem produção.
+    producao_id: Mapped[int | None] = mapped_column(ForeignKey("ras.producoes.id", ondelete="SET NULL"), unique=True)
+
+    producao: Mapped[Producao | None] = relationship(lazy="select")
 
 
 class Estacao(Base):

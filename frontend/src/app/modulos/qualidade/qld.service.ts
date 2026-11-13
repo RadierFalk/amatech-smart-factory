@@ -8,6 +8,7 @@ import {
   IndicadoresQld,
   ItemCadastro,
   Maquina,
+  Notebook,
   Ocorrencia,
   OcorrenciaEntrada,
   OpcoesQld,
@@ -63,16 +64,15 @@ export class QldService {
     return this.http.get<Maquina[]>(`${this.base}/maquinas`);
   }
 
+  /** Produções da Rastreabilidade ainda não expedidas (as mexidas por último primeiro). */
+  notebooks(busca = ''): Observable<Notebook[]> {
+    const params = busca.trim() ? new HttpParams().set('busca', busca.trim()) : undefined;
+    return this.http.get<Notebook[]>(`${this.base}/notebooks`, { params });
+  }
+
+  /** Notebooks que já tiveram ocorrência e os do histórico. Só consulta: eles vêm da Rastreabilidade. */
   produtos(incluirInativos = false): Observable<Produto[]> {
     return this.http.get<Produto[]>(`${this.base}/produtos`, { params: this.inativos(incluirInativos) });
-  }
-
-  criarProduto(dados: { numero_serie: string; modelo: string }) {
-    return this.http.post<Produto>(`${this.base}/produtos`, dados);
-  }
-
-  alterarProduto(id: number, dados: Partial<Pick<Produto, 'modelo' | 'ativo'>>) {
-    return this.http.patch<Produto>(`${this.base}/produtos/${id}`, dados);
   }
 
   itens(tipo: TipoItem, incluirInativos = false): Observable<ItemCadastro[]> {

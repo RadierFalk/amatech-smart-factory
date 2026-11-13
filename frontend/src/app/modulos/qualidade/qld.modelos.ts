@@ -21,11 +21,21 @@ export interface OpcoesQld {
   permissoes: PermissoesQld;
 }
 
+/** Notebook que já teve ocorrência (espelho da produção) ou do histórico do sistema antigo (sem produção). */
 export interface Produto {
   id: number;
   numero_serie: string;
   modelo: string;
   ativo: boolean;
+  producao_id: number | null;
+}
+
+/** Produção da Rastreabilidade que pode receber ocorrência (`id` = producao_id). */
+export interface Notebook {
+  id: number;
+  numero_serie: string;
+  modelo: string;
+  etapa: string;
 }
 
 /** Estação ou tipo de defeito. */
@@ -53,6 +63,7 @@ export interface Ocorrencia {
   observacao: string;
   acao_realizada: string;
   produto_id: number;
+  producao_id: number | null;
   numero_serie: string;
   modelo: string;
   estacao_id: number;
@@ -68,7 +79,10 @@ export interface Ocorrencia {
   chamado_status: StatusChamado | null;
 }
 
-/** Corpo do registro/edição. `ocorrida_em` sem fuso = hora da fábrica (Manaus). */
+/**
+ * Corpo do registro/edição. `ocorrida_em` sem fuso = hora da fábrica (Manaus).
+ * O notebook vai em `producao_id` (Rastreabilidade); `produto_id` só para os do histórico, sem produção.
+ */
 export interface OcorrenciaEntrada {
   ocorrida_em: string;
   classificacao: Classificacao;
@@ -76,7 +90,8 @@ export interface OcorrenciaEntrada {
   status: StatusOcorrencia;
   observacao: string;
   acao_realizada: string;
-  produto_id: number;
+  producao_id: number | null;
+  produto_id: number | null;
   estacao_id: number;
   tipo_defeito_id: number;
   equipamento_id: number;

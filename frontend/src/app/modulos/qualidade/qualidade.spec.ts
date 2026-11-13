@@ -24,7 +24,7 @@ function opcoes(p: Partial<PermissoesQld>): OpcoesQld {
 function ocorrencia(o: Partial<Ocorrencia> = {}): Ocorrencia {
   return {
     id: 12, ocorrida_em: '2026-11-12T12:30:00Z', classificacao: 'MAIOR', situacao_produto: 'REPROVADO', status: 'ABERTA',
-    observacao: 'Tela com linhas', acao_realizada: 'Retido', produto_id: 1, numero_serie: 'AMT-000017', modelo: 'AMT N16',
+    observacao: 'Tela com linhas', acao_realizada: 'Retido', produto_id: 1, producao_id: 31, numero_serie: 'AMT-000031', modelo: 'AMT N18',
     estacao_id: 5, estacao_nome: 'Teste Funcional', tipo_defeito_id: 1, tipo_defeito_nome: 'Tela', equipamento_id: 4,
     equipamento_tag: 'TEST-02', equipamento_nome: 'Testador FCT', responsavel_id: 3, responsavel_nome: 'Maria',
     chamado_id: null, chamado_status: null, ...o,
@@ -71,7 +71,7 @@ describe('Qualidade', () => {
     http.expectOne('/api/qld/opcoes').flush(opcoes(perm));
     await esperar(f);
     const inativos = id ? '?incluir_inativos=true' : '';
-    http.expectOne(`/api/qld/produtos${inativos}`).flush([{ id: 1, numero_serie: 'AMT-000017', modelo: 'AMT N16', ativo: true }]);
+    http.expectOne('/api/qld/notebooks').flush([{ id: 31, numero_serie: 'AMT-000031', modelo: 'AMT N18', etapa: 'Em Teste' }]);
     http.expectOne(`/api/qld/estacoes${inativos}`).flush([{ id: 5, nome: 'Teste Funcional', descricao: null, ativo: true }]);
     http.expectOne(`/api/qld/tipos-defeito${inativos}`).flush([{ id: 1, nome: 'Tela', descricao: null, ativo: true }]);
     http.expectOne('/api/qld/maquinas').flush([{ id: 4, codigo_tag: 'TEST-02', nome: 'Testador FCT', setor: 'Testes', status_operacional: 'OPERACIONAL' }]);
@@ -94,7 +94,7 @@ describe('Qualidade', () => {
   it('registra com hora da fábrica sem fuso, abre chamado e mostra os avisos da integração', async () => {
     const f = await abrirFormulario({ registrar: true, abrir_chamado: true });
     const el: HTMLElement = f.nativeElement;
-    for (const campo of ['produto_id', 'estacao_id', 'equipamento_id', 'tipo_defeito_id']) escolher(el, campo);
+    for (const campo of ['producao_id', 'estacao_id', 'equipamento_id', 'tipo_defeito_id']) escolher(el, campo);
     digitar(el, 'data', '2026-11-12');
     digitar(el, 'hora', '08:30');
     digitar(el, 'observacao', 'Tela com linhas');
@@ -105,7 +105,7 @@ describe('Qualidade', () => {
 
     const req = http.expectOne('/api/qld/ocorrencias');
     expect(req.request.body).toMatchObject({
-      ocorrida_em: '2026-11-12T08:30:00', produto_id: 1, estacao_id: 5, equipamento_id: 4, tipo_defeito_id: 1,
+      ocorrida_em: '2026-11-12T08:30:00', producao_id: 31, produto_id: null, estacao_id: 5, equipamento_id: 4, tipo_defeito_id: 1,
       classificacao: 'MAIOR', situacao_produto: 'REPROVADO', status: 'ABERTA', abrir_chamado: true,
     });
     req.flush({ ocorrencia: ocorrencia({ chamado_id: 9 }), avisos: [{ tipo: 'aviso', mensagem: 'Manutenção: o chamado não foi aberto. RN02' }] });
@@ -138,6 +138,34 @@ describe('Qualidade', () => {
     expect(el.querySelector<HTMLInputElement>('[formcontrolname=hora]')!.value).toBe('08:30');
     expect(el.querySelector('[formcontrolname=abrir_chamado]')).toBeNull();
     expect(botoes(el)).toContain('Salvar alterações');
+  });
+
+  it('busca o notebook pelo número de série na Rastreabilidade e mantém o escolhido na lista', async () => {
+    const f = await abrirFormulario({ registrar: true });
+    const el: HTMLElement = f.nativeElement;
+    escolher(el, 'producao_id');
+    const busca = el.querySelector<HTMLInputElement>('#busca-notebook')!;
+    busca.value = '000040';
+    busca.dispatchEvent(new Event('input'));
+    await new Promise((r) => setTimeout(r, 350));
+    http.expectOne('/api/qld/notebooks?busca=000040').flush([{ id: 40, numero_serie: 'AMT-000040', modelo: 'AMT N14', etapa: 'Em Fila' }]);
+    await esperar(f);
+    const opcoes = [...el.querySelectorAll<HTMLOptionElement>('[formcontrolname=producao_id] option')].map((o) => o.textContent!.trim());
+    expect(opcoes).toEqual(['Selecione…', 'AMT-000031 · AMT N18 · Em Teste', 'AMT-000040 · AMT N14 · Em Fila']);
+  });
+
+  it('edição de ocorrência do histórico mantém o notebook fixo e manda produto_id', async () => {
+    const f = await abrirFormulario({ registrar: true, editar: true }, 12);
+    http.expectOne('/api/qld/ocorrencias/12').flush(ocorrencia({ producao_id: null, numero_serie: 'AMT-000017', modelo: 'AMT N16' }));
+    await esperar(f);
+    const el: HTMLElement = f.nativeElement;
+    expect(el.querySelector('#busca-notebook')).toBeNull();
+    expect(el.textContent).toContain('Do histórico, sem produção na Rastreabilidade');
+    [...el.querySelectorAll('button')].find((b) => b.textContent!.includes('Salvar alterações'))!.click();
+    const req = http.expectOne('/api/qld/ocorrencias/12');
+    expect(req.request.body).toMatchObject({ produto_id: 1, producao_id: null });
+    req.flush(ocorrencia());
+    await esperar(f);
   });
 
   async function abrirHistorico(perm: Partial<PermissoesQld>, lista: Ocorrencia[]) {

@@ -71,6 +71,9 @@
 
 .conteudo { min-width: 0; outline: none; }
 
+.sino-lateral { margin-bottom: var(--space-3); }
+.sino-movel { display: none; }
+
 @media (max-width: 800px) {
   :host { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
 
@@ -94,4 +97,8 @@
   .lateral { display: none; position: static; height: auto; }
   .lateral.aberto { display: flex; }
   .marca-lateral { display: none; }
+
+  /* No celular o sino fica na barra de cima, sempre à vista. */
+  .sino-movel { display: block; margin-left: auto; margin-right: var(--space-2); }
+  .sino-lateral { display: none; }
 }

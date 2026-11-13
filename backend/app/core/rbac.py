@@ -33,6 +33,7 @@ class Modulo(StrEnum):
     MANUTENCAO = "manutencao"
     DASHBOARD = "dashboard"
     USUARIOS = "usuarios"
+    AUDITORIA = "auditoria"
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,11 @@ CATALOGO: dict[Modulo, ModuloERP] = {
         Modulo.USUARIOS, "USR", "Gestão de Usuários e Acessos",
         "Cadastro de colaboradores, personas, ativação/bloqueio e senhas.",
         frozenset({P.ADMINISTRADOR}),
+    ),
+    Modulo.AUDITORIA: ModuloERP(
+        Modulo.AUDITORIA, "AUD", "Auditoria",
+        "Quem criou, alterou ou excluiu cada registro, em todos os módulos, com os valores antes e depois.",
+        frozenset({P.ADMINISTRADOR, P.SUPERVISOR}),
     ),
 }
 

@@ -12,6 +12,8 @@ from app.core import tempo
 from app.core.rbac import Perfil
 from app.modulos.manutencao.modelos import Chamado, Equipamento
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
+from app.modulos.rastreabilidade.constantes import ETAPAS_PADRAO
+from app.modulos.rastreabilidade.modelos import Etapa, Modelo, Producao
 
 AGORA = datetime(2026, 11, 12, 15, 0, tzinfo=UTC)  # 11:00 em Manaus
 
@@ -241,9 +243,8 @@ def test_indicadores(cliente, token_de, qld):
 
 def test_cadastros(cliente, token_de, qld):
     h = token_de("GES-0001")
-    r = cliente.post("/api/qld/produtos", headers=h, json={"numero_serie": " amt-000031 ", "modelo": "AMT N18"})
-    assert r.status_code == 201 and r.json()["numero_serie"] == "AMT-000031"
-    assert cliente.post("/api/qld/produtos", headers=h, json={"numero_serie": "AMT-000031", "modelo": "X"}).status_code == 409
+    # Notebooks vêm da Rastreabilidade: a lista de produtos da Qualidade é só consulta.
+    assert cliente.post("/api/qld/produtos", headers=h, json={"numero_serie": "AMT-000031", "modelo": "X"}).status_code == 405
     assert cliente.post("/api/qld/estacoes", headers=h, json={"nome": "smt"}).status_code == 409  # sem diferenciar maiúsculas
 
     tipo = cliente.post("/api/qld/tipos-defeito", headers=h, json={"nome": "Bateria", "descricao": "Não carrega"}).json()
@@ -261,3 +262,80 @@ def test_maquinas_vem_da_manutencao(cliente, token_de, qld, sessao):
     sessao.commit()
     r = cliente.get("/api/qld/maquinas", headers=token_de("ALM-0001"))
     assert [m["codigo_tag"] for m in r.json()] == ["TEST-02"]
+
+
+# ---------------------------------------------------------------- notebooks da Rastreabilidade
+
+
+@pytest.fixture
+def producoes(sessao, qld):
+    """Produções na Rastreabilidade: AMT-000031 (nova, Em Teste), AMT-000017 (já tem produto na Qualidade, sem
+    ligação) e AMT-000040 (expedida)."""
+    etapas = {n: Etapa(nome=n, ordem=o) for n, o in ETAPAS_PADRAO}
+    modelo = Modelo(codigo="N18-I7-16-512", nome="AMT N18")
+    sessao.add_all([*etapas.values(), modelo])
+    sessao.commit()
+    criador = qld["u"]["ope"].id
+
+    def nova(serie: str, etapa: str, minutos: int) -> Producao:
+        quando = AGORA - timedelta(minutes=minutos)
+        return Producao(numero_serie=serie, id_unica=f"PRD-{serie}", modelo_id=modelo.id, etapa_id=etapas[etapa].id,
+                        responsavel_id=criador, criado_por_id=criador, iniciada_em=quando, atualizada_em=quando)
+
+    lista = [nova("AMT-000031", "Em Teste", 5), nova("AMT-000017", "Em Teste", 30), nova("AMT-000040", "Expedição", 60)]
+    sessao.add_all(lista)
+    sessao.commit()
+    return {p.numero_serie: p.id for p in lista}
+
+
+def test_lista_de_notebooks_vem_da_rastreabilidade(cliente, token_de, qld, producoes):
+    h = token_de("QUA-0001")
+    r = cliente.get("/api/qld/notebooks", headers=h)
+    assert r.status_code == 200
+    assert [n["numero_serie"] for n in r.json()] == ["AMT-000031", "AMT-000017"]  # expedido fica de fora
+    assert r.json()[0] == {"id": producoes["AMT-000031"], "numero_serie": "AMT-000031", "modelo": "AMT N18", "etapa": "Em Teste"}
+    assert [n["numero_serie"] for n in cliente.get("/api/qld/notebooks", headers=h, params={"busca": "017"}).json()] == ["AMT-000017"]
+
+
+def test_notebook_novo_recebe_ocorrencia_pela_producao(cliente, token_de, qld, producoes, sessao):
+    h = token_de("QUA-0001")
+    r = registrar(cliente, h, qld, produto_id=None, producao_id=producoes["AMT-000031"], situacao_produto="REPROVADO")
+    assert r.status_code == 201, r.text
+    oc = r.json()["ocorrencia"]
+    assert (oc["numero_serie"], oc["modelo"], oc["producao_id"]) == ("AMT-000031", "AMT N18", producoes["AMT-000031"])
+    # A Rastreabilidade foi atualizada pela ligação: nada de "não está em produção".
+    assert r.json()["avisos"][0]["tipo"] == "sucesso"
+    sessao.expire_all()
+    assert sessao.get(Producao, producoes["AMT-000031"]).etapa.nome == "Reprovado"
+
+    # Segunda ocorrência do mesmo notebook reaproveita o mesmo produto.
+    r2 = registrar(cliente, h, qld, produto_id=None, producao_id=producoes["AMT-000031"], situacao_produto="APROVADO")
+    assert r2.json()["ocorrencia"]["produto_id"] == oc["produto_id"]
+    assert len(sessao.scalars(select(Produto).where(Produto.numero_serie == "AMT-000031")).all()) == 1
+
+
+def test_produto_do_historico_e_ligado_sem_duplicar(cliente, token_de, qld, producoes, sessao):
+    r = registrar(cliente, token_de("QUA-0001"), qld, produto_id=None, producao_id=producoes["AMT-000017"])
+    assert r.status_code == 201, r.text
+    assert r.json()["ocorrencia"]["produto_id"] == qld["prod"][0]  # o AMT-000017 que já existia
+    sessao.expire_all()
+    produto = sessao.get(Produto, qld["prod"][0])
+    assert (produto.producao_id, produto.modelo) == (producoes["AMT-000017"], "AMT N18")  # modelo da Rastreabilidade
+
+
+def test_notebook_expedido_e_escolha_obrigatoria(cliente, token_de, qld, producoes):
+    h = token_de("QUA-0001")
+    r = registrar(cliente, h, qld, produto_id=None, producao_id=producoes["AMT-000040"])
+    assert r.status_code == 422 and "expedido" in r.text
+    r = registrar(cliente, h, qld, produto_id=None, producao_id=99999)
+    assert r.status_code == 422 and "Rastreabilidade" in r.text
+    r = registrar(cliente, h, qld, produto_id=None)
+    assert r.status_code == 422 and "Escolha o notebook" in r.text
+
+
+def test_vincular_produtos_por_serie(qld, producoes, sessao):
+    from app.modulos.qualidade import servico
+
+    assert servico.vincular_produtos_por_serie(sessao) == 1  # só o AMT-000017 tem produção
+    assert servico.vincular_produtos_por_serie(sessao) == 0  # de novo: nada a fazer
+    assert sessao.get(Produto, qld["prod"][1]).producao_id is None  # AMT-000018: histórico

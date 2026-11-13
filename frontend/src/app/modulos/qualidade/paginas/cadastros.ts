@@ -17,7 +17,7 @@ const ABAS: { id: Aba; rotulo: string; singular: string }[] = [
 
 /**
  * Cadastros da Qualidade. Nada é apagado: as ocorrências antigas continuam apontando para os itens inativados.
- * Notebooks ficam aqui até o módulo de Rastreabilidade (dono deles) entrar na API única.
+ * Notebooks vêm da Rastreabilidade (dona deles): a aba só lista, sem cadastrar.
  */
 @Component({
   selector: 'am-cadastros-qld',
@@ -42,24 +42,20 @@ const ABAS: { id: Aba; rotulo: string; singular: string }[] = [
       </div>
 
       @if (aba() === 'produtos') {
-        <form class="cartao grade-form" [formGroup]="formProduto" (ngSubmit)="criarProduto()" novalidate>
-          <h2 class="titulo-secao largura-total">Novo notebook</h2>
-          <label class="campo"><span>Número de série</span><input formControlName="numero_serie" placeholder="Ex.: AMT-000031" /></label>
-          <label class="campo"><span>Modelo</span><input formControlName="modelo" placeholder="Ex.: AMT N16" /></label>
-          <div class="largura-total"><button type="submit" class="btn primario" [disabled]="ocupado()">Cadastrar notebook</button></div>
-        </form>
+        <p class="aviso info">Os notebooks vêm da Rastreabilidade: no registro da ocorrência, escolha a produção pelo
+          número de série. Esta lista mostra os notebooks que já tiveram ocorrência e os do histórico do sistema antigo.</p>
         <section class="cartao tabela-rolagem">
           <table class="tabela">
-            <thead><tr><th scope="col">Número de série</th><th scope="col">Modelo</th><th scope="col">Cadastro</th>
-              <th scope="col"><span class="so-leitor">Ações</span></th></tr></thead>
+            <thead><tr><th scope="col">Número de série</th><th scope="col">Modelo</th><th scope="col">Origem</th></tr></thead>
             <tbody>
               @for (p of produtos(); track p.id) {
-                <tr [class.inativo]="!p.ativo">
+                <tr>
                   <td class="codigo">{{ p.numero_serie }}</td><td>{{ p.modelo }}</td>
-                  <td><am-etiqueta [texto]="p.ativo ? 'Ativo' : 'Inativo'" [tom]="p.ativo ? 'ok' : 'neutro'" /></td>
-                  <td><button type="button" class="btn pequeno" [class.perigo]="p.ativo" [disabled]="ocupado()" (click)="alternarProduto(p)">
-                    {{ p.ativo ? 'Inativar' : 'Reativar' }}</button></td>
+                  <td><am-etiqueta [texto]="p.producao_id ? 'Produção da Rastreabilidade' : 'Histórico, sem produção'"
+                                   [tom]="p.producao_id ? 'ok' : 'neutro'" /></td>
                 </tr>
+              } @empty {
+                <tr><td colspan="3" class="legenda">Nenhum notebook com ocorrência ainda.</td></tr>
               }
             </tbody>
           </table>
@@ -114,10 +110,6 @@ export class CadastrosQld implements OnInit {
   protected readonly erro = signal<string | null>(null);
   protected readonly sucesso = signal<string | null>(null);
 
-  protected readonly formProduto = this.fb.group({
-    numero_serie: ['', [Validators.required, Validators.maxLength(30)]],
-    modelo: ['', [Validators.required, Validators.maxLength(50)]],
-  });
   protected readonly formItem = this.fb.group({
     nome: ['', [Validators.required, Validators.maxLength(60)]],
     descricao: ['', Validators.maxLength(200)],
@@ -134,14 +126,6 @@ export class CadastrosQld implements OnInit {
     void this.carregar();
   }
 
-  protected criarProduto(): Promise<void> {
-    if (this.formProduto.invalid) return this.invalido(this.formProduto, 'Preencha número de série e modelo.');
-    return this.executar(this.qld.criarProduto(this.formProduto.getRawValue()), (p) => {
-      this.formProduto.reset();
-      return `Notebook ${p.numero_serie} cadastrado.`;
-    });
-  }
-
   protected criarItem(): Promise<void> {
     const tipo = this.aba() as TipoItem;
     if (this.formItem.invalid) return this.invalido(this.formItem, 'Preencha o nome.');
@@ -150,12 +134,6 @@ export class CadastrosQld implements OnInit {
       this.formItem.reset();
       return `${this.singular()} "${i.nome}" cadastrado(a).`;
     });
-  }
-
-  protected alternarProduto(p: Produto): Promise<void> {
-    return this.executar(this.qld.alterarProduto(p.id, { ativo: !p.ativo }), (r) =>
-      `Notebook ${r.numero_serie} ${r.ativo ? 'reativado' : 'inativado'}.`,
-    );
   }
 
   protected alternarItem(i: ItemCadastro): Promise<void> {

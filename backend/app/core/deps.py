@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.db import obter_sessao
 from app.core.rbac import Modulo, Perfil, tem_acesso
 from app.core.seguranca import decodificar_token
+from app.modulos.auditoria.registro import definir_usuario
 from app.modulos.usuarios.modelos import Usuario
 
 _bearer = HTTPBearer(auto_error=False)
@@ -36,6 +37,8 @@ def usuario_atual(
     # Conta desativada depois do login perde o acesso na hora, mesmo com token válido.
     if usuario is None or not usuario.ativo:
         raise nao_autorizado
+    # A mesma sessão serve a rota: o que ela gravar fica na auditoria em nome desta pessoa.
+    definir_usuario(sessao, usuario)
     return usuario
 
 

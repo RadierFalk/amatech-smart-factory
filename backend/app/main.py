@@ -11,6 +11,8 @@ from sqlalchemy import text
 from app.core.config import obter_configuracao
 from app.core.db import engine
 from app.core.erros import ErroNegocio
+from app.modulos.alertas.rotas import rotas as rotas_alertas
+from app.modulos.auditoria.rotas import rotas as rotas_auditoria
 from app.modulos.dashboard.rotas import rotas as rotas_dashboard
 from app.modulos.manutencao.rotas import rotas as rotas_manutencao
 from app.modulos.qualidade.rotas import rotas as rotas_qualidade
@@ -56,3 +58,5 @@ app.include_router(rotas_qualidade)
 app.include_router(rotas_maquinas)  # antes de rotas_rastreabilidade: não exige login
 app.include_router(rotas_rastreabilidade)
 app.include_router(rotas_dashboard)
+app.include_router(rotas_auditoria)
+app.include_router(rotas_alertas)

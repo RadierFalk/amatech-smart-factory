@@ -7,8 +7,8 @@ from app.core.seguranca import criar_token, decodificar_token, gerar_hash, verif
 
 # Mesma matriz do README / portal/permissoes.py
 MATRIZ_ESPERADA = {
-    Perfil.ADMINISTRADOR: {"RAS", "QLD", "MNT", "DSH", "USR"},
-    Perfil.SUPERVISOR: {"RAS", "QLD", "MNT", "DSH"},
+    Perfil.ADMINISTRADOR: {"RAS", "QLD", "MNT", "DSH", "USR", "AUD"},
+    Perfil.SUPERVISOR: {"RAS", "QLD", "MNT", "DSH", "AUD"},
     Perfil.OPERADOR: {"RAS", "QLD", "MNT", "DSH"},
     Perfil.INSPETOR: {"RAS", "QLD", "DSH"},
     Perfil.TECNICO: {"MNT", "DSH"},
