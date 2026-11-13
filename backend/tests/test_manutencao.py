@@ -168,10 +168,12 @@ def test_personas_sem_acesso_ao_modulo(cliente, fabrica, token_de, matricula):
 def test_matriz_de_acoes_por_persona(cliente, fabrica, token_de):
     ope, tec, ges = token_de("OPE-0001"), token_de("TEC-2001"), token_de("GES-0001")
 
-    # Técnico e Supervisor não abrem chamado corretivo; Operador sim
-    assert abrir(cliente, tec, fabrica["smt"]).status_code == 403
-    assert abrir(cliente, ges, fabrica["smt"]).status_code == 403
+    # Todos os perfis operacionais da manutenção podem registrar uma falha.
     os_id = abrir(cliente, ope, fabrica["smt"]).json()["id"]
+    assert abrir(cliente, tec, fabrica["test"]).status_code == 201
+    assert abrir(cliente, ges, fabrica["qc"]).status_code == 201
+    # A restrição de uma OS ativa por máquina continua valendo.
+    assert abrir(cliente, tec, fabrica["smt"]).status_code == 409
 
     # Operador e Supervisor não assumem nem veem... a fila (Supervisor vê)
     assert cliente.post(f"/api/mnt/chamados/{os_id}/assumir", headers=ope).status_code == 403
@@ -198,7 +200,7 @@ def test_opcoes_informam_permissoes_da_persona(cliente, fabrica, token_de):
     p_tec = cliente.get("/api/mnt/opcoes", headers=token_de("TEC-2001")).json()["permissoes"]
     p_adm = cliente.get("/api/mnt/opcoes", headers=token_de("ADM-0001")).json()["permissoes"]
     assert p_ope == {"abrir_chamado": True, "atender": False, "concluir_qualquer": False, "cancelar": False, "cadastros": False, "indicadores": False}
-    assert p_tec["atender"] and not p_tec["abrir_chamado"]
+    assert p_tec["atender"] and p_tec["abrir_chamado"]
     assert all(p_adm.values())
 
 
