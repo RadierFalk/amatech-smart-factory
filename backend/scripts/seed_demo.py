@@ -14,7 +14,9 @@ from app.core.config import obter_configuracao
 from app.core.db import SessaoLocal
 from app.core.rbac import Perfil
 from app.core.seguranca import gerar_hash
+from app.modulos.auditoria import registro as auditoria
 from app.modulos.manutencao.modelos import Equipamento, Peca
+from app.modulos.qualidade import servico as servico_qld
 from app.modulos.qualidade.modelos import Estacao, Produto, TipoDefeito
 from app.modulos.usuarios.modelos import Usuario
 from scripts import demo_dashboard, demo_eventos, demo_rastreabilidade
@@ -79,6 +81,7 @@ def _vazia(sessao: Session, modelo) -> bool:
 
 def popular(sessao: Session) -> list[str]:
     """Povoa as tabelas vazias e devolve o que foi feito (uma linha por tabela)."""
+    auditoria.desligar(sessao)  # dados de demonstração não entram na trilha
     feito = []
     if _vazia(sessao, Usuario):
         hash_demo = gerar_hash(SENHA_DEMO)
@@ -115,6 +118,9 @@ def popular(sessao: Session) -> list[str]:
             "inspetor": pessoas["QUA-0001"], "almoxarife": pessoas["ALM-0001"],
         })
     sessao.flush()
+    ligados = servico_qld.vincular_produtos_por_serie(sessao)
+    if ligados:
+        feito.append(f"qld.produtos: {ligados} notebooks ligados às produções da Rastreabilidade")
     feito += demo_dashboard.popular(sessao, pessoas.get("GES-0001"))
     sessao.flush()
     feito += demo_eventos.popular(sessao, pessoas)

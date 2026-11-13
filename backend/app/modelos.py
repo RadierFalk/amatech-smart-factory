@@ -2,6 +2,9 @@
 
 Usado pelo Alembic e pelos testes. Ao criar os modelos de um módulo novo, importe-os aqui.
 """
+from app.modulos.alertas.modelos import Alerta, AlertaLido
+from app.modulos.auditoria import registro as _registro_auditoria  # noqa: F401 - liga a auditoria nos flushes
+from app.modulos.auditoria.modelos import RegistroAuditoria
 from app.modulos.dashboard.modelos import Limite, Meta, Perda, TipoPerda, Turno
 from app.modulos.manutencao.modelos import Chamado, ChamadoPeca, Equipamento, HistoricoStatus, Peca
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
@@ -16,4 +19,5 @@ __all__ = [
     "Baixa", "Componente", "Etapa", "Modelo", "ModeloComponente", "NaoConformidade", "Passagem", "Producao",
     "Solicitacao",
     "Limite", "Meta", "Perda", "TipoPerda", "Turno",
+    "RegistroAuditoria", "Alerta", "AlertaLido",
 ]

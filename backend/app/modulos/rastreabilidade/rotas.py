@@ -24,6 +24,7 @@ from sqlalchemy import select
 from app.core.config import obter_configuracao
 from app.core.deps import SessaoDep, UsuarioAtual, exigir_modulo, exigir_perfis
 from app.core.rbac import Modulo, Perfil, tem_acesso
+from app.modulos.auditoria.registro import definir_usuario
 from app.modulos.rastreabilidade import cadastros, materiais, producao, relatorios
 from app.modulos.rastreabilidade.constantes import ESTOQUE_CRITICO, StatusSolicitacao
 from app.modulos.rastreabilidade.esquemas import (
@@ -289,6 +290,7 @@ def status_por_maquina(dados: MaquinaStatus, sessao: SessaoDep, x_api_key: str |
     if servico is None:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR,
                             f"Usuário de serviço {cfg.matricula_servico} não cadastrado (rode o seed_demo ou a migração).")
+    definir_usuario(sessao, servico)  # auditoria em nome da conta de serviço
     p, alterado = producao.atualizar_por_maquina(
         sessao, servico, numero_serie=dados.numero_serie, etapa_nome=dados.etapa, maquina=dados.maquina
     )

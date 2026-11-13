@@ -8,7 +8,10 @@ as mesmas permissões do Inspetor, porque o GES-0001 era Administrador no banco 
 | Painel, histórico, consulta                             | todas com acesso ao módulo (rbac.py)             |
 | Registrar e editar ocorrência, abrir chamado na MNT     | Operador, Inspetor, Supervisor, Administrador    |
 | Ocultar ocorrência                                      | Inspetor, Supervisor, Administrador              |
-| Cadastros (produtos, estações, tipos de defeito)        | Supervisor, Administrador                        |
+| Cadastros (estações, tipos de defeito)                  | Supervisor, Administrador                        |
+
+Notebooks: vêm da Rastreabilidade (GET /notebooks). A lista de produtos (GET /produtos) é só consulta: os espelhos
+das produções e o histórico do sistema antigo.
 """
 from datetime import date
 
@@ -31,13 +34,12 @@ from app.modulos.qualidade.esquemas import (
     ItemCriar,
     ItemSaida,
     MaquinaSaida,
+    NotebookSaida,
     OcorrenciaEntrada,
     OcorrenciaRegistrar,
     OcorrenciaSaida,
     OpcoesSaida,
     PermissoesQld,
-    ProdutoAlterar,
-    ProdutoCriar,
     ProdutoSaida,
     RegistroSaida,
 )
@@ -89,19 +91,16 @@ def maquinas(sessao: SessaoDep):
 # ---------------------------------------------------------------- cadastros
 
 
+@rotas.get("/notebooks", response_model=list[NotebookSaida])
+def listar_notebooks(sessao: SessaoDep, busca: str | None = None, limite: int = Query(50, ge=1, le=200)):
+    """Produções da Rastreabilidade ainda não expedidas, para escolher o notebook da ocorrência."""
+    return [NotebookSaida.de(p) for p in servico.listar_notebooks(sessao, busca, limite)]
+
+
 @rotas.get("/produtos", response_model=list[ProdutoSaida])
 def listar_produtos(sessao: SessaoDep, incluir_inativos: bool = False):
+    """Notebooks que já têm ocorrência (espelhos das produções) e os do histórico. Só consulta."""
     return [ProdutoSaida.de(p) for p in servico.listar_cadastro(sessao, "produto", incluir_inativos)]
-
-
-@rotas.post("/produtos", response_model=ProdutoSaida, status_code=status.HTTP_201_CREATED, dependencies=[_pode(*CADASTROS)])
-def criar_produto(dados: ProdutoCriar, sessao: SessaoDep):
-    return ProdutoSaida.de(servico.criar_cadastro(sessao, "produto", **dados.model_dump()))
-
-
-@rotas.patch("/produtos/{item_id}", response_model=ProdutoSaida, dependencies=[_pode(*CADASTROS)])
-def alterar_produto(item_id: int, dados: ProdutoAlterar, sessao: SessaoDep):
-    return ProdutoSaida.de(servico.alterar_cadastro(sessao, "produto", item_id, **dados.model_dump(exclude_unset=True)))
 
 
 @rotas.get("/estacoes", response_model=list[ItemSaida])

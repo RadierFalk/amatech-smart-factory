@@ -3,8 +3,11 @@
 Regras:
 - O responsável pela ocorrência é sempre quem a registrou (o usuário logado); editar não troca o responsável.
 - Ocorrência não é apagada: é ocultada e some das listas e dos indicadores.
+- O notebook é escolhido entre as produções da Rastreabilidade ainda não expedidas (`producao_id`). O produto da
+  Qualidade é o espelho dessa produção, criado ou ligado na primeira ocorrência. `produto_id` direto só vale para
+  os notebooks do histórico, sem produção.
 - Produto, estação, tipo de defeito e máquina precisam existir e estar ativos para um registro novo.
-- O resultado vai para a Rastreabilidade (etapa do notebook com o mesmo número de série).
+- O resultado vai para a Rastreabilidade (etapa da produção ligada ao produto).
 - Defeito causado pela máquina abre chamado na Manutenção (prioridade pela classificação). Se a Manutenção
   recusar (ex.: a máquina já tem OS ativa, RN02), a ocorrência é gravada assim mesmo e a recusa vira aviso.
 - Datas: gravadas em UTC; filtros por dia usam o dia da fábrica (Manaus).
@@ -32,6 +35,8 @@ from app.modulos.qualidade.constantes import (
 )
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
 from app.modulos.rastreabilidade import producao as servico_ras
+from app.modulos.rastreabilidade.constantes import ETAPA_FINAL
+from app.modulos.rastreabilidade.modelos import Etapa, Producao
 from app.modulos.usuarios.modelos import Usuario
 
 # ---------------------------------------------------------------- cadastros (produtos, estações, tipos)
@@ -97,6 +102,52 @@ def listar_maquinas(sessao: Session) -> list[Equipamento]:
     return list(sessao.scalars(select(Equipamento).where(Equipamento.ativo.is_(True)).order_by(Equipamento.codigo_tag)))
 
 
+# ---------------------------------------------------------------- notebooks (produções da Rastreabilidade)
+
+
+def listar_notebooks(sessao: Session, busca: str | None = None, limite: int = 50) -> list[Producao]:
+    """Produções ainda não expedidas, as mexidas por último primeiro (a Qualidade não acessa /api/ras)."""
+    consulta = select(Producao).join(Producao.etapa).where(Etapa.nome != ETAPA_FINAL)
+    termo = (busca or "").strip()
+    if termo:
+        consulta = consulta.where(Producao.numero_serie.ilike(f"%{termo}%"))
+    return list(sessao.scalars(consulta.order_by(Producao.atualizada_em.desc(), Producao.id.desc()).limit(limite)))
+
+
+def produto_da_producao(sessao: Session, producao_id: int) -> Produto:
+    """O produto da Qualidade que espelha a produção: o já ligado, o do histórico com o mesmo número de série
+    (passa a ser ligado) ou um novo. O modelo é sempre o da Rastreabilidade."""
+    producao = sessao.get(Producao, producao_id)
+    if producao is None:
+        raise ErroNegocio("Notebook não encontrado na Rastreabilidade.", status=422)
+    produto = sessao.scalar(select(Produto).where(Produto.producao_id == producao.id))
+    if produto is None:
+        serie = producao.numero_serie.upper()
+        produto = sessao.scalar(select(Produto).where(Produto.numero_serie == serie, Produto.producao_id.is_(None)))
+        if produto is None:
+            produto = Produto(numero_serie=serie, modelo=producao.modelo.nome)
+            sessao.add(produto)
+        produto.producao_id = producao.id
+        produto.ativo = True
+    produto.modelo = producao.modelo.nome
+    sessao.flush()
+    return produto
+
+
+def vincular_produtos_por_serie(sessao: Session) -> int:
+    """Liga os produtos sem produção às produções de mesmo número de série (usado pela migração e pela
+    demonstração). Devolve quantos foram ligados."""
+    producoes = {p.numero_serie.upper(): p for p in sessao.scalars(select(Producao))}
+    ligados = 0
+    for produto in sessao.scalars(select(Produto).where(Produto.producao_id.is_(None))):
+        producao = producoes.get(produto.numero_serie)
+        if producao is not None:
+            produto.producao_id, produto.modelo = producao.id, producao.modelo.nome
+            ligados += 1
+    sessao.flush()
+    return ligados
+
+
 # ---------------------------------------------------------------- ocorrências
 
 
@@ -108,10 +159,11 @@ class DadosOcorrencia:
     status: StatusOcorrencia
     observacao: str
     acao_realizada: str
-    produto_id: int
     estacao_id: int
     tipo_defeito_id: int
     equipamento_id: int
+    producao_id: int | None = None  # notebook da Rastreabilidade (o normal)
+    produto_id: int | None = None  # só para notebooks do histórico, sem produção
 
 
 @dataclass
@@ -135,6 +187,16 @@ def _validar(sessao: Session, dados: DadosOcorrencia, *, atual: Ocorrencia | Non
         novo = getattr(dados, campo)
         _referencia(sessao, modelo, novo, nome, exigir_ativo=atual is None or getattr(atual, campo) != novo)
 
+    if dados.producao_id is not None:
+        if atual is not None and atual.produto.producao_id == dados.producao_id:
+            dados.produto_id = atual.produto_id  # o mesmo notebook (pode já ter sido expedido)
+        else:
+            producao = sessao.get(Producao, dados.producao_id)
+            if producao is not None and producao.etapa.nome == ETAPA_FINAL:
+                raise ErroNegocio(f"O notebook {producao.numero_serie} já foi expedido.", status=422)
+            dados.produto_id = produto_da_producao(sessao, dados.producao_id).id
+    elif dados.produto_id is None:
+        raise ErroNegocio("Escolha o notebook.", status=422)
     exigir(Produto, "produto_id", "Produto")
     exigir(Estacao, "estacao_id", "Estação")
     exigir(TipoDefeito, "tipo_defeito_id", "Tipo de defeito")
@@ -210,12 +272,14 @@ def informar_rastreabilidade(sessao: Session, oc: Ocorrencia, executor: Usuario)
     Aprovado -> Aprovado, se ainda não passou dessa etapa. Num savepoint: se a RAS recusar, vira aviso.
     """
     classificacao = ROTULOS_CLASSIFICACAO[Classificacao(oc.classificacao)]
+    # Pela ligação com a produção; notebook do histórico (sem produção) ainda tenta pelo número de série.
+    serie = oc.produto.producao.numero_serie if oc.produto.producao is not None else oc.produto.numero_serie
     try:
         with sessao.begin_nested():
             r = servico_ras.aplicar_inspecao(
                 sessao,
                 executor,
-                numero_serie=oc.produto.numero_serie,
+                numero_serie=serie,
                 situacao=oc.situacao_produto,
                 descricao_falha=oc.observacao,
                 motivo_reprovacao=f"{oc.tipo_defeito.nome} ({classificacao})",

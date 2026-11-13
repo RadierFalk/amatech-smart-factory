@@ -9,6 +9,7 @@ from app.modulos.manutencao.modelos import Chamado, Equipamento
 from app.modulos.qualidade.constantes import Classificacao, SituacaoProduto, StatusOcorrencia
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
 from app.modulos.qualidade.servico import Aviso, DadosOcorrencia
+from app.modulos.rastreabilidade.modelos import Producao
 
 # ---------------------------------------------------------------- entrada
 
@@ -20,7 +21,8 @@ class OcorrenciaEntrada(BaseModel):
     status: StatusOcorrencia = StatusOcorrencia.ABERTA
     observacao: str = Field(min_length=1, max_length=2000)
     acao_realizada: str = Field(min_length=1, max_length=2000)
-    produto_id: int
+    producao_id: int | None = Field(None, description="Notebook: produção da Rastreabilidade (GET /api/qld/notebooks)")
+    produto_id: int | None = Field(None, description="Só para notebooks do histórico, sem produção na Rastreabilidade")
     estacao_id: int
     tipo_defeito_id: int
     equipamento_id: int
@@ -31,16 +33,6 @@ class OcorrenciaEntrada(BaseModel):
 
 class OcorrenciaRegistrar(OcorrenciaEntrada):
     abrir_chamado: bool = Field(False, description="Defeito causado pela máquina: abre chamado na Manutenção")
-
-
-class ProdutoCriar(BaseModel):
-    numero_serie: str = Field(min_length=1, max_length=30)
-    modelo: str = Field(min_length=1, max_length=50)
-
-
-class ProdutoAlterar(BaseModel):
-    modelo: str | None = Field(None, min_length=1, max_length=50)
-    ativo: bool | None = None
 
 
 class ItemCriar(BaseModel):
@@ -64,10 +56,24 @@ class ProdutoSaida(BaseModel):
     numero_serie: str
     modelo: str
     ativo: bool
+    producao_id: int | None = Field(description="Produção da Rastreabilidade; vazio = notebook do histórico")
 
     @classmethod
     def de(cls, p: Produto) -> "ProdutoSaida":
-        return cls(id=p.id, numero_serie=p.numero_serie, modelo=p.modelo, ativo=p.ativo)
+        return cls(id=p.id, numero_serie=p.numero_serie, modelo=p.modelo, ativo=p.ativo, producao_id=p.producao_id)
+
+
+class NotebookSaida(BaseModel):
+    """Produção da Rastreabilidade que pode receber ocorrência."""
+
+    id: int = Field(description="producao_id")
+    numero_serie: str
+    modelo: str
+    etapa: str
+
+    @classmethod
+    def de(cls, p: Producao) -> "NotebookSaida":
+        return cls(id=p.id, numero_serie=p.numero_serie, modelo=p.modelo.nome, etapa=p.etapa.nome)
 
 
 class ItemSaida(BaseModel):
@@ -102,6 +108,7 @@ class OcorrenciaSaida(BaseModel):
     observacao: str
     acao_realizada: str
     produto_id: int
+    producao_id: int | None = Field(description="Produção da Rastreabilidade; vazio = notebook do histórico")
     numero_serie: str
     modelo: str
     estacao_id: int
@@ -127,6 +134,7 @@ class OcorrenciaSaida(BaseModel):
             observacao=o.observacao,
             acao_realizada=o.acao_realizada,
             produto_id=o.produto_id,
+            producao_id=o.produto.producao_id,
             numero_serie=o.produto.numero_serie,
             modelo=o.produto.modelo,
             estacao_id=o.estacao_id,

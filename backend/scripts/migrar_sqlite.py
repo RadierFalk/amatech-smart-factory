@@ -45,6 +45,8 @@ from app.core.tempo import FUSO_FABRICA
 from app.modulos.manutencao.constantes import STATUS_ATIVOS, StatusChamado
 from app.modulos.dashboard.modelos import Limite, Meta, Perda, TipoPerda, Turno
 from app.modulos.manutencao.modelos import Chamado, ChamadoPeca, Equipamento, HistoricoStatus, Peca
+from app.modulos.auditoria import registro as auditoria
+from app.modulos.qualidade import servico as servico_qld
 from app.modulos.qualidade.constantes import LEGADO_CLASSIFICACAO, LEGADO_SITUACAO, LEGADO_STATUS
 from app.modulos.qualidade.modelos import Estacao, Ocorrencia, Produto, TipoDefeito
 from app.modulos.rastreabilidade.modelos import (
@@ -856,6 +858,7 @@ def migrar(sessao: Session, caminhos: dict[str, Path], rel: Relatorio,
            equivalencias: dict[str, str] | None = None) -> None:
     """Executa a migração inteira na sessão recebida, sem commit."""
     conexoes: dict[str, sqlite3.Connection] = {}
+    auditoria.desligar(sessao)  # a carga dos bancos antigos não entra na trilha
     try:
         for origem, caminho in caminhos.items():
             if caminho and Path(caminho).is_file():
@@ -870,6 +873,11 @@ def migrar(sessao: Session, caminhos: dict[str, Path], rel: Relatorio,
             migrar_qld(sessao, conexoes["qld"], mapa, rel)
         if "ras" in conexoes:
             migrar_ras(sessao, conexoes["ras"], mapa, rel)
+        sessao.flush()
+        # Notebooks da Qualidade ligados às produções da Rastreabilidade pelo número de série.
+        ligados = servico_qld.vincular_produtos_por_serie(sessao)
+        if ligados:
+            rel.gravadas["qld.produtos ligados à produção"] = ligados
         if "dsh" in conexoes:
             sessao.flush()  # modelos (RAS) e estações (QLD) precisam estar visíveis para mapear os nomes
             migrar_dsh(sessao, conexoes["dsh"], mapa, rel)

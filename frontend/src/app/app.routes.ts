@@ -27,6 +27,12 @@ export const routes: Routes = [
         loadComponent: () => import('./modulos/usuarios/usuarios').then((m) => m.Usuarios),
       },
       {
+        path: 'auditoria',
+        title: 'Auditoria · ERP AMATECH',
+        canMatch: [moduloGuard('auditoria')],
+        loadComponent: () => import('./modulos/auditoria/auditoria').then((m) => m.Auditoria),
+      },
+      {
         path: 'rastreabilidade',
         title: 'Rastreabilidade · ERP AMATECH',
         canMatch: [moduloGuard('rastreabilidade')],

@@ -11,7 +11,7 @@ export const PERFIS = [
 
 export type Perfil = (typeof PERFIS)[number];
 
-export type IdModulo = 'rastreabilidade' | 'qualidade' | 'manutencao' | 'dashboard' | 'usuarios';
+export type IdModulo = 'rastreabilidade' | 'qualidade' | 'manutencao' | 'dashboard' | 'usuarios' | 'auditoria';
 
 export interface Usuario {
   id: number;
