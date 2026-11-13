@@ -1,8 +1,12 @@
 version: "3.7"
 
 ## ================================================================== ##
-## AMATECH Smart Factory - Stack Docker Swarm / Portainer             ##
+## AMATECH Smart Factory - Stack Docker Swarm / Portainer (LEGADO)    ##
 ## ================================================================== ##
+##
+##   SISTEMA ANTIGO (Streamlit). A produção agora é o ERP novo: docker-compose.yml (guia SERVIDOR_ERP.md).
+##   Este arquivo fica só para voltar atrás na virada e como referência dos volumes amatech_dados-*, de onde a
+##   migração lê os dados antigos. Não suba os dois no mesmo domínio ao mesmo tempo: as rotas se sobrepõem.
 ##
 ##   Roteamento via Traefik (VandreNet):
 ##     https://${AMATECH_HOST:-amatech.automakad.com.br}/                  -> redireciona para /portal/
@@ -16,7 +20,8 @@ version: "3.7"
 ##   Imagem GHCR:  ghcr.io/radierfalk/amatech-smart-factory:latest
 ##
 ##   Só funciona em modo Swarm (as regras do Traefik ficam em deploy.labels e nenhuma porta é publicada).
-##   Subir:  set -a; . ./.env; set +a; docker stack deploy -c docker-compose.yml amatech   (guia: SERVIDOR.md)
+##   Voltar para ele:  set -a; . ./.env; set +a; docker stack deploy --prune -c docker-compose.legado.yml amatech
+##   (guia: SERVIDOR.md)
 ##
 ##   Chaves (X-API-Key): entre contêineres, não são necessárias; quem chega pelo Traefik precisa delas.
 ##   Troque as chaves de demonstração no .env (ou nas variáveis da stack no Portainer).

@@ -1,4 +1,8 @@
-# Servidor da AMATECH Smart Factory (Docker Swarm + Traefik)
+# Servidor da AMATECH Smart Factory (Docker Swarm + Traefik) · sistema antigo
+
+> **Legado.** A produção agora é o ERP novo (API única + Angular + PostgreSQL): `docker-compose.yml`, guia
+> [SERVIDOR_ERP.md](SERVIDOR_ERP.md). Este guia e o `docker-compose.legado.yml` ficam para voltar atrás na virada
+> (SERVIDOR_ERP.md, seção 5) e como referência dos volumes `amatech_dados-*`, de onde a migração lê os dados antigos.
 
 Este guia publica os quatro sistemas num servidor com **Docker Swarm** (pela linha de comando ou pelo Portainer),
 atrás do **Traefik**, com **um domínio, HTTPS e uma rota para cada sistema**. Quem acessa o domínio usa as telas pelo
@@ -53,7 +57,7 @@ As rotas `/api/status` (e `/rastreabilidade/api/v1/saude`) não pedem chave: ser
 
 ## 2. Pré-requisitos
 
-O `docker-compose.yml` é uma *stack* do Swarm e depende de uma infraestrutura que já deve existir no servidor:
+O `docker-compose.legado.yml` é uma *stack* do Swarm e depende de uma infraestrutura que já deve existir no servidor:
 
 | Item | Valor esperado |
 | --- | --- |
@@ -75,13 +79,13 @@ git clone https://github.com/RadierFalk/amatech-smart-factory.git
 cd amatech-smart-factory
 cp .env.exemplo .env && nano .env    # domínio e chaves (o .env não vai para o Git)
 set -a; . ./.env; set +a             # o docker stack deploy não lê o .env sozinho
-docker stack deploy -c docker-compose.yml amatech
+docker stack deploy -c docker-compose.legado.yml amatech
 docker stack services amatech        # todos devem chegar a 1/1
 ```
 
 ### Pelo Portainer
 
-*Stacks → Add stack*, cole o `docker-compose.yml` (ou aponte para o repositório) e cadastre as variáveis do
+*Stacks → Add stack*, cole o `docker-compose.legado.yml` (ou aponte para o repositório) e cadastre as variáveis do
 `.env.exemplo` em *Environment variables*.
 
 Na primeira subida, cada sistema cria o seu banco no volume com os dados de demonstração. Teste em

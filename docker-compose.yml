@@ -6,13 +6,17 @@ version: "3.8"
 ##
 ##   https://${ERP_HOST}/        -> erp-web (nginx: telas do Angular)
 ##   https://${ERP_HOST}/api/... -> erp-web repassa para erp-api (FastAPI)
-##   erp-db (PostgreSQL)         -> só na rede interna da stack, sem porta publicada
+##   erp-db (PostgreSQL)         -> só na rede interna, sem porta publicada
 ##   Nomes com prefixo erp-: a erp-web também está na VandreNet, e um "api" de outra stack confundiria o DNS.
 ##
-##   Roda AO LADO da stack antiga (docker-compose.yml, Streamlit) até a virada: outro domínio, outros volumes.
-##   Guia completo (instalar, migrar os dados antigos, cópia de segurança, atualizar): SERVIDOR_ERP.md
+##   Esta é a stack de PRODUÇÃO. O sistema antigo (Streamlit) está em docker-compose.legado.yml, só para voltar atrás.
+##   Guia completo (primeira subida, migração dos dados antigos, cópia de segurança, atualizar): SERVIDOR_ERP.md
 ##
-##   Subir:  set -a; . ./.env; set +a; docker stack deploy -c docker-compose.erp.yml amatech-erp
+##   Subir no lugar da stack antiga (--prune remove os serviços antigos; os volumes amatech_dados-* ficam):
+##     set -a; . ./.env; set +a; docker stack deploy --prune -c docker-compose.yml amatech
+##
+##   O volume do banco e a rede interna têm nome fixo (amatech-erp-postgres, amatech-erp-interna): os comandos de
+##   migração e de cópia de segurança funcionam com qualquer nome de stack.
 ##
 ## ================================================================== ##
 
@@ -82,11 +86,13 @@ services:
 
 volumes:
   erp-postgres:
+    name: amatech-erp-postgres
 
 networks:
   # Rede só desta stack: o banco e a API não ficam visíveis na VandreNet.
-  # attachable: permite rodar o script de migração (docker run --network amatech-erp_interna ...) contra o banco.
+  # attachable: permite rodar o script de migração (docker run --network amatech-erp-interna ...) contra o banco.
   interna:
+    name: amatech-erp-interna
     driver: overlay
     attachable: true
   VandreNet:
